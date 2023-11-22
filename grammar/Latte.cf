@@ -2,19 +2,19 @@
 
 entrypoints Program ;
 
-Program.   Program ::= [TopDef] ;
+Prog.   Program ::= [TopDef] ;
 
 FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
 
 separator nonempty TopDef "" ;
 
-Arg. 	   Arg ::= Type Ident;
+Ar. 	   Arg ::= Type Ident;
 
 separator  Arg "," ;
 
 -- statements ----------------------------------------------
 
-Block.     Block ::= "{" [Stmt] "}" ;
+Blk.       Block ::= "{" [Stmt] "}" ;
 
 separator  Stmt "" ;
 
