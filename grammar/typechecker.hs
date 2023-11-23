@@ -119,7 +119,7 @@ executeRightProgram (Prog pos topDefs) =
         -- printSth envWithFuncDecl
         case Map.lookup "main" envWithFuncDecl of
             Nothing -> throwError $ "No main method defined"
-            _ ->  checkFunction envWithFuncDecl topDefs --return (StringV "OK")
+            _ ->  local (const envWithFuncDecl) (checkFunction topDefs)--checkFunction envWithFuncDecl topDefs --return (StringV "OK")
     
     -- do
         -- lift $ lift $ lift $ print topDefs
@@ -146,7 +146,12 @@ isInt _ = False
 
 getPos (Just pos) = pos
 
-checkFunction envFuncs ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
+-- checkArgs []
+-- checkArgs envLoc (arg: args)
+
+checkFunction [] = printSth "here" >> return (StringV "OK")
+
+checkFunction ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
 
         -- check args
         printSth rettype
@@ -155,17 +160,17 @@ checkFunction envFuncs ((FnDef pos rettype (Ident ident) args stmts) : rest) = d
         then do
             if not (isInt rettype)
             then
-                throwError $ "Main method must return int; row, col: " ++ show pos
+                throwError $ "Main method must return int (row, col): " ++ (show (getPos pos))
             else if (args /= [])
             then
-                throwError $ "Too many arguments in main method; row, col " ++ show pos
+                throwError $ "Too many arguments in main method; row, col " ++ show (getPos pos)
             else
                 checkBody stmts
 
         else
             return VoidV
 
-checkBody _ = return VoidV
+checkBody _ = printSth "there" >>  return VoidV
 
 
 -- findFuncDecl ( _ : rest) = do
