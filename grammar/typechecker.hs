@@ -44,16 +44,17 @@ display_tokens tokens =  do
 
 
 data Value = IntV Int | Success | StringV String | BoolV Bool 
-             | FnDefV [Arg] [Stmt] Env | FnDefRetV [Arg] [Stmt] Env 
+            --  | FnDefV [Arg] [Stmt] Env | FnDefRetV [Arg] [Stmt] Env 
              | DeclGlobV | DeclFInvV | NonInitV | BreakV | ContinueV | VoidV 
+             | FnDecl Type [Arg]
 
 instance Show Value where
     show (IntV v) = show v
     show (StringV v) = show v
     show (BoolV v) = show v
     show Success = "Success"
-    show (FnDefV a b c) = "FnDefV " ++ show a ++ " " ++ show b ++ " " ++ show c
-    show (FnDefRetV a b c) = "FnDefRetV " ++ show a ++ " " ++ show b ++ " " ++ show c
+    -- show (FnDefV a b c) = "FnDefV " ++ show a ++ " " ++ show b ++ " " ++ show c
+    -- show (FnDefRetV a b c) = "FnDefRetV " ++ show a ++ " " ++ show b ++ " " ++ show c
     show DeclGlobV = "DeclGlobV"
     show DeclFInvV = "DeclFInvV"
     show NonInitV = "NonInitV"
@@ -104,15 +105,32 @@ executeProgram program =
 -- executeRightProgram :: Program -> InterpreterMonad Value
 -- executeRightProgram (Program pos topDefs) = do
 --     return VoidV
-executeRightProgram :: Program -> InterpreterMonad Value  -- ? prog?
-executeRightProgram (Prog pos topDefs) = do --return VoidV
-    lift $ lift $ lift $ print topDefs
-    return VoidV
-    -- do
-    -- display_tokens topDefs
--- executeRightProgram (Program pos topDefs) = do
-    -- display_tokens topDefs
-    -- updated_env <- evalTopDef topDefs
+printSth mes = lift $ lift $ lift $ print mes
 
-    -- local (const updated_env) (eval (EApp pos (MIdent "MAIN") [])) 
+executeRightProgram :: Program -> InterpreterMonad Value  -- ? prog?
+executeRightProgram (Prog pos topDefs) = 
+    do
+        envWithFuncDecl <- findFuncDecl topDefs
+
+    
+    -- do
+        -- lift $ lift $ lift $ print topDefs
+        return VoidV
+
+findFuncDecl [] = do
+    curEnv <- ask
+    return curEnv
+
+findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
+    printSth ident
+
+    funDecLoc <- alloc
+    let funDeclData = (FnDecl rettype args)
+    insertToStore funDeclData funDecLoc
+
+    -- findFuncDecl rest
+    local (Map.insert ident funDecLoc) (findFuncDecl rest)
+
+-- findFuncDecl ( _ : rest) = do
+--     findFuncDecl rest
     
