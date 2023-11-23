@@ -12,6 +12,8 @@ import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
 
+mainName = "main"
+
 
 main :: IO () 
 main = do
@@ -117,7 +119,7 @@ executeRightProgram (Prog pos topDefs) =
         -- printSth envWithFuncDecl
         case Map.lookup "main" envWithFuncDecl of
             Nothing -> throwError $ "No main method defined"
-            _ ->  return (StringV "OK")
+            _ ->  checkFunction envWithFuncDecl topDefs --return (StringV "OK")
     
     -- do
         -- lift $ lift $ lift $ print topDefs
@@ -129,13 +131,42 @@ findFuncDecl [] = do
 
 findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
     printSth ident
-
+    
     funDecLoc <- alloc
     let funDeclData = (FnDecl rettype args)
     insertToStore funDeclData funDecLoc
 
     -- findFuncDecl rest
     local (Map.insert ident funDecLoc) (findFuncDecl rest)
+
+-- checkFunction :: 
+--checkFunction envFuncs ((FnDef pos (Latte.Abs.Type' posT) (Ident ident) args stmts) : rest) = do
+isInt (Int a) = True
+isInt _ = False
+
+getPos (Just pos) = pos
+
+checkFunction envFuncs ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
+
+        -- check args
+        printSth rettype
+        --print pos
+        if (ident == mainName)
+        then do
+            if not (isInt rettype)
+            then
+                throwError $ "Main method must return int; row, col: " ++ show pos
+            else if (args /= [])
+            then
+                throwError $ "Too many arguments in main method; row, col " ++ show pos
+            else
+                checkBody stmts
+
+        else
+            return VoidV
+
+checkBody _ = return VoidV
+
 
 -- findFuncDecl ( _ : rest) = do
 --     findFuncDecl rest
