@@ -48,7 +48,7 @@ display_tokens tokens =  do
 data Value = IntV Int | Success | StringV String | BoolV Bool 
             --  | FnDefV [Arg] [Stmt] Env | FnDefRetV [Arg] [Stmt] Env 
              | DeclGlobV | DeclFInvV | NonInitV | BreakV | ContinueV | VoidV 
-             | FnDecl Type [Arg]
+             | FnDecl Type [Arg] | TypeV Type
 
 instance Show Value where
     show (IntV v) = show v
@@ -148,6 +148,18 @@ getPos (Just pos) = pos
 
 -- checkArgs []
 -- checkArgs envLoc (arg: args)
+checkArgs [] = do
+    curEnv <- ask
+    return curEnv
+
+checkArgs ((Ar pos argType (Ident argName)): args) = do
+    locFound <- asks (Map.lookup argName)
+    case locFound of
+        Just _ -> throwError $ "Multiple entity declaration in arguments (row, col): " ++ show (getPos pos)
+        Nothing -> do
+            typeLoc <- alloc
+            insertToStore (TypeV argType) typeLoc
+            local (Map.insert argName typeLoc) (checkArgs args)
 
 checkFunction [] = printSth "here" >> return (StringV "OK")
 
@@ -168,6 +180,9 @@ checkFunction ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
                 checkBody stmts
 
         else
+            do
+            envWithParams <- checkArgs args
+            printSth envWithParams
             return VoidV
 
 checkBody _ = printSth "there" >>  return VoidV
