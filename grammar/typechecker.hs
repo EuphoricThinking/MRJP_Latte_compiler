@@ -112,10 +112,16 @@ executeRightProgram (Prog pos topDefs) =
     do
         envWithFuncDecl <- findFuncDecl topDefs
 
+        -- mainFound <- Map.lookup "main" envWithFuncDecl
+
+        -- printSth envWithFuncDecl
+        case Map.lookup "main" envWithFuncDecl of
+            Nothing -> throwError $ "No main method defined"
+            _ ->  return (StringV "OK")
     
     -- do
         -- lift $ lift $ lift $ print topDefs
-        return VoidV
+        -- return VoidV
 
 findFuncDecl [] = do
     curEnv <- ask
