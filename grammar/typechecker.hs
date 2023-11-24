@@ -419,7 +419,8 @@ getExprType (ERel pos expr1 operand expr2) = do
                 else
                     throwError $ "Value type not supported in logical comparison" ++ (writePos pos)
 
-
+getExprType (EAnd pos expr1 expr2) = checkAndOr pos expr1 expr2
+getExprType (EOr pos expr1 expr2) = checkAndOr pos expr1 expr2
 
 -- getEpr of EApp - check if arguments are correct
     -- check if the function exists
