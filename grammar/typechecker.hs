@@ -44,11 +44,12 @@ display_tokens tokens =  do
     parsed = pProgram tokens in
       print parsed
 
+data TypeV = IntT | StringT | BoolT | VoidT | FunT deriving (Show, Eq)
 
 data Value = IntV Int | Success | StringV String | BoolV Bool 
             --  | FnDefV [Arg] [Stmt] Env | FnDefRetV [Arg] [Stmt] Env 
              | DeclGlobV | DeclFInvV | NonInitV | BreakV | ContinueV | VoidV 
-             | FnDecl Type [Arg] | TypeV Type
+             | FnDecl Type [Arg] | TypeV --Type
 
 instance Show Value where
     show (IntV v) = show v
@@ -190,6 +191,25 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             local (const envWithParams) (checkBody stmts)
 
 -- get Expr Type
+
+-- modify store, in function: ret lists [retIf, ertElse, ret]
+-- in if add field list of if, in else - else; nested if - add a list; remove after leaving if or else
+    -- in the end of functo [] check return number and if void
+        -- check return type na on the go
+        -- stack
+        --- check func arguments, check if function is declared in expressions
+
+-- get type of a variable (x, a, b)
+getExprType (EVar pos (Ident name)) = do
+    typeLoc <- asks (Map.lookup name)
+    case typeLoc of
+        Nothing -> throwError $ "Unknown variable " ++ show name ++ " (row, col): " ++ show (getPos pos)
+        Just loc -> do
+            val <- gets (Map.lookup loc . store)
+            return val
+
+getExprType (ELitInt pos intVal) = return (TypeV IntT)
+
 checkDecl _ [] = do
     curEnv <- ask
     return curEnv
@@ -201,7 +221,7 @@ checkDecl vartype ((NoInit posIn (Ident ident)) : rest) = do
         Nothing -> do
             decVarLoc <- alloc
             insertToStore (TypeV vartype) decVarLoc
-            local (Map.insert Ident decVarLoc) (checkDecl rest)
+            local (Map.insert Ident decVarLoc) (checkDecl vartype rest)
 
 checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
     foundVar <- asks (Map.lookup ident)
@@ -210,7 +230,10 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
         Nothing -> do
             decVarLoc <- alloc
             insertToStore (TypeV vartype) decVarLoc
-            local (Map.insert Ident decVarLoc) (checkDecl rest)
+            -- check if expression type is correct
+            exprType <- getExprType expr
+
+            local (Map.insert Ident decVarLoc) (checkDecl vartype rest)
 
 checkBody [] = return (StringV "OK")
 
