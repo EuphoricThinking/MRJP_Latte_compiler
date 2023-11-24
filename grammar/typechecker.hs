@@ -413,9 +413,9 @@ getExprType (ERel pos expr1 operand expr2) = do
             otherwise -> do
                 -- if ((isIntType type1) && (isIntType type2))
                 -- we know that types must match so it's sufficient to check one result
-                if isIntType type1 || isStrType type1
+                if isIntType type1   -- || isStrType type1
                 then
-                    return type1
+                    return (Just BoolT) -- type1
                 else
                     throwError $ "Value type not supported in logical comparison" ++ (writePos pos)
 
@@ -482,7 +482,7 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
             decVarLoc <- alloc
             -- insertToStore (TypeV vartype) decVarLoc
             insertToStore (getTypeOriginal vartype) decVarLoc
-            printSth (getTypeOriginal vartype)
+            -- printSth (getTypeOriginal vartype)
             -- check if expression type is correct
             exprType <- getExprType expr
 
@@ -530,6 +530,15 @@ checkBody ((Ass pos (Ident ident) expr) : rest) = do
 checkBody ((Incr pos (Ident ident)) : rest) = checkBodyIncDec pos ident rest "Incrementation"
 
 checkBody ((Decr pos (Ident ident)) : rest) = checkBodyIncDec pos ident rest "Decrementation"
+
+checkBody ((While pos condExpr stmt) : rest) = do
+    condType <- getExprType condExpr
+
+    if not (isBoolType condType)
+    then
+        throwError $ "While loop needs boolean condition" ++ (writePos pos)
+    else 
+        checkBody [stmt] >> checkBody rest
     
 
 checkBody _ = printSth "there" >>  return VoidV
