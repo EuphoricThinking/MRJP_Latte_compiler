@@ -52,7 +52,9 @@ data Value = IntV Int | Success | StringV String | BoolV Bool
              | FnDecl Type [Arg] | IntT | StringT | BoolT | VoidT | FunT Value 
              deriving (Eq) --TypeV Type
 
-data CurFuncData = CurFuncData String Bool Bool deriving (Show)
+type IfElseRet = Bool
+type FreeRet = Bool
+data CurFuncData = CurFuncData String IfElseRet FreeRet deriving (Show)
 
 instance Show Value where
     show (IntV v) = show v
@@ -199,6 +201,9 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
         -- check args
         printSth rettype
+        -- it is enough to replace the current function once
+        curState <- get
+        put curState {curFunc = (CurFuncData ident False False)}
         --print pos
         if (ident == mainName)
         then do
@@ -543,10 +548,29 @@ checkBody ((While pos condExpr stmt) : rest) depth = do
     else 
         checkBody [stmt] depth >> checkBody rest depth
     
--- checkBody ((CondElse pos condExpr stm1 stm2): rest) depth = do
---     res <- ifCondCheck pos condExpr stm1 stm2 depth
+checkBody ((CondElse pos condExpr stm1 stm2): rest) depth = do
+    res <- ifElseCheck pos condExpr stm1 stm2 depth
+    -- the root of the tree
+    if res && (depth == 0)
+    then do
+        curFunUpd <- gets curFunc
+        curState <- get
+
+        let name = getFuncNameFromCurFunc curFunUpd
+        let isFreeRetFound = getFuncFreeRetCurFunc curFunUpd
+
+        put curState {curFunc = (CurFuncData name True isFreeRetFound)}
+
+        
+        checkBody rest depth
+    else
+        checkBody rest depth
 
 checkBody _ _= printSth "there" >>  return VoidV
+
+getFuncNameFromCurFunc (CurFuncData name _ _) = name
+getFuncIfElseRetCurFunc (CurFuncData _ ifElse _) = ifElse
+getFuncFreeRetCurFunc (CurFuncData _ _ frRet) = frRet
 
 checkRet ((Ret pos expr) : _) = True
 checkRet ((VRet pos) : _) = True
@@ -572,7 +596,7 @@ ifElseCheck pos condExpr stm1 stm2 depth = do
     then
         throwError $ "Non-boolean condition in if-else clause" ++ (writePos pos)
     else
-        checkBody stm1 (depth + 1) >> checkBody stm2 (depth + 1) >> return (checkRet stm1 && checkRet stm2)
+        checkBody [stm1] (depth + 1) >> checkBody [stm2] (depth + 1) >> return (checkRet [stm1] && checkRet [stm2])
 
 -- findFuncDecl ( _ : rest) = do
 --     findFuncDecl rest
