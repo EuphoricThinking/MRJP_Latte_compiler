@@ -148,6 +148,9 @@ findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
 isInt (Int a) = True
 isInt _ = False
 
+isIntType (Just IntT) = True
+isIntType _ = False
+
 getPos (Just pos) = pos
 
 getTypeOriginal :: Type -> Value
@@ -223,6 +226,25 @@ getExprType (ELitInt pos intVal) = return (Just IntT) --return IntT
 getExprType (ELitTrue pos) = return (Just BoolT)
 getExprType (ELitFalse pos) = return (Just BoolT)
 getExprType (EString _ _) = return (Just StringT)
+
+getExprType (EApp pos (Ident "printInt") expr) = do
+    case expr of
+        [] -> throwError $ "printInt needs an argument (row, col): " ++ show (getPos pos)
+        otherwise -> do
+            if ((length expr) /= 1)
+            then 
+                throwError $ "printInt too many arguments (row, col): " ++ show (getPos pos)
+            else
+                do
+                exprType <- getExprType $ head expr
+                if (isIntType exprType)
+                then
+                    return (Just VoidT)
+                else
+                    throwError $ "printInt argument is not int (row, col)L " ++ show (getPos pos)
+
+-- getEpr of EApp - check if arguments are correct
+    -- check if the function exists
 
 -- compareTypes (Just a) (Just b) = a == b
 -- compareTypes _ _ = False
