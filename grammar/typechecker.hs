@@ -162,6 +162,9 @@ isIntType _ = False
 isStrType (Just StringT) = True
 isStrType _ = False
 
+isBoolType (Just BoolT) = True
+isBoolType _ = False
+
 getPos (Just pos) = pos
 
 getTypeOriginal :: Type -> Value
@@ -265,6 +268,16 @@ checkArgsCall ident pos rettype (orig: argsOrig) (passed : argsPassed) = do
     else
         checkArgsCall ident pos rettype argsOrig argsPassed
 
+
+checkNegNot pos expr typeName = do
+    exprType <- getExprType expr
+    if (isBoolType exprType || isIntType exprType)
+    then
+        return exprType
+    else
+        throwError $ typeName ++ " applied to non-boolean or int value" ++ (writePos pos)
+
+
 -- get type of a variable (x, a, b)
 getExprType (EVar pos (Ident name)) = do
     typeLoc <- asks (Map.lookup name)
@@ -331,7 +344,8 @@ getExprType (EApp pos (Ident ident) expr) = do
 
                 checkArgsCall ident pos funcRet funcArgs exprTypes
 
-
+getExprType (Neg pos expr) = checkNegNot pos expr "Negation"
+getExprType (Not pos expr) = checkNegNot pos expr "Not"
 
 -- getEpr of EApp - check if arguments are correct
     -- check if the function exists
