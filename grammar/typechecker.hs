@@ -208,7 +208,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             else
                 do
                 curEnv <- ask
-                local (const curEnv) (checkBody stmts) >> checkFunction rest
+                local (const curEnv) (checkBody stmts 0) >> checkFunction rest
                 -- checkBody stmts what are the consequences?
 
         else
@@ -217,7 +217,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             printSth envWithParams
             --return VoidV
             -- >> discards the result, however we need to pass the whole program without errors and the last step has to be accepter
-            local (const envWithParams) (checkBody stmts) >> checkFunction rest
+            local (const envWithParams) (checkBody stmts 0) >> checkFunction rest
 
 -- get Expr Type
 
@@ -448,7 +448,7 @@ matchTypesOrigEval _ _ = False
     -- else
     --     throwError $ "Type M"
 
-checkBodyIncDec pos ident rest typeName = do
+checkBodyIncDec pos ident rest typeName depth = do
     varloc <- asks (Map.lookup ident)
     case varloc of
         Nothing -> throwError $ "Undefined variable " ++ ident ++ (writePos pos)
@@ -456,7 +456,7 @@ checkBodyIncDec pos ident rest typeName = do
             varType <- gets (Map.lookup loc . store)
             if (isIntType varType)
             then
-                checkBody rest
+                checkBody rest depth
             else
                 throwError $ typeName ++ " require int type" ++ (writePos pos)
 
@@ -493,13 +493,13 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
             else
                 throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
 
-checkBody [] = return (StringV "OK")
+checkBody [] depth = return (StringV "OK")
 
-checkBody ((Empty pos) : rest) = checkBody rest
+checkBody ((Empty pos) : rest) depth = checkBody rest depth
 
-checkBody ((Decl pos vartype items) : rest) = do
+checkBody ((Decl pos vartype items) : rest) depth = do
     updatedEnv <- checkDecl vartype items
-    local (const updatedEnv) (checkBody rest)
+    local (const updatedEnv) (checkBody rest depth)
     -- foundDecl <- asks (Map.lookup ident)
     -- case foundDecl of
     --     Just _ -> throwError $ "Duplicate variable at (row, col): " ++ show (getPos pos)
@@ -508,11 +508,11 @@ checkBody ((Decl pos vartype items) : rest) = do
     --         insertToStore (TypeV vartype) declLoc
     --         local (Map.insert ident declLoc) (checkBody rest)
 
-checkBody ((BStmt pos (Blk posB stmts)) : rest) = checkBody stmts >> checkBody rest 
+checkBody ((BStmt pos (Blk posB stmts)) : rest) depth = checkBody stmts depth >> checkBody rest depth
 
-checkBody ((SExp pos expr) : rest) = printSth "pizda" >> getExprType expr >> checkBody rest
+checkBody ((SExp pos expr) : rest) depth = printSth "pizda" >> getExprType expr >> checkBody rest depth
 
-checkBody ((Ass pos (Ident ident) expr) : rest) = do
+checkBody ((Ass pos (Ident ident) expr) : rest) depth = do
     varloc <- asks (Map.lookup ident)
     case varloc of
         Nothing -> throwError $ "Unknown variable " ++ ident ++ (writePos pos)
@@ -525,24 +525,36 @@ checkBody ((Ass pos (Ident ident) expr) : rest) = do
             then
                 throwError $ "Incompatible types for assignment: " ++ (writePos pos)
             else
-                checkBody rest
+                checkBody rest depth
 
-checkBody ((Incr pos (Ident ident)) : rest) = checkBodyIncDec pos ident rest "Incrementation"
+checkBody ((Incr pos (Ident ident)) : rest) depth = checkBodyIncDec pos ident rest "Incrementation" depth
 
-checkBody ((Decr pos (Ident ident)) : rest) = checkBodyIncDec pos ident rest "Decrementation"
+checkBody ((Decr pos (Ident ident)) : rest) depth = checkBodyIncDec pos ident rest "Decrementation" depth
 
-checkBody ((While pos condExpr stmt) : rest) = do
+checkBody ((While pos condExpr stmt) : rest) depth = do
     condType <- getExprType condExpr
 
     if not (isBoolType condType)
     then
         throwError $ "While loop needs boolean condition" ++ (writePos pos)
     else 
-        checkBody [stmt] >> checkBody rest
+        checkBody [stmt] depth >> checkBody rest depth
     
+-- checkBody ((CondElse pos condExpr stm1 stm2): rest) depth = do
+--     res <- ifCondCheck pos condExpr stm1 stm2 depth
 
-checkBody _ = printSth "there" >>  return VoidV
+checkBody _ _= printSth "there" >>  return VoidV
 
+checkRet _ = undefined
+
+ifElseCheck pos condExpr stm1 stm2 depth = do
+    exprType <- getExprType condExpr
+
+    if not (isBoolType exprType)
+    then
+        throwError $ "Non-boolean condition in if-else clause" ++ (writePos pos)
+    else
+        checkBody stm1 (depth + 1) >> checkBody stm2 (depth + 1) >> return (checkRet stm1 && checkRet stm2)
 
 -- findFuncDecl ( _ : rest) = do
 --     findFuncDecl rest
