@@ -269,13 +269,15 @@ checkArgsCall ident pos rettype (orig: argsOrig) (passed : argsPassed) = do
         checkArgsCall ident pos rettype argsOrig argsPassed
 
 
-checkNegNot pos expr typeName = do
-    exprType <- getExprType expr
-    if (isBoolType exprType || isIntType exprType)
+checkAndOr pos expr1 expr2 = do
+    type1 <- getExprType expr1
+    type2 <- getExprType expr2
+    
+    if not (isBoolType type1) || not (isBoolType type2)
     then
-        return exprType
+        throwError $ "Non-boolean value passed to a logical operand" ++ (writePos pos)
     else
-        throwError $ typeName ++ " applied to non-boolean or int value" ++ (writePos pos)
+        return (Just BoolT)
 
 
 -- get type of a variable (x, a, b)
@@ -344,8 +346,80 @@ getExprType (EApp pos (Ident ident) expr) = do
 
                 checkArgsCall ident pos funcRet funcArgs exprTypes
 
-getExprType (Neg pos expr) = checkNegNot pos expr "Negation"
-getExprType (Not pos expr) = checkNegNot pos expr "Not"
+--getExprType (Neg pos expr) = checkNegNot pos expr "Negation"
+
+--checkNegNot pos expr typeName = do
+getExprType (Neg pos expr) = do
+    exprType <- getExprType expr
+    if (isIntType exprType) --(isBoolType exprType || isIntType exprType)
+    then
+        return exprType
+    else
+        throwError $ "Negation applied to non-numerical value" ++ (writePos pos)
+
+-- getExprType (Not pos expr) = checkNegNot pos expr "Not"
+getExprType (Not pos expr) = do
+    exprType <- getExprType expr
+    if (isBoolType exprType) --(isBoolType exprType || isIntType exprType)
+    then
+        return exprType
+    else
+        throwError $ "Logical negation applied to non-boolean value" ++ (writePos pos)
+
+getExprType (EMul pos expr1 mulOperand expr2) = do
+    type1 <- getExprType expr1
+    type2 <- getExprType expr2
+
+    if not (isIntType type1) || not (isIntType type2)
+    then
+        throwError $ "Non-numerical values for arithmetic operation" ++ (writePos pos)
+    else
+        return (Just IntT)
+
+getExprType (EAdd pos expr1 (Plus posP) expr2) = do
+    type1 <- getExprType expr1
+    type2 <- getExprType expr2
+
+    if isStrType type1 && isStrType type2
+    then
+        return (Just StringT)
+    else if isIntType type1 && isIntType type2
+    then
+        return (Just IntT)
+    else
+        throwError $ "Type mismatch for concatenation or addition" ++ (writePos pos)
+
+getExprType (EAdd pos expr1 (Minus posM) expr2) = do
+    type1 <- getExprType expr1
+    type2 <- getExprType expr2
+
+    if isIntType type1 && isIntType type2
+    then
+        return (Just IntT)
+    else
+        throwError $ "Non-numerical values for arithmetic operation" ++ (writePos pos)
+
+getExprType (ERel pos expr1 operand expr2) = do
+    type1 <- getExprType expr1
+    type2 <- getExprType expr2
+
+    if not (matchTypesOrigEval type1 type2)
+    then
+        throwError $ "Type mismatch in logical operation" ++ (writePos pos)
+    else
+        case operand of
+            (EQU p) -> return (Just BoolT)
+            (NE p) -> return (Just BoolT)
+            otherwise -> do
+                -- if ((isIntType type1) && (isIntType type2))
+                -- we know that types must match so it's sufficient to check one result
+                if isIntType type1 || isStrType type1
+                then
+                    return type1
+                else
+                    throwError $ "Value type not supported in logical comparison" ++ (writePos pos)
+
+
 
 -- getEpr of EApp - check if arguments are correct
     -- check if the function exists
@@ -443,9 +517,9 @@ checkBody ((Ass pos (Ident ident) expr) : rest) = do
         Nothing -> throwError $ "Unknown variable " ++ ident ++ (writePos pos)
         Just loc -> do
             exprType <- getExprType expr
-            printSth exprType
+            --printSth exprType
             varType <- gets (Map.lookup loc . store)
-            printSth varType
+            --printSth varType
             if not (matchTypesOrigEval varType exprType)
             then
                 throwError $ "Incompatible types for assignment: " ++ (writePos pos)
