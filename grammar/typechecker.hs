@@ -163,7 +163,7 @@ checkArgs ((Ar pos argType (Ident argName)): args) = do
 
 checkFunction [] = printSth "here" >> return (StringV "OK")
 
-checkFunction ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
+checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
         -- check args
         printSth rettype
@@ -177,13 +177,31 @@ checkFunction ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
             then
                 throwError $ "Too many arguments in main method; row, col " ++ show (getPos pos)
             else
-                checkBody stmts
+                do
+                curEnv <- ask
+                local (const curEnv) (checkBody stmts)
 
         else
             do
             envWithParams <- checkArgs args
             printSth envWithParams
-            return VoidV
+            --return VoidV
+            local (const envWithParams) (checkBody stmts)
+
+
+checkBody [] = return (StringV "OK")
+
+checkBody ((Empty pos) : rest) = checkBody rest
+
+checkBody ((Decl pos vartype (NoInit posIn (Ident ident))) : rest) = do
+    foundDecl <- asks (Map.lookup ident)
+    case foundDecl of
+        Just _ -> throwError $ "Duplicate variable at (row, col): " ++ show (getPos pos)
+        Nothing -> do
+            declLoc <- alloc
+            insertToStore (TypeV vartype) declLoc
+            local (Map.insert ident declLoc) (checkBody rest)
+
 
 checkBody _ = printSth "there" >>  return VoidV
 
