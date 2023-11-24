@@ -132,10 +132,10 @@ executeRightProgram (Prog pos topDefs) =
         -- return VoidV
 
 getFuncRettype (Just (FnDecl rettype args)) = rettype
-getFuncRettype Nothing = throwError $ "No declaration data for function (rettype)"
+--getFuncRettype Nothing = throwError $ "No declaration data for function (rettype)"
 
 getFuncArgs (Just (FnDecl rettype args)) = args
-getFuncArgs Nothing = throwError $ "No declaration data for function (args)"
+--getFuncArgs Nothing = throwError $ "No declaration data for function (args)"
 
 findFuncDecl [] = do
     curEnv <- ask
@@ -249,6 +249,22 @@ specialRet name = do
         "readInt" -> return (Just IntT)
         "readString" -> return (Just StringT)
 
+getArgPos (Ar pos _ _) = pos
+getArgType (Ar _ t _) = Just (getTypeOriginal t)
+--getPassedPos (Expr' pos) = pos
+
+-- rettype argsOrig argsPassed
+checkArgsCall _ _ rettype [] [] = return (wrapOrigTypeInJust rettype)
+checkArgsCall ident pos _ [] _ = throwError $ "Too many arguments in " ++ ident ++ (writePos pos)
+checkArgsCall ident pos _ _ [] = throwError $ "Too few arguments in " ++ ident ++ (writePos pos)
+
+checkArgsCall ident pos rettype (orig: argsOrig) (passed : argsPassed) = do
+    if not (matchTypesOrigEval (getArgType orig) passed)
+    then
+        throwError $ "Argument type mismatch in " ++ ident ++ (writePos pos)
+    else
+        checkArgsCall ident pos rettype argsOrig argsPassed
+
 -- get type of a variable (x, a, b)
 getExprType (EVar pos (Ident name)) = do
     typeLoc <- asks (Map.lookup name)
@@ -311,6 +327,10 @@ getExprType (EApp pos (Ident ident) expr) = do
                 exprTypes <- mapM getExprType expr
 
                 let funcArgs = getFuncArgs funcData
+                let funcRet = getFuncRettype funcData
+
+                checkArgsCall ident pos funcRet funcArgs exprTypes
+
 
 
 -- getEpr of EApp - check if arguments are correct
@@ -324,7 +344,7 @@ writePos pos = " (row, col): " ++ show (getPos pos)
 extractType (Just t) = t
 extractType _ = throwError $ "Type not assigned"
 
-warpOrigTypeInJust vartype = Just (getTypeOriginal vartype)
+wrapOrigTypeInJust vartype = Just (getTypeOriginal vartype)
 
 matchTypesOrigEval (Just a) (Just b) = a == b
 --matchTypesOrigEval v (Just b) = v == b
@@ -366,7 +386,7 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
             exprType <- getExprType expr
 
             -- if (matchTypesOrigEval (getTypeOriginal vartype) exprType)
-            if (matchTypesOrigEval (warpOrigTypeInJust vartype) exprType)
+            if (matchTypesOrigEval (wrapOrigTypeInJust vartype) exprType)
             then
                 local (Map.insert ident decVarLoc) (checkDecl vartype rest)
             else
