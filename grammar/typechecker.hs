@@ -52,7 +52,7 @@ data Value = IntV Int | Success | StringV String | BoolV Bool
              | FnDecl Type [Arg] | IntT | StringT | BoolT | VoidT | FunT Value 
              deriving (Eq) --TypeV Type
 
---data CurFuncData = String Bool Bool deriving (Show)
+data CurFuncData = CurFuncData String Bool Bool deriving (Show)
 
 instance Show Value where
     show (IntV v) = show v
@@ -78,8 +78,8 @@ type Loc = Int
 type Env = Map.Map String Loc
 data Store = Store {
     store :: Map.Map Loc Value,
-    lastLoc :: Loc
-  --  curFunc :: CurFuncData
+    lastLoc :: Loc,
+    curFunc :: CurFuncData
 } deriving (Show)
 
 type InterpreterMonad a = ReaderT Env (StateT Store (ExceptT String IO)) a 
@@ -111,7 +111,7 @@ executeProgram :: Either String Program -> IO (Either String Value)
 executeProgram program = 
     case program of
         Left mes -> runExceptT $ throwError mes
-        Right p -> runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0 }) --curFunc = ("", False, False)})
+        Right p -> runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})
 
 -- executeRightProgram :: Program -> InterpreterMonad Value
 -- executeRightProgram (Program pos topDefs) = do
