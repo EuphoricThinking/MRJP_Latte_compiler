@@ -44,12 +44,12 @@ display_tokens tokens =  do
     parsed = pProgram tokens in
       print parsed
 
-data TypeV = IntT | StringT | BoolT | VoidT | FunT deriving (Show, Eq)
+-- data TypeV = IntT | StringT | BoolT | VoidT | FunT deriving (Show, Eq)
 
 data Value = IntV Int | Success | StringV String | BoolV Bool 
             --  | FnDefV [Arg] [Stmt] Env | FnDefRetV [Arg] [Stmt] Env 
              | DeclGlobV | DeclFInvV | NonInitV | BreakV | ContinueV | VoidV 
-             | FnDecl Type [Arg] | TypeV --Type
+             | FnDecl Type [Arg] | IntT | StringT | BoolT | VoidT | FunT Value --TypeV Type
 
 instance Show Value where
     show (IntV v) = show v
@@ -147,6 +147,13 @@ isInt _ = False
 
 getPos (Just pos) = pos
 
+getTypeOriginal :: Type -> Value
+getTypeOriginal (Int _)  = IntT
+getTypeOriginal (Bool _) = BoolT
+getTypeOriginal (Str _)  = StringT
+getTypeOriginal (Void _) = VoidT
+getTypeOriginal (Fun _ t _) = FunT (getTypeOriginal t)
+
 -- checkArgs []
 -- checkArgs envLoc (arg: args)
 checkArgs [] = do
@@ -159,7 +166,8 @@ checkArgs ((Ar pos argType (Ident argName)): args) = do
         Just _ -> throwError $ "Multiple entity declaration in arguments (row, col): " ++ show (getPos pos)
         Nothing -> do
             typeLoc <- alloc
-            insertToStore (TypeV argType) typeLoc
+            -- insertToStore (TypeV argType) typeLoc
+            insertToStore (getTypeOriginal argType) typeLoc
             local (Map.insert argName typeLoc) (checkArgs args)
 
 checkFunction [] = printSth "here" >> return (StringV "OK")
@@ -208,7 +216,7 @@ getExprType (EVar pos (Ident name)) = do
             val <- gets (Map.lookup loc . store)
             return val
 
-getExprType (ELitInt pos intVal) = return (TypeV IntT)
+getExprType (ELitInt pos intVal) = return (Just IntT) --return IntT
 
 checkDecl _ [] = do
     curEnv <- ask
@@ -220,8 +228,9 @@ checkDecl vartype ((NoInit posIn (Ident ident)) : rest) = do
         Just _ -> throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
         Nothing -> do
             decVarLoc <- alloc
-            insertToStore (TypeV vartype) decVarLoc
-            local (Map.insert Ident decVarLoc) (checkDecl vartype rest)
+            -- insertToStore (TypeV vartype) decVarLoc
+            insertToStore (getTypeOriginal vartype) decVarLoc
+            local (Map.insert ident decVarLoc) (checkDecl vartype rest)
 
 checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
     foundVar <- asks (Map.lookup ident)
@@ -229,11 +238,12 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
         Just _ -> throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
         Nothing -> do
             decVarLoc <- alloc
-            insertToStore (TypeV vartype) decVarLoc
+            -- insertToStore (TypeV vartype) decVarLoc
+            insertToStore (getTypeOriginal vartype) decVarLoc
             -- check if expression type is correct
             exprType <- getExprType expr
 
-            local (Map.insert Ident decVarLoc) (checkDecl vartype rest)
+            local (Map.insert ident decVarLoc) (checkDecl vartype rest)
 
 checkBody [] = return (StringV "OK")
 
