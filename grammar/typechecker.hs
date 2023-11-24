@@ -180,6 +180,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
                 do
                 curEnv <- ask
                 local (const curEnv) (checkBody stmts)
+                -- checkBody stmts what are the consequences?
 
         else
             do
@@ -188,19 +189,43 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             --return VoidV
             local (const envWithParams) (checkBody stmts)
 
+-- get Expr Type
+checkDecl _ [] = do
+    curEnv <- ask
+    return curEnv
+
+checkDecl vartype ((NoInit posIn (Ident ident)) : rest) = do
+    foundVar <- asks (Map.lookup ident)
+    case foundVar of
+        Just _ -> throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
+        Nothing -> do
+            decVarLoc <- alloc
+            insertToStore (TypeV vartype) decVarLoc
+            local (Map.insert Ident decVarLoc) (checkDecl rest)
+
+checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
+    foundVar <- asks (Map.lookup ident)
+    case foundVar of
+        Just _ -> throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
+        Nothing -> do
+            decVarLoc <- alloc
+            insertToStore (TypeV vartype) decVarLoc
+            local (Map.insert Ident decVarLoc) (checkDecl rest)
 
 checkBody [] = return (StringV "OK")
 
 checkBody ((Empty pos) : rest) = checkBody rest
 
-checkBody ((Decl pos vartype (NoInit posIn (Ident ident))) : rest) = do
-    foundDecl <- asks (Map.lookup ident)
-    case foundDecl of
-        Just _ -> throwError $ "Duplicate variable at (row, col): " ++ show (getPos pos)
-        Nothing -> do
-            declLoc <- alloc
-            insertToStore (TypeV vartype) declLoc
-            local (Map.insert ident declLoc) (checkBody rest)
+checkBody ((Decl pos vartype items) : rest) = do
+    updatedEnv <- checkDecl vartype items
+    local (const updatedEnv) (checkBody rest)
+    -- foundDecl <- asks (Map.lookup ident)
+    -- case foundDecl of
+    --     Just _ -> throwError $ "Duplicate variable at (row, col): " ++ show (getPos pos)
+    --     Nothing -> do
+    --         declLoc <- alloc
+    --         insertToStore (TypeV vartype) declLoc
+    --         local (Map.insert ident declLoc) (checkBody rest)
 
 
 checkBody _ = printSth "there" >>  return VoidV
