@@ -333,7 +333,7 @@ checkBody ((Ass pos (Ident ident) expr) : rest) = do
             printSth exprType
             varType <- gets (Map.lookup loc . store)
             printSth varType
-            if (matchTypesOrigEval varType exprType)
+            if not (matchTypesOrigEval varType exprType)
             then
                 throwError $ "Incompatible types for assignment: " ++ (writePos pos)
             else
