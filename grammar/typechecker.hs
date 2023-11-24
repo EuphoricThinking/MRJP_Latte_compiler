@@ -194,7 +194,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             else
                 do
                 curEnv <- ask
-                local (const curEnv) (checkBody stmts)
+                local (const curEnv) (checkBody stmts) >> checkFunction rest
                 -- checkBody stmts what are the consequences?
 
         else
@@ -202,7 +202,8 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             envWithParams <- checkArgs args
             printSth envWithParams
             --return VoidV
-            local (const envWithParams) (checkBody stmts)
+            -- >> discards the result, however we need to pass the whole program without errors and the last step has to be accepter
+            local (const envWithParams) (checkBody stmts) >> checkFunction rest
 
 -- get Expr Type
 
@@ -307,6 +308,9 @@ checkBody ((Decl pos vartype items) : rest) = do
     --         insertToStore (TypeV vartype) declLoc
     --         local (Map.insert ident declLoc) (checkBody rest)
 
+--checkBody ((BStmt pos (Blk posB stmts)) : rest) = checkBody stmts >> checkBody rest 
+
+checkBody ((SExp pos expr) : rest) = printSth "pizda" >> getExprType expr >> checkBody rest
 
 checkBody _ = printSth "there" >>  return VoidV
 
