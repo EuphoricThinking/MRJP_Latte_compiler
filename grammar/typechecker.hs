@@ -220,6 +220,9 @@ getExprType (EVar pos (Ident name)) = do
             return val
 
 getExprType (ELitInt pos intVal) = return (Just IntT) --return IntT
+getExprType (ELitTrue pos) = return (Just BoolT)
+getExprType (ELitFalse pos) = return (Just BoolT)
+getExprType (EString _ _) = return (Just StringT)
 
 -- compareTypes (Just a) (Just b) = a == b
 -- compareTypes _ _ = False
