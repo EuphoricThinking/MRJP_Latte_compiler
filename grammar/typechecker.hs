@@ -153,6 +153,9 @@ isInt _ = False
 isIntType (Just IntT) = True
 isIntType _ = False
 
+isStrType (Just StringT) = True
+isStrType _ = False
+
 getPos (Just pos) = pos
 
 getTypeOriginal :: Type -> Value
@@ -215,6 +218,30 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
         -- check return type na on the go
         -- stack
         --- check func arguments, check if function is declared in expressions
+checkIfStringsEqual :: String -> String -> Bool
+checkIfStringsEqual [] [] = True
+checkIfStringsEqual [] _ = False
+checkIfStringsEqual _ [] = False
+checkIfStringsEqual (s1 : str1) (s2 : str2)
+  | s1 == s2 = checkIfStringsEqual str1 str2
+  | otherwise = False
+
+
+checkIfAnyNameFromList :: [String] -> String -> Bool
+checkIfAnyNameFromList [] _ = False
+checkIfAnyNameFromList (s : ss) name
+  | checkIfStringsEqual s name = True
+  | otherwise = checkIfAnyNameFromList ss name
+
+funcNoArgs = ["error", "readInt", "readString"]
+
+isSpecialFunc funcName = checkIfAnyNameFromList funcNoArgs funcName
+
+specialRet name = do
+    case name of
+        "error" -> return (Just VoidT)
+        "readInt" -> return (Just IntT)
+        "readString" -> return (Just StringT)
 
 -- get type of a variable (x, a, b)
 getExprType (EVar pos (Ident name)) = do
@@ -245,6 +272,31 @@ getExprType (EApp pos (Ident "printInt") expr) = do
                     return (Just VoidT)
                 else
                     throwError $ "printInt argument is not int (row, col): " ++ show (getPos pos)
+
+getExprType (EApp pos (Ident "printString") expr) = do
+    case expr of
+        [] -> throwError $ "printString needs an argument " ++ (writePos pos)
+        otherwise -> do
+            if ((length expr) /= 1)
+            then 
+                throwError $ "printString too many arguments" ++ (writePos pos)
+            else
+                do
+                exprType <- getExprType $ head expr
+                if (isStrType exprType)
+                then
+                    return (Just VoidT)
+                else
+                    throwError $ "printString argument is not string " ++ (writePos pos)
+
+getExprType (EApp pos (Ident ident) expr) = do
+    if (isSpecialFunc ident)
+    then do
+        case expr of
+            [] -> specialRet ident
+            otherwise -> throwError $ ident ++ "() does not take any arguments" ++ (writePos pos)
+    else
+        return (Just VoidT)
 
 -- getEpr of EApp - check if arguments are correct
     -- check if the function exists
