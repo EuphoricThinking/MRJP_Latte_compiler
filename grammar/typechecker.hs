@@ -52,6 +52,8 @@ data Value = IntV Int | Success | StringV String | BoolV Bool
              | FnDecl Type [Arg] | IntT | StringT | BoolT | VoidT | FunT Value 
              deriving (Eq) --TypeV Type
 
+--data CurFuncData = String Bool Bool deriving (Show)
+
 instance Show Value where
     show (IntV v) = show v
     show (StringV v) = show v
@@ -77,6 +79,7 @@ type Env = Map.Map String Loc
 data Store = Store {
     store :: Map.Map Loc Value,
     lastLoc :: Loc
+  --  curFunc :: CurFuncData
 } deriving (Show)
 
 type InterpreterMonad a = ReaderT Env (StateT Store (ExceptT String IO)) a 
@@ -108,7 +111,7 @@ executeProgram :: Either String Program -> IO (Either String Value)
 executeProgram program = 
     case program of
         Left mes -> runExceptT $ throwError mes
-        Right p -> runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0})
+        Right p -> runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0 }) --curFunc = ("", False, False)})
 
 -- executeRightProgram :: Program -> InterpreterMonad Value
 -- executeRightProgram (Program pos topDefs) = do
@@ -545,7 +548,22 @@ checkBody ((While pos condExpr stmt) : rest) depth = do
 
 checkBody _ _= printSth "there" >>  return VoidV
 
-checkRet _ = undefined
+checkRet ((Ret pos expr) : _) = True
+checkRet ((VRet pos) : _) = True
+checkRet [(BStmt pos (Blk posB stmts))] = checkRet stmts
+-- single if does not change anything
+checkRet ((Cond pos expr stmts) : rest) = checkRet rest
+-- condition might not be satisified in while in the beginning and we would never enter return
+checkRet ((While pos expr stms) : rest) = checkRet rest
+checkRet ((CondElse pos expr1 stm1 stm2) : rest) =
+    res1 && res2 || checkRet rest
+    where
+        res1 = checkRet [stm1]
+        res2 = checkRet [stm2]
+checkRet [] = False
+checkRet (_ : rest) = checkRet rest
+-- checkRet (a : []) = False
+        
 
 ifElseCheck pos condExpr stm1 stm2 depth = do
     exprType <- getExprType condExpr
