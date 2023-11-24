@@ -65,6 +65,8 @@ instance Show Value where
     show BreakV = "BreakV"
     show ContinueV = "ContinueV"
     show VoidV = "VoidV"
+    show BoolT = "BoolT"
+    show IntT = "IntT"
 
 -- Store przechowuje wszystkie zmienne przez cały czas
 -- Env wskazuje na lokacje aktualnie widocznych zmiennych
@@ -158,7 +160,7 @@ getTypeOriginal (Int _)  = IntT
 getTypeOriginal (Bool _) = BoolT
 getTypeOriginal (Str _)  = StringT
 getTypeOriginal (Void _) = VoidT
-getTypeOriginal (Fun _ t _) = FunT (getTypeOriginal t)
+getTypeOriginal (Fun _ t _) =  FunT (getTypeOriginal t)
 
 -- checkArgs []
 -- checkArgs envLoc (arg: args)
@@ -250,7 +252,15 @@ getExprType (EApp pos (Ident "printInt") expr) = do
 -- compareTypes (Just a) (Just b) = a == b
 -- compareTypes _ _ = False
 
-matchTypesOrigEval origType (Just b) = origType == b
+writePos pos = " (row, col): " ++ show (getPos pos)
+
+extractType (Just t) = t
+extractType _ = throwError $ "Type not assigned"
+
+warpOrigTypeInJust vartype = Just (getTypeOriginal vartype)
+
+matchTypesOrigEval (Just a) (Just b) = a == b
+--matchTypesOrigEval v (Just b) = v == b
 matchTypesOrigEval _ _ = False
 -- matchExprType pos originalType evaluatedTypeToCompare = do
 --     origEvaluated <- getExprType originalType
@@ -284,10 +294,12 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
             decVarLoc <- alloc
             -- insertToStore (TypeV vartype) decVarLoc
             insertToStore (getTypeOriginal vartype) decVarLoc
+            printSth (getTypeOriginal vartype)
             -- check if expression type is correct
             exprType <- getExprType expr
 
-            if (matchTypesOrigEval (getTypeOriginal vartype) exprType)
+            -- if (matchTypesOrigEval (getTypeOriginal vartype) exprType)
+            if (matchTypesOrigEval (warpOrigTypeInJust vartype) exprType)
             then
                 local (Map.insert ident decVarLoc) (checkDecl vartype rest)
             else
@@ -308,9 +320,24 @@ checkBody ((Decl pos vartype items) : rest) = do
     --         insertToStore (TypeV vartype) declLoc
     --         local (Map.insert ident declLoc) (checkBody rest)
 
---checkBody ((BStmt pos (Blk posB stmts)) : rest) = checkBody stmts >> checkBody rest 
+checkBody ((BStmt pos (Blk posB stmts)) : rest) = checkBody stmts >> checkBody rest 
 
 checkBody ((SExp pos expr) : rest) = printSth "pizda" >> getExprType expr >> checkBody rest
+
+checkBody ((Ass pos (Ident ident) expr) : rest) = do
+    varloc <- asks (Map.lookup ident)
+    case varloc of
+        Nothing -> throwError $ "Unknown variable " ++ ident ++ (writePos pos)
+        Just loc -> do
+            exprType <- getExprType expr
+            printSth exprType
+            varType <- gets (Map.lookup loc . store)
+            printSth varType
+            if (matchTypesOrigEval varType exprType)
+            then
+                throwError $ "Incompatible types for assignment: " ++ (writePos pos)
+            else
+                checkBody rest
 
 checkBody _ = printSth "there" >>  return VoidV
 
