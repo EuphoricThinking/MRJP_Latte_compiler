@@ -131,6 +131,12 @@ executeRightProgram (Prog pos topDefs) =
         -- lift $ lift $ lift $ print topDefs
         -- return VoidV
 
+getFuncRettype (Just (FnDecl rettype args)) = rettype
+getFuncRettype Nothing = throwError $ "No declaration data for function (rettype)"
+
+getFuncArgs (Just (FnDecl rettype args)) = args
+getFuncArgs Nothing = throwError $ "No declaration data for function (args)"
+
 findFuncDecl [] = do
     curEnv <- ask
     return curEnv
@@ -295,8 +301,17 @@ getExprType (EApp pos (Ident ident) expr) = do
         case expr of
             [] -> specialRet ident
             otherwise -> throwError $ ident ++ "() does not take any arguments" ++ (writePos pos)
-    else
-        return (Just VoidT)
+    else do
+        varloc <- asks (Map.lookup ident)
+        case varloc of
+            Nothing -> throwError $ "Function " ++ ident ++ " is undeclared" ++ (writePos pos)
+            Just loc -> do
+                -- check arguments
+                funcData <- gets (Map.lookup loc . store)
+                exprTypes <- mapM getExprType expr
+
+                let funcArgs = getFuncArgs funcData
+
 
 -- getEpr of EApp - check if arguments are correct
     -- check if the function exists
