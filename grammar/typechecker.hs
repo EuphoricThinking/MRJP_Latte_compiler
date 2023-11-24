@@ -241,7 +241,7 @@ getExprType (EApp pos (Ident "printInt") expr) = do
                 then
                     return (Just VoidT)
                 else
-                    throwError $ "printInt argument is not int (row, col)L " ++ show (getPos pos)
+                    throwError $ "printInt argument is not int (row, col): " ++ show (getPos pos)
 
 -- getEpr of EApp - check if arguments are correct
     -- check if the function exists
