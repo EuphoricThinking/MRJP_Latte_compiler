@@ -49,7 +49,8 @@ display_tokens tokens =  do
 data Value = IntV Int | Success | StringV String | BoolV Bool 
             --  | FnDefV [Arg] [Stmt] Env | FnDefRetV [Arg] [Stmt] Env 
              | DeclGlobV | DeclFInvV | NonInitV | BreakV | ContinueV | VoidV 
-             | FnDecl Type [Arg] | IntT | StringT | BoolT | VoidT | FunT Value --TypeV Type
+             | FnDecl Type [Arg] | IntT | StringT | BoolT | VoidT | FunT Value 
+             deriving (Eq) --TypeV Type
 
 instance Show Value where
     show (IntV v) = show v
@@ -93,6 +94,8 @@ insertToStore val newloc = do
 evalMaybe :: String -> Maybe a -> InterpreterMonad a
 evalMaybe s Nothing = throwError s
 evalMaybe s (Just a) = return a
+
+getTypeFromMaybe (Just a) = return a
 
 getEitherMessage (Left mes) = mes
 getEitherMessage (Right mes) = mes
@@ -218,6 +221,21 @@ getExprType (EVar pos (Ident name)) = do
 
 getExprType (ELitInt pos intVal) = return (Just IntT) --return IntT
 
+-- compareTypes (Just a) (Just b) = a == b
+-- compareTypes _ _ = False
+
+matchTypesOrigEval origType (Just b) = origType == b
+matchTypesOrigEval _ _ = False
+-- matchExprType pos originalType evaluatedTypeToCompare = do
+--     origEvaluated <- getExprType originalType
+
+--     return (compareTypes origEvaluated evaluatedTypeToCompare)
+    
+    -- if (compareTypes origEvaluated evaluatedTypeToCompare)
+    --     then return True
+    -- else
+    --     throwError $ "Type M"
+
 checkDecl _ [] = do
     curEnv <- ask
     return curEnv
@@ -243,7 +261,11 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
             -- check if expression type is correct
             exprType <- getExprType expr
 
-            local (Map.insert ident decVarLoc) (checkDecl vartype rest)
+            if (matchTypesOrigEval (getTypeOriginal vartype) exprType)
+            then
+                local (Map.insert ident decVarLoc) (checkDecl vartype rest)
+            else
+                throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
 
 checkBody [] = return (StringV "OK")
 
