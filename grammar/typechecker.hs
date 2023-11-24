@@ -359,6 +359,18 @@ matchTypesOrigEval _ _ = False
     -- else
     --     throwError $ "Type M"
 
+checkBodyIncDec pos ident rest typeName = do
+    varloc <- asks (Map.lookup ident)
+    case varloc of
+        Nothing -> throwError $ "Undefined variable " ++ ident ++ (writePos pos)
+        Just loc -> do
+            varType <- gets (Map.lookup loc . store)
+            if (isIntType varType)
+            then
+                checkBody rest
+            else
+                throwError $ typeName ++ " require int type" ++ (writePos pos)
+
 checkDecl _ [] = do
     curEnv <- ask
     return curEnv
@@ -425,6 +437,11 @@ checkBody ((Ass pos (Ident ident) expr) : rest) = do
                 throwError $ "Incompatible types for assignment: " ++ (writePos pos)
             else
                 checkBody rest
+
+checkBody ((Incr pos (Ident ident)) : rest) = checkBodyIncDec pos ident rest "Incrementation"
+
+checkBody ((Decr pos (Ident ident)) : rest) = checkBodyIncDec pos ident rest "Decrementation"
+    
 
 checkBody _ = printSth "there" >>  return VoidV
 
