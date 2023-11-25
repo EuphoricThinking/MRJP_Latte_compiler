@@ -218,7 +218,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             else
                 do
                 curEnv <- ask
-                local (const curEnv) (checkBody stmts 0) >> checkFunction rest
+                local (const curEnv) (checkBody stmts 0 0) >> checkFunction rest
                 -- checkBody stmts what are the consequences?
 
         else
@@ -227,7 +227,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             printSth envWithParams
             --return VoidV
             -- >> discards the result, however we need to pass the whole program without errors and the last step has to be accepter
-            local (const envWithParams) (checkBody stmts 0) >> checkFunction rest
+            local (const envWithParams) (checkBody stmts 0 0) >> checkFunction rest
 
 -- get Expr Type
 
@@ -458,7 +458,7 @@ matchTypesOrigEval _ _ = False
     -- else
     --     throwError $ "Type M"
 
-checkBodyIncDec pos ident rest typeName depth = do
+checkBodyIncDec pos ident rest typeName depth ifdepth = do
     varloc <- asks (Map.lookup ident)
     case varloc of
         Nothing -> throwError $ "Undefined variable " ++ ident ++ (writePos pos)
@@ -466,7 +466,7 @@ checkBodyIncDec pos ident rest typeName depth = do
             varType <- gets (Map.lookup loc . store)
             if (isIntType varType)
             then
-                checkBody rest depth
+                checkBody rest depth ifdepth
             else
                 throwError $ typeName ++ " require int type" ++ (writePos pos)
 
@@ -503,8 +503,8 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
             else
                 throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
 
-checkBody [] depth = do
-    if depth == 0
+checkBody [] depth ifdepth = do
+    if depth == 0 && ifdepth == 0
     then do
         curFunD <- gets curFunc
 
@@ -523,9 +523,11 @@ checkBody [] depth = do
                     -- no need to check in void type
                     return Success
                 else do
-                    -- return types must have been matched
+                    -- return types must have been matched before
                     let freeRetCur = getFuncFreeRetCurFunc curFunD
                     let ifElseRetCur = getFuncIfElseRetCurFunc curFunD
+
+
 
                     if freeRetCur || ifElseRetCur
                     then
@@ -536,11 +538,11 @@ checkBody [] depth = do
         return Success
     --return (StringV "OK")
 
-checkBody ((Empty pos) : rest) depth = checkBody rest depth
+checkBody ((Empty pos) : rest) depth ifdepth = checkBody rest depth ifdepth
 
-checkBody ((Decl pos vartype items) : rest) depth = do
+checkBody ((Decl pos vartype items) : rest) depth ifdepth = do
     updatedEnv <- checkDecl vartype items
-    local (const updatedEnv) (checkBody rest depth)
+    local (const updatedEnv) (checkBody rest depth ifdepth)
     -- foundDecl <- asks (Map.lookup ident)
     -- case foundDecl of
     --     Just _ -> throwError $ "Duplicate variable at (row, col): " ++ show (getPos pos)
@@ -549,11 +551,11 @@ checkBody ((Decl pos vartype items) : rest) depth = do
     --         insertToStore (TypeV vartype) declLoc
     --         local (Map.insert ident declLoc) (checkBody rest)
 
-checkBody ((BStmt pos (Blk posB stmts)) : rest) depth = checkBody stmts depth >> checkBody rest depth
+checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth = checkBody stmts depth ifdepth >> checkBody rest depth ifdepth
 
-checkBody ((SExp pos expr) : rest) depth = printSth "pizda" >> getExprType expr >> checkBody rest depth
+checkBody ((SExp pos expr) : rest) depth ifdepth = printSth "pizda" >> getExprType expr >> checkBody rest depth ifdepth
 
-checkBody ((Ass pos (Ident ident) expr) : rest) depth = do
+checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth = do
     varloc <- asks (Map.lookup ident)
     case varloc of
         Nothing -> throwError $ "Unknown variable " ++ ident ++ (writePos pos)
@@ -566,25 +568,25 @@ checkBody ((Ass pos (Ident ident) expr) : rest) depth = do
             then
                 throwError $ "Incompatible types for assignment: " ++ (writePos pos)
             else
-                checkBody rest depth
+                checkBody rest depth ifdepth
 
-checkBody ((Incr pos (Ident ident)) : rest) depth = checkBodyIncDec pos ident rest "Incrementation" depth
+checkBody ((Incr pos (Ident ident)) : rest) depth ifdepth = checkBodyIncDec pos ident rest "Incrementation" depth ifdepth
 
-checkBody ((Decr pos (Ident ident)) : rest) depth = checkBodyIncDec pos ident rest "Decrementation" depth
+checkBody ((Decr pos (Ident ident)) : rest) depth ifdepth = checkBodyIncDec pos ident rest "Decrementation" depth ifdepth
 
-checkBody ((While pos condExpr stmt) : rest) depth = do
+checkBody ((While pos condExpr stmt) : rest) depth ifdepth = do
     condType <- getExprType condExpr
 
     if not (isBoolType condType)
     then
         throwError $ "While loop needs boolean condition" ++ (writePos pos)
     else 
-        checkBody [stmt] depth >> checkBody rest depth
+        checkBody [stmt] depth (ifdepth + 1) >> checkBody rest depth ifdepth
     
-checkBody ((CondElse pos condExpr stm1 stm2): rest) depth = do
-    res <- ifElseCheck pos condExpr stm1 stm2 depth
+checkBody ((CondElse pos condExpr stm1 stm2): rest) depth ifdepth = do
+    res <- ifElseCheck pos condExpr stm1 stm2 depth ifdepth
     -- the root of the tree
-    if res && (depth == 0)
+    if res && (depth == 0) && (ifdepth == 0)
     then do
         curFunUpd <- gets curFunc
         curState <- get
@@ -595,11 +597,11 @@ checkBody ((CondElse pos condExpr stm1 stm2): rest) depth = do
         put curState {curFunc = (CurFuncData name True isFreeRetFound)}
 
         
-        checkBody rest depth
+        checkBody rest depth ifdepth
     else
-        checkBody rest depth
+        checkBody rest depth ifdepth
 
-checkBody ((Cond pos expr stmt) : rest) depth = do
+checkBody ((Cond pos expr stmt) : rest) depth ifdepth = do
     exprType <- getExprType expr
     printSth "HERE COND"
 
@@ -607,17 +609,17 @@ checkBody ((Cond pos expr stmt) : rest) depth = do
     then
         throwError $ "Non-boolean value in if condition" ++ (writePos pos)
     else
-        checkBody [stmt] depth >> checkBody rest depth
+        checkBody [stmt] depth (ifdepth + 1) >> checkBody rest depth ifdepth
 
-checkBody ((VRet pos) : rest) depth = retVoidOrValUpd (Just VoidT) pos rest depth
+checkBody ((VRet pos) : rest) depth ifdepth = retVoidOrValUpd (Just VoidT) pos rest depth ifdepth
 
-checkBody ((Ret pos expr) : rest) depth = do
+checkBody ((Ret pos expr) : rest) depth ifdepth = do
     exprType <- getExprType expr
-    retVoidOrValUpd exprType pos rest depth
+    retVoidOrValUpd exprType pos rest depth ifdepth
 
 -- checkBody _ _= printSth "there" >>  return VoidV
 
-retVoidOrValUpd justType pos rest depth = do
+retVoidOrValUpd justType pos rest depth ifdepth = do
     -- check functio tupe depth == 0
     curFunD <- gets curFunc
     let ident = getFuncNameFromCurFunc curFunD
@@ -632,7 +634,8 @@ retVoidOrValUpd justType pos rest depth = do
             if not (matchTypesOrigEval justType (wrapOrigTypeInJust (getFuncRettype funcData)))
             then 
                 throwError $ "Mismatched return value" ++ (writePos pos)
-            else if depth == 0 then do
+            else if depth == 0 && ifdepth == 0
+            then do
                 curState <- get
 
                 let name = getFuncNameFromCurFunc curFunD
@@ -640,9 +643,9 @@ retVoidOrValUpd justType pos rest depth = do
 
                 put curState {curFunc = (CurFuncData name ifElse True)}
 
-                checkBody rest depth
+                checkBody rest depth ifdepth
             else
-                checkBody rest depth
+                checkBody rest depth ifdepth
 
 extractRettypeWrapJust (Just (FnDecl rettype args pos)) = Just rettype
 
@@ -667,14 +670,14 @@ checkRet (_ : rest) = checkRet rest
 -- checkRet (a : []) = False
         
 
-ifElseCheck pos condExpr stm1 stm2 depth = do
+ifElseCheck pos condExpr stm1 stm2 depth ifdepth = do
     exprType <- getExprType condExpr
 
     if not (isBoolType exprType)
     then
         throwError $ "Non-boolean condition in if-else clause" ++ (writePos pos)
     else
-        checkBody [stm1] (depth + 1) >> checkBody [stm2] (depth + 1) >> return (checkRet [stm1] && checkRet [stm2])
+        checkBody [stm1] (depth + 1) ifdepth >> checkBody [stm2] (depth + 1) ifdepth >> return (checkRet [stm1] && checkRet [stm2])
 
 -- findFuncDecl ( _ : rest) = do
 --     findFuncDecl rest
