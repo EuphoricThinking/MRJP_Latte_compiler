@@ -575,9 +575,17 @@ checkBody ((Cond pos expr stmt) : rest) depth = do
     else
         checkBody rest depth
 
-checkBody ((VRet pos) : rest) depth = do
+checkBody ((VRet pos) : rest) depth = retVoidOrValUpd (Just VoidT) pos rest depth
+
+checkBody ((Ret pos expr) : rest) depth = do
+    exprType <- getExprType expr
+    retVoidOrValUpd exprType pos rest depth
+
+-- checkBody _ _= printSth "there" >>  return VoidV
+
+retVoidOrValUpd justType pos rest depth = do
     -- check functio tupe depth == 0
-    curFunD <- get curFunc
+    curFunD <- gets curFunc
     let ident = getFuncNameFromCurFunc curFunD
     funLoc <- asks (Map.lookup ident)
 
@@ -587,10 +595,10 @@ checkBody ((VRet pos) : rest) depth = do
             -- check arguments
             funcData <- gets (Map.lookup loc . store)
 
-            if not (matchTypesOrigEval (Just VoidT) (wrapOrigTypeInJust (getFuncRettype funcData)))
+            if not (matchTypesOrigEval justType (wrapOrigTypeInJust (getFuncRettype funcData)))
             then 
-                throwError $ "Value returned from void function" ++ (writePos pos)
-            else if depth == 0 do
+                throwError $ "Mismatched return value" ++ (writePos pos)
+            else if depth == 0 then do
                 curState <- get
 
                 let name = getFuncNameFromCurFunc curFunD
@@ -602,13 +610,7 @@ checkBody ((VRet pos) : rest) depth = do
             else
                 checkBody rest depth
 
-
-
-
-
-checkBody _ _= printSth "there" >>  return VoidV
-
-extractRettypeWrapJust (Just (FnDecl rettype args)) = Just ret
+extractRettypeWrapJust (Just (FnDecl rettype args)) = Just rettype
 
 getFuncNameFromCurFunc (CurFuncData name _ _) = name
 getFuncIfElseRetCurFunc (CurFuncData _ ifElse _) = ifElse
