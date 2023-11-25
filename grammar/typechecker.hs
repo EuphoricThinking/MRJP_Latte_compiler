@@ -566,7 +566,49 @@ checkBody ((CondElse pos condExpr stm1 stm2): rest) depth = do
     else
         checkBody rest depth
 
+checkBody ((Cond pos expr stmt) : rest) depth = do
+    exprType <- getExprType expr
+
+    if not (isBoolType exprType)
+    then
+        throwError $ "Non-boolean value in if condition" ++ (writePos pos)
+    else
+        checkBody rest depth
+
+checkBody ((VRet pos) : rest) depth = do
+    -- check functio tupe depth == 0
+    curFunD <- get curFunc
+    let ident = getFuncNameFromCurFunc curFunD
+    funLoc <- asks (Map.lookup ident)
+
+    case funLoc of
+        Nothing -> throwError $ "Function " ++ ident ++ " is undeclared (internal error)" ++ (writePos pos)
+        Just loc -> do
+            -- check arguments
+            funcData <- gets (Map.lookup loc . store)
+
+            if not (matchTypesOrigEval (Just VoidT) (wrapOrigTypeInJust (getFuncRettype funcData)))
+            then 
+                throwError $ "Value returned from void function" ++ (writePos pos)
+            else if depth == 0 do
+                curState <- get
+
+                let name = getFuncNameFromCurFunc curFunD
+                let ifElse = getFuncIfElseRetCurFunc curFunD
+
+                put curState {curFunc = (CurFuncData name ifElse True)}
+
+                checkBody rest depth
+            else
+                checkBody rest depth
+
+
+
+
+
 checkBody _ _= printSth "there" >>  return VoidV
+
+extractRettypeWrapJust (Just (FnDecl rettype args)) = Just ret
 
 getFuncNameFromCurFunc (CurFuncData name _ _) = name
 getFuncIfElseRetCurFunc (CurFuncData _ ifElse _) = ifElse
