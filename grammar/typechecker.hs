@@ -675,6 +675,7 @@ checkRet ((Ret pos expr) : _) = True
 checkRet ((VRet pos) : _) = True
 checkRet [(BStmt pos (Blk posB stmts))] = checkRet stmts
 -- single if does not change anything
+checkRet ((Cond pos (ELitTrue a) stmts) : rest) = checkRet [stmts] || checkRet rest
 checkRet ((Cond pos expr stmts) : rest) = checkRet rest
 -- condition might not be satisified in while in the beginning and we would never enter return
 checkRet ((While pos (ELitTrue a) stms) : rest) = checkRet [stms] || checkRet rest
