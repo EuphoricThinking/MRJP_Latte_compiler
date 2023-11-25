@@ -501,7 +501,38 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
             else
                 throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
 
-checkBody [] depth = return (StringV "OK")
+checkBody [] depth = do
+    if depth == 0
+    then do
+        curFunD <- gets curFunc
+
+        let ident = getFuncNameFromCurFunc curFunD
+        
+        funLoc <- asks (Map.lookup ident)
+
+        case funLoc of
+            Nothing -> throwError $ "Function " ++ ident ++ " is undeclared (internal error)"
+            Just loc -> do
+                -- check arguments
+                funcData <- gets (Map.lookup loc . store)
+
+                if (matchTypesOrigEval (Just VoidT) (wrapOrigTypeInJust (getFuncRettype funcData)))
+                then
+                    -- no need to check in void type
+                    return Success
+                else do
+                    -- return types must have been matched
+                    let freeRetCur = getFuncFreeRetCurFunc curFunD
+                    let ifElseRetCur = getFuncIfElseRetCurFunc curFunD
+
+                    if freeRetCur || ifElseRetCur
+                    then
+                        return Success
+                    else
+                        throwError $ ident ++ " lacks return statement"
+    else
+        return Success
+    --return (StringV "OK")
 
 checkBody ((Empty pos) : rest) depth = checkBody rest depth
 
