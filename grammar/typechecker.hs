@@ -218,7 +218,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             else
                 do
                 curEnv <- ask
-                local (const curEnv) (checkBody stmts 0 0) >> checkFunction rest
+                local (const curEnv) (checkBody stmts 0 0 0) >> checkFunction rest
                 -- checkBody stmts what are the consequences?
 
         else
@@ -227,7 +227,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             printSth envWithParams
             --return VoidV
             -- >> discards the result, however we need to pass the whole program without errors and the last step has to be accepter
-            local (const envWithParams) (checkBody stmts 0 0) >> checkFunction rest
+            local (const envWithParams) (checkBody stmts 0 0 0) >> checkFunction rest
 
 -- get Expr Type
 
@@ -463,7 +463,7 @@ matchTypesOrigEval _ _ = False
     -- else
     --     throwError $ "Type M"
 
-checkBodyIncDec pos ident rest typeName depth ifdepth = do
+checkBodyIncDec pos ident rest typeName depth ifdepth blockDepth = do
     varloc <- asks (Map.lookup ident)
     case varloc of
         Nothing -> throwError $ "Undefined variable " ++ ident ++ (writePos pos)
@@ -471,7 +471,7 @@ checkBodyIncDec pos ident rest typeName depth ifdepth = do
             varType <- gets (Map.lookup loc . store)
             if (isIntType varType)
             then
-                checkBody rest depth ifdepth
+                checkBody rest depth ifdepth blockDepth
             else
                 throwError $ typeName ++ " require int type" ++ (writePos pos)
 
@@ -508,8 +508,8 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
             else
                 throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
 
-checkBody [] depth ifdepth = do
-    if depth == 0 && ifdepth == 0
+checkBody [] depth ifdepth blockDepth = do
+    if depth == 0 && ifdepth == 0 && blockDepth == 0
     then do
         curFunD <- gets curFunc
 
@@ -543,11 +543,11 @@ checkBody [] depth ifdepth = do
         return Success
     --return (StringV "OK")
 
-checkBody ((Empty pos) : rest) depth ifdepth = checkBody rest depth ifdepth
+checkBody ((Empty pos) : rest) depth ifdepth blockDepth = checkBody rest depth ifdepth blockDepth
 
-checkBody ((Decl pos vartype items) : rest) depth ifdepth = do
+checkBody ((Decl pos vartype items) : rest) depth ifdepth blockDepth = do
     updatedEnv <- checkDecl vartype items
-    local (const updatedEnv) (checkBody rest depth ifdepth)
+    local (const updatedEnv) (checkBody rest depth ifdepth blockDepth)
     -- foundDecl <- asks (Map.lookup ident)
     -- case foundDecl of
     --     Just _ -> throwError $ "Duplicate variable at (row, col): " ++ show (getPos pos)
@@ -556,15 +556,15 @@ checkBody ((Decl pos vartype items) : rest) depth ifdepth = do
     --         insertToStore (TypeV vartype) declLoc
     --         local (Map.insert ident declLoc) (checkBody rest)
 
-checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth = do
+checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth blockDepth = do
     curEnv <- ask
     -- checkBody stmts depth ifdepth >> checkBody rest depth ifdepth
     printSth "checking block"
-    local (const curEnv) (checkBody stmts depth ifdepth) >> checkBody rest depth ifdepth
+    local (const curEnv) (checkBody stmts depth ifdepth (blockDepth + 1)) >> checkBody rest depth ifdepth blockDepth
 
-checkBody ((SExp pos expr) : rest) depth ifdepth = printSth "pizda" >> getExprType expr >> checkBody rest depth ifdepth
+checkBody ((SExp pos expr) : rest) depth ifdepth blockDepth = printSth "pizda" >> getExprType expr >> checkBody rest depth ifdepth blockDepth
 
-checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth = do
+checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth blockDepth = do
     varloc <- asks (Map.lookup ident)
     case varloc of
         Nothing -> throwError $ "Unknown variable " ++ ident ++ (writePos pos)
@@ -577,13 +577,13 @@ checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth = do
             then
                 throwError $ "Incompatible types for assignment: " ++ (writePos pos)
             else
-                checkBody rest depth ifdepth
+                checkBody rest depth ifdepth blockDepth
 
-checkBody ((Incr pos (Ident ident)) : rest) depth ifdepth = checkBodyIncDec pos ident rest "Incrementation" depth ifdepth
+checkBody ((Incr pos (Ident ident)) : rest) depth ifdepth blockDepth = checkBodyIncDec pos ident rest "Incrementation" depth ifdepth blockDepth
 
-checkBody ((Decr pos (Ident ident)) : rest) depth ifdepth = checkBodyIncDec pos ident rest "Decrementation" depth ifdepth
+checkBody ((Decr pos (Ident ident)) : rest) depth ifdepth blockDepth = checkBodyIncDec pos ident rest "Decrementation" depth ifdepth blockDepth
 
-checkBody ((While pos condExpr stmt) : rest) depth ifdepth = do
+checkBody ((While pos condExpr stmt) : rest) depth ifdepth blockDepth = do
     condType <- getExprType condExpr
 
     if not (isBoolType condType)
@@ -592,12 +592,12 @@ checkBody ((While pos condExpr stmt) : rest) depth ifdepth = do
     else
         if (isTrueLit condExpr)
         then -- always in
-            checkBody [stmt] depth ifdepth >> checkBody rest depth ifdepth
+            checkBody [stmt] depth ifdepth blockDepth >> checkBody rest depth ifdepth blockDepth
         else -- when literal is false - never stepped in; same case as possible stepping in (ifdepth + 1)
-            checkBody [stmt] depth (ifdepth + 1) >> checkBody rest depth ifdepth
+            checkBody [stmt] depth (ifdepth + 1) blockDepth >> checkBody rest depth ifdepth blockDepth
     
-checkBody ((CondElse pos condExpr stm1 stm2): rest) depth ifdepth = do
-    res <- ifElseCheck pos condExpr stm1 stm2 depth ifdepth
+checkBody ((CondElse pos condExpr stm1 stm2): rest) depth ifdepth blockDepth = do
+    res <- ifElseCheck pos condExpr stm1 stm2 depth ifdepth blockDepth
     -- the root of the tree
     if res && (depth == 0) && (ifdepth == 0)
     then do
@@ -610,11 +610,11 @@ checkBody ((CondElse pos condExpr stm1 stm2): rest) depth ifdepth = do
         put curState {curFunc = (CurFuncData name True isFreeRetFound)}
 
         
-        checkBody rest depth ifdepth
+        checkBody rest depth ifdepth blockDepth
     else
-        checkBody rest depth ifdepth
+        checkBody rest depth ifdepth blockDepth
 
-checkBody ((Cond pos expr stmt) : rest) depth ifdepth = do
+checkBody ((Cond pos expr stmt) : rest) depth ifdepth blockDepth = do
     exprType <- getExprType expr
     printSth "HERE COND"
 
@@ -624,20 +624,20 @@ checkBody ((Cond pos expr stmt) : rest) depth ifdepth = do
     else
         if isTrueLit expr
         then
-            checkBody [stmt] depth ifdepth >> checkBody rest depth ifdepth
+            checkBody [stmt] depth ifdepth blockDepth >> checkBody rest depth ifdepth blockDepth
         else
-            checkBody [stmt] depth (ifdepth + 1) >> checkBody rest depth ifdepth
+            checkBody [stmt] depth (ifdepth + 1) blockDepth >> checkBody rest depth ifdepth blockDepth
 
-checkBody ((VRet pos) : rest) depth ifdepth = retVoidOrValUpd (Just VoidT) pos rest depth ifdepth
+checkBody ((VRet pos) : rest) depth ifdepth blockDepth = retVoidOrValUpd (Just VoidT) pos rest depth ifdepth blockDepth
 
-checkBody ((Ret pos expr) : rest) depth ifdepth = do
+checkBody ((Ret pos expr) : rest) depth ifdepth blockDepth = do
     exprType <- getExprType expr
     printSth "checkret"
-    retVoidOrValUpd exprType pos rest depth ifdepth
+    retVoidOrValUpd exprType pos rest depth ifdepth blockDepth
 
 -- checkBody _ _= printSth "there" >>  return VoidV
 
-retVoidOrValUpd justType pos rest depth ifdepth = do
+retVoidOrValUpd justType pos rest depth ifdepth blockDepth = do
     -- check functio tupe depth == 0
     curFunD <- gets curFunc
     let ident = getFuncNameFromCurFunc curFunD
@@ -661,9 +661,9 @@ retVoidOrValUpd justType pos rest depth ifdepth = do
 
                 put curState {curFunc = (CurFuncData name ifElse True)}
 
-                checkBody rest depth ifdepth
+                checkBody rest depth ifdepth blockDepth
             else
-                checkBody rest depth ifdepth
+                checkBody rest depth ifdepth blockDepth
 
 extractRettypeWrapJust (Just (FnDecl rettype args pos)) = Just rettype
 
@@ -693,7 +693,7 @@ checkRet (_ : rest) = checkRet rest
 -- checkRet (a : []) = False
         
 
-ifElseCheck pos condExpr stm1 stm2 depth ifdepth = do
+ifElseCheck pos condExpr stm1 stm2 depth ifdepth blockDepth = do
     exprType <- getExprType condExpr
 
     if not (isBoolType exprType)
@@ -702,11 +702,11 @@ ifElseCheck pos condExpr stm1 stm2 depth ifdepth = do
     else
         if (isTrueLit condExpr)
         then
-            checkBody [stm1] depth ifdepth >> checkBody [stm2] (depth + 1) ifdepth >> return (checkRet [stm1])
+            checkBody [stm1] depth ifdepth blockDepth >> checkBody [stm2] (depth + 1) ifdepth blockDepth >> return (checkRet [stm1])
         else if (isFalseLit condExpr) then
-            checkBody [stm1] (depth + 1) ifdepth >> checkBody [stm2] depth ifdepth >> return (checkRet [stm2])
+            checkBody [stm1] (depth + 1) ifdepth blockDepth >> checkBody [stm2] depth ifdepth blockDepth >> return (checkRet [stm2])
         else
-            checkBody [stm1] (depth + 1) ifdepth >> checkBody [stm2] (depth + 1) ifdepth >> return (checkRet [stm1] && checkRet [stm2])
+            checkBody [stm1] (depth + 1) ifdepth blockDepth >> checkBody [stm2] (depth + 1) ifdepth blockDepth >> return (checkRet [stm1] && checkRet [stm2])
 
 -- findFuncDecl ( _ : rest) = do
 --     findFuncDecl rest
