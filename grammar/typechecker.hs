@@ -681,10 +681,13 @@ checkRet ((Cond pos expr stmts) : rest) = checkRet rest
 checkRet ((While pos (ELitTrue a) stms) : rest) = checkRet [stms] || checkRet rest
 checkRet ((While pos expr stms) : rest) = checkRet rest
 checkRet ((CondElse pos expr1 stm1 stm2) : rest) =
-    res1 && res2 || checkRet rest
-    where
-        res1 = checkRet [stm1]
-        res2 = checkRet [stm2]
+    case expr1 of
+        (ELitTrue _) -> res1 || checkRet rest
+        (ELitFalse _) -> res2 || checkRet rest
+        otherwise -> res1 && res2 || checkRet rest
+        where
+            res1 = checkRet [stm1]
+            res2 = checkRet [stm2]
 checkRet [] = False
 checkRet (_ : rest) = checkRet rest
 -- checkRet (a : []) = False
@@ -697,7 +700,13 @@ ifElseCheck pos condExpr stm1 stm2 depth ifdepth = do
     then
         throwError $ "Non-boolean condition in if-else clause" ++ (writePos pos)
     else
-        checkBody [stm1] (depth + 1) ifdepth >> checkBody [stm2] (depth + 1) ifdepth >> return (checkRet [stm1] && checkRet [stm2])
+        if (isTrueLit condExpr)
+        then
+            checkBody [stm1] depth ifdepth >> checkBody [stm2] (depth + 1) ifdepth >> return (checkRet [stm1])
+        else if (isFalseLit condExpr) then
+            checkBody [stm1] (depth + 1) ifdepth >> checkBody [stm2] depth ifdepth >> return (checkRet [stm2])
+        else
+            checkBody [stm1] (depth + 1) ifdepth >> checkBody [stm2] (depth + 1) ifdepth >> return (checkRet [stm1] && checkRet [stm2])
 
 -- findFuncDecl ( _ : rest) = do
 --     findFuncDecl rest
