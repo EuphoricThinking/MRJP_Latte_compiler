@@ -49,7 +49,7 @@ display_tokens tokens =  do
 data Value = IntV Int | Success | StringV String | BoolV Bool 
             --  | FnDefV [Arg] [Stmt] Env | FnDefRetV [Arg] [Stmt] Env 
              | DeclGlobV | DeclFInvV | NonInitV | BreakV | ContinueV | VoidV 
-             | FnDecl Type [Arg] | IntT | StringT | BoolT | VoidT | FunT Value 
+             | FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value 
              deriving (Eq) --TypeV Type
 
 type IfElseRet = Bool
@@ -136,10 +136,12 @@ executeRightProgram (Prog pos topDefs) =
         -- lift $ lift $ lift $ print topDefs
         -- return VoidV
 
-getFuncRettype (Just (FnDecl rettype args)) = rettype
+getFuncRettype (Just (FnDecl rettype args _)) = rettype
 --getFuncRettype Nothing = throwError $ "No declaration data for function (rettype)"
 
-getFuncArgs (Just (FnDecl rettype args)) = args
+getFuncArgs (Just (FnDecl rettype args _)) = args
+
+getFuncPos (Just (FnDecl _ _ pos)) = pos
 --getFuncArgs Nothing = throwError $ "No declaration data for function (args)"
 
 findFuncDecl [] = do
@@ -150,7 +152,7 @@ findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
     printSth ident
     
     funDecLoc <- alloc
-    let funDeclData = (FnDecl rettype args)
+    let funDeclData = (FnDecl rettype args pos)
     insertToStore funDeclData funDecLoc
 
     -- findFuncDecl rest
@@ -529,7 +531,7 @@ checkBody [] depth = do
                     then
                         return Success
                     else
-                        throwError $ ident ++ " lacks return statement"
+                        throwError $ ident ++ " lacks return statement" ++ (writePos (getFuncPos funcData))
     else
         return Success
     --return (StringV "OK")
@@ -641,7 +643,7 @@ retVoidOrValUpd justType pos rest depth = do
             else
                 checkBody rest depth
 
-extractRettypeWrapJust (Just (FnDecl rettype args)) = Just rettype
+extractRettypeWrapJust (Just (FnDecl rettype args pos)) = Just rettype
 
 getFuncNameFromCurFunc (CurFuncData name _ _) = name
 getFuncIfElseRetCurFunc (CurFuncData _ ifElse _) = ifElse
