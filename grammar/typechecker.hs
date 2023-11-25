@@ -593,7 +593,7 @@ checkBody ((While pos condExpr stmt) : rest) depth ifdepth = do
         if (isTrueLit condExpr)
         then -- always in
             checkBody [stmt] depth ifdepth >> checkBody rest depth ifdepth
-        else
+        else -- when literal is false - never stepped in; same case as possible stepping in (ifdepth + 1)
             checkBody [stmt] depth (ifdepth + 1) >> checkBody rest depth ifdepth
     
 checkBody ((CondElse pos condExpr stm1 stm2): rest) depth ifdepth = do
@@ -622,7 +622,11 @@ checkBody ((Cond pos expr stmt) : rest) depth ifdepth = do
     then
         throwError $ "Non-boolean value in if condition" ++ (writePos pos)
     else
-        checkBody [stmt] depth (ifdepth + 1) >> checkBody rest depth ifdepth
+        if isTrueLit expr
+        then
+            checkBody [stmt] depth ifdepth >> checkBody rest depth ifdepth
+        else
+            checkBody [stmt] depth (ifdepth + 1) >> checkBody rest depth ifdepth
 
 checkBody ((VRet pos) : rest) depth ifdepth = retVoidOrValUpd (Just VoidT) pos rest depth ifdepth
 
@@ -673,6 +677,7 @@ checkRet [(BStmt pos (Blk posB stmts))] = checkRet stmts
 -- single if does not change anything
 checkRet ((Cond pos expr stmts) : rest) = checkRet rest
 -- condition might not be satisified in while in the beginning and we would never enter return
+checkRet ((While pos (ELitTrue a) stms) : rest) = checkRet [stms] || checkRet rest
 checkRet ((While pos expr stms) : rest) = checkRet rest
 checkRet ((CondElse pos expr1 stm1 stm2) : rest) =
     res1 && res2 || checkRet rest
