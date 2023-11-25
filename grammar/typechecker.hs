@@ -601,12 +601,13 @@ checkBody ((CondElse pos condExpr stm1 stm2): rest) depth = do
 
 checkBody ((Cond pos expr stmt) : rest) depth = do
     exprType <- getExprType expr
+    printSth "HERE COND"
 
     if not (isBoolType exprType)
     then
         throwError $ "Non-boolean value in if condition" ++ (writePos pos)
     else
-        checkBody rest depth
+        checkBody [stmt] depth >> checkBody rest depth
 
 checkBody ((VRet pos) : rest) depth = retVoidOrValUpd (Just VoidT) pos rest depth
 
