@@ -289,6 +289,11 @@ checkAndOr pos expr1 expr2 = do
     else
         return (Just BoolT)
 
+isTrueLit (ELitTrue _) = True
+isTrueLit _ = False
+
+isFalseLit (ELitFalse _) = True
+isFalseLit _ = False
 
 -- get type of a variable (x, a, b)
 getExprType (EVar pos (Ident name)) = do
@@ -551,7 +556,11 @@ checkBody ((Decl pos vartype items) : rest) depth ifdepth = do
     --         insertToStore (TypeV vartype) declLoc
     --         local (Map.insert ident declLoc) (checkBody rest)
 
-checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth = checkBody stmts depth ifdepth >> checkBody rest depth ifdepth
+checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth = do
+    curEnv <- ask
+    -- checkBody stmts depth ifdepth >> checkBody rest depth ifdepth
+    printSth "checking block"
+    local (const curEnv) (checkBody stmts depth ifdepth) >> checkBody rest depth ifdepth
 
 checkBody ((SExp pos expr) : rest) depth ifdepth = printSth "pizda" >> getExprType expr >> checkBody rest depth ifdepth
 
@@ -580,8 +589,12 @@ checkBody ((While pos condExpr stmt) : rest) depth ifdepth = do
     if not (isBoolType condType)
     then
         throwError $ "While loop needs boolean condition" ++ (writePos pos)
-    else 
-        checkBody [stmt] depth (ifdepth + 1) >> checkBody rest depth ifdepth
+    else
+        if (isTrueLit condExpr)
+        then -- always in
+            checkBody [stmt] depth ifdepth >> checkBody rest depth ifdepth
+        else
+            checkBody [stmt] depth (ifdepth + 1) >> checkBody rest depth ifdepth
     
 checkBody ((CondElse pos condExpr stm1 stm2): rest) depth ifdepth = do
     res <- ifElseCheck pos condExpr stm1 stm2 depth ifdepth
@@ -615,6 +628,7 @@ checkBody ((VRet pos) : rest) depth ifdepth = retVoidOrValUpd (Just VoidT) pos r
 
 checkBody ((Ret pos expr) : rest) depth ifdepth = do
     exprType <- getExprType expr
+    printSth "checkret"
     retVoidOrValUpd exprType pos rest depth ifdepth
 
 -- checkBody _ _= printSth "there" >>  return VoidV
