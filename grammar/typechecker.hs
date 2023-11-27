@@ -49,7 +49,7 @@ display_tokens tokens =  do
 data Value = IntV Int | Success | StringV String | BoolV Bool 
             --  | FnDefV [Arg] [Stmt] Env | FnDefRetV [Arg] [Stmt] Env 
              | DeclGlobV | DeclFInvV | NonInitV | BreakV | ContinueV | VoidV 
-             | FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value 
+             | FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value
              deriving (Eq) --TypeV Type
 
 type IfElseRet = Bool
@@ -79,7 +79,7 @@ instance Show Value where
 type Loc = Int
 type Env = Map.Map String Loc
 data Store = Store {
-    store :: Map.Map Loc Value,
+    store :: Map.Map Loc (Value, Int),
     lastLoc :: Loc,
     curFunc :: CurFuncData
 } deriving (Show)
@@ -153,7 +153,7 @@ findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
     
     funDecLoc <- alloc
     let funDeclData = (FnDecl rettype args pos)
-    insertToStore funDeclData funDecLoc
+    insertToStore (funDeclData, 0) funDecLoc
 
     -- findFuncDecl rest
     local (Map.insert ident funDecLoc) (findFuncDecl rest)
@@ -194,7 +194,7 @@ checkArgs ((Ar pos argType (Ident argName)): args) = do
         Nothing -> do
             typeLoc <- alloc
             -- insertToStore (TypeV argType) typeLoc
-            insertToStore (getTypeOriginal argType) typeLoc
+            insertToStore ((getTypeOriginal argType), 0) typeLoc
             local (Map.insert argName typeLoc) (checkArgs args)
 
 checkFunction [] = printSth "here" >> return (StringV "OK")
@@ -295,6 +295,19 @@ isTrueLit _ = False
 isFalseLit (ELitFalse _) = True
 isFalseLit _ = False
 
+exprWithoutBDepth (Just (IntT, _)) = (Just IntT)
+exprWithoutBDepth (Just (StringT, _)) = (Just StringT)
+exprWithoutBDepth (Just (BoolT, _)) = (Just BoolT)
+exprWithoutBDepth (Just (VoidT, _)) = (Just VoidT)
+
+getBlockDepth (IntT, d) = d
+getBlockDepth (StringT, d) = d
+getBlockDepth (BoolT, d) = d
+getBlockDepth (VoidT, d) = d
+-- exprWithoutBDepth (Just (FunT val _)) = return (Just (FunT val))
+-- | StringT Int | BoolT Int | VoidT Int | FunT Value Int
+
+
 -- get type of a variable (x, a, b)
 getExprType (EVar pos (Ident name)) = do
     typeLoc <- asks (Map.lookup name)
@@ -302,7 +315,8 @@ getExprType (EVar pos (Ident name)) = do
         Nothing -> throwError $ "Unknown variable " ++ show name ++ " (row, col): " ++ show (getPos pos)
         Just loc -> do
             val <- gets (Map.lookup loc . store)
-            return val
+            return $ exprWithoutBDepth val
+            -- return val
 
 getExprType (ELitInt pos intVal) = return (Just IntT) --return IntT
 getExprType (ELitTrue pos) = return (Just BoolT)
@@ -475,28 +489,57 @@ checkBodyIncDec pos ident rest typeName depth ifdepth blockDepth = do
             else
                 throwError $ typeName ++ " require int type" ++ (writePos pos)
 
-checkDecl _ [] = do
+checkDecl _ [] _ = do
     curEnv <- ask
     return curEnv
 
-checkDecl vartype ((NoInit posIn (Ident ident)) : rest) = do
+checkDecl vartype ((NoInit posIn (Ident ident)) : rest) blockDepth = do
     foundVar <- asks (Map.lookup ident)
     case foundVar of
-        Just _ -> throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
+        Just valD -> 
+            if (getBlockDepth valD) == blockDepth
+            then
+                throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
+            else do
+                decVarLoc <- alloc
+                insertToStore ((getTypeOriginal vartype), blockDepth) decVarLoc
+                local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
         Nothing -> do
             decVarLoc <- alloc
             -- insertToStore (TypeV vartype) decVarLoc
-            insertToStore (getTypeOriginal vartype) decVarLoc
-            local (Map.insert ident decVarLoc) (checkDecl vartype rest)
+            insertToStore ((getTypeOriginal vartype), blockDepth) decVarLoc
+            local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
 
-checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
+checkDecl vartype ((Init posIn (Ident ident) expr) : rest) blockDepth = do
     foundVar <- asks (Map.lookup ident)
     case foundVar of
-        Just _ -> throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
+        Just valD -> 
+            if (getBlockDepth valD) == blockDepth
+            then
+                throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
+            else do
+               -- decVarLoc <- alloc
+                -- insertToStore (TypeV vartype) decVarLoc
+                -- insertToStore ((getTypeOriginal vartype) blockDepth) decVarLoc
+                -- printSth (getTypeOriginal vartype)
+                -- check if expression type is correct
+                exprType <- getExprType expr
+
+                -- if (matchTypesOrigEval (getTypeOriginal vartype) exprType)
+                if (matchTypesOrigEval (wrapOrigTypeInJust vartype) exprType)
+                then do
+                    decVarLoc <- alloc
+                -- insertToStore (TypeV vartype) decVarLoc
+                    insertToStore ((getTypeOriginal vartype), blockDepth) decVarLoc
+
+                    local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
+                else
+                    throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
+            -- throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
         Nothing -> do
             decVarLoc <- alloc
             -- insertToStore (TypeV vartype) decVarLoc
-            insertToStore (getTypeOriginal vartype) decVarLoc
+            insertToStore ((getTypeOriginal vartype), blockDepth) decVarLoc
             -- printSth (getTypeOriginal vartype)
             -- check if expression type is correct
             exprType <- getExprType expr
@@ -504,7 +547,7 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) = do
             -- if (matchTypesOrigEval (getTypeOriginal vartype) exprType)
             if (matchTypesOrigEval (wrapOrigTypeInJust vartype) exprType)
             then
-                local (Map.insert ident decVarLoc) (checkDecl vartype rest)
+                local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
             else
                 throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
 
@@ -546,7 +589,7 @@ checkBody [] depth ifdepth blockDepth = do
 checkBody ((Empty pos) : rest) depth ifdepth blockDepth = checkBody rest depth ifdepth blockDepth
 
 checkBody ((Decl pos vartype items) : rest) depth ifdepth blockDepth = do
-    updatedEnv <- checkDecl vartype items
+    updatedEnv <- checkDecl vartype items blockDepth
     local (const updatedEnv) (checkBody rest depth ifdepth blockDepth)
     -- foundDecl <- asks (Map.lookup ident)
     -- case foundDecl of
@@ -573,7 +616,7 @@ checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth blockDepth = do
             --printSth exprType
             varType <- gets (Map.lookup loc . store)
             --printSth varType
-            if not (matchTypesOrigEval varType exprType)
+            if not (matchTypesOrigEval (exprWithoutBDepth varType) exprType)
             then
                 throwError $ "Incompatible types for assignment: " ++ (writePos pos)
             else
