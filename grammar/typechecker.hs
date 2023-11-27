@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
+import System.Exit
 
 mainName = "main"
 
@@ -19,13 +20,13 @@ main :: IO ()
 main = do
     args <- getArgs
     case args of
-        [] -> hGetContents stdin >>= parseFile >>= printReturnCode
-        [filename] -> readFile filename >>= parseFile >>= printReturnCode
+        [] -> hGetContents stdin >>= parseFile    -- >>= printReturnCode
+        [filename] -> readFile filename >>= parseFile -- >>= printReturnCode
 
-getFileStrinContent :: FilePath -> IO (Either String Value)
+getFileStrinContent :: FilePath -> IO ()--(Either String Value)
 getFileStrinContent path = readFile path >>= parseFile
 
-parseFile :: String -> IO (Either String Value)
+parseFile :: String -> IO () --(Either String Value)
 parseFile fileContent =
     let
       tokens = myLexer fileContent
@@ -109,11 +110,25 @@ getEitherMessage (Right mes) = mes
 
 printMes mes = lift $ lift $ lift $ putStrLn mes
 
-executeProgram :: Either String Program -> IO (Either String Value)
+-- checkError :: Either String Value -> IO()
+-- checkError (Left mes) = putStrLn mes >> exitFailure
+-- checkError (Right _) = putStrLn "OK" >> exitSuccess
+checkError :: ExceptT String IO Value -> IO()
+checkError resWrapped = do
+    res <- runExceptT $ resWrapped
+    case res of
+        Left mes -> putStrLn mes >> exitFailure
+        Right _ -> putStrLn "OK" >> exitSuccess
+
+executeProgram :: Either String Program -> IO () --IO (Either String Value)
 executeProgram program = 
     case program of
-        Left mes -> runExceptT $ throwError mes
-        Right p -> runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})
+        -- Left mes -> runExceptT $ throwError mes
+        -- Right p -> runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})
+-- (runExceptT $ throwError mes)
+-- (runExceptT $ evalStateT ( --Right
+        Left mes -> putStrLn mes >> exitFailure
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})  -- >> exitSuccess
 
 -- executeRightProgram :: Program -> InterpreterMonad Value
 -- executeRightProgram (Program pos topDefs) = do
