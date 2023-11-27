@@ -15,18 +15,22 @@ import System.Exit
 
 mainName = "main"
 
+-- depth - depth in if...else clause
+-- ifDepth - depth in the if or while clause; indicator of a not finished program
+-- blockDepth - depth in the inner block (at entering function body set to 0)
+
 
 main :: IO () 
 main = do
     args <- getArgs
     case args of
-        [] -> hGetContents stdin >>= parseFile    -- >>= printReturnCode
-        [filename] -> readFile filename >>= parseFile -- >>= printReturnCode
+        [] -> hGetContents stdin >>= parseFile    
+        [filename] -> readFile filename >>= parseFile 
 
-getFileStrinContent :: FilePath -> IO ()--(Either String Value)
+getFileStrinContent :: FilePath -> IO ()
 getFileStrinContent path = readFile path >>= parseFile
 
-parseFile :: String -> IO () --(Either String Value)
+parseFile :: String -> IO () 
 parseFile fileContent =
     let
       tokens = myLexer fileContent
@@ -45,13 +49,11 @@ display_tokens tokens =  do
     parsed = pProgram tokens in
       print parsed
 
--- data TypeV = IntT | StringT | BoolT | VoidT | FunT deriving (Show, Eq)
 
 data Value = IntV Int | Success | StringV String | BoolV Bool 
-            --  | FnDefV [Arg] [Stmt] Env | FnDefRetV [Arg] [Stmt] Env 
              | DeclGlobV | DeclFInvV | NonInitV | BreakV | ContinueV | VoidV 
              | FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value
-             deriving (Eq) --TypeV Type
+             deriving (Eq)
 
 type IfElseRet = Bool
 type FreeRet = Bool
@@ -62,8 +64,6 @@ instance Show Value where
     show (StringV v) = show v
     show (BoolV v) = show v
     show Success = "Success"
-    -- show (FnDefV a b c) = "FnDefV " ++ show a ++ " " ++ show b ++ " " ++ show c
-    -- show (FnDefRetV a b c) = "FnDefRetV " ++ show a ++ " " ++ show b ++ " " ++ show c
     show DeclGlobV = "DeclGlobV"
     show DeclFInvV = "DeclFInvV"
     show NonInitV = "NonInitV"
@@ -72,6 +72,10 @@ instance Show Value where
     show VoidV = "VoidV"
     show BoolT = "BoolT"
     show IntT = "IntT"
+    show StringT = "StringT"
+    show VoidT = "VoidT"
+    show (FnDecl _ _ pos) = "FnDecl " ++ (show pos)
+    show (FunT v) = "FunT " ++ (show v)
 
 -- Store przechowuje wszystkie zmienne przez cały czas
 -- Env wskazuje na lokacje aktualnie widocznych zmiennych
@@ -110,9 +114,6 @@ getEitherMessage (Right mes) = mes
 
 printMes mes = lift $ lift $ lift $ putStrLn mes
 
--- checkError :: Either String Value -> IO()
--- checkError (Left mes) = putStrLn mes >> exitFailure
--- checkError (Right _) = putStrLn "OK" >> exitSuccess
 printError mes = hPutStrLn stderr ("ERROR\n" ++ mes)
 printOK = hPutStrLn stderr "OK"
 
@@ -123,44 +124,31 @@ checkError resWrapped = do
         Left mes -> printError mes >> exitFailure
         Right _ -> printOK >> exitSuccess
 
-executeProgram :: Either String Program -> IO () --IO (Either String Value)
+executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
-        -- Left mes -> runExceptT $ throwError mes
-        -- Right p -> runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})
--- (runExceptT $ throwError mes)
--- (runExceptT $ evalStateT ( --Right
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})  -- >> exitSuccess
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)}) 
 
--- executeRightProgram :: Program -> InterpreterMonad Value
--- executeRightProgram (Program pos topDefs) = do
---     return VoidV
+
 printSth mes = lift $ lift $ lift $ print mes
 
-executeRightProgram :: Program -> InterpreterMonad Value  -- ? prog?
+executeRightProgram :: Program -> InterpreterMonad Value  
 executeRightProgram (Prog pos topDefs) = 
     do
         envWithFuncDecl <- findFuncDecl topDefs
 
-        -- mainFound <- Map.lookup "main" envWithFuncDecl
-
-        -- printSth envWithFuncDecl
+    
         case Map.lookup "main" envWithFuncDecl of
             Nothing -> throwError $ "No main method defined"
-            _ ->  local (const envWithFuncDecl) (checkFunction topDefs)--checkFunction envWithFuncDecl topDefs --return (StringV "OK")
+            _ ->  local (const envWithFuncDecl) (checkFunction topDefs)
     
-    -- do
-        -- lift $ lift $ lift $ print topDefs
-        -- return VoidV
 
 getFuncRettype (Just ((FnDecl rettype args _), _)) = rettype
---getFuncRettype Nothing = throwError $ "No declaration data for function (rettype)"
 
 getFuncArgs (Just ((FnDecl rettype args _), _)) = args
 
 getFuncPos (Just ((FnDecl _ _ pos), _)) = pos
---getFuncArgs Nothing = throwError $ "No declaration data for function (args)"
 
 findFuncDecl [] = do
     curEnv <- ask
@@ -173,11 +161,9 @@ findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
     let funDeclData = (FnDecl rettype args pos)
     insertToStore (funDeclData, 0) funDecLoc
 
-    -- findFuncDecl rest
     local (Map.insert ident funDecLoc) (findFuncDecl rest)
 
--- checkFunction :: 
---checkFunction envFuncs ((FnDef pos (Latte.Abs.Type' posT) (Ident ident) args stmts) : rest) = do
+
 isInt (Int a) = True
 isInt _ = False
 
@@ -199,8 +185,6 @@ getTypeOriginal (Str _)  = StringT
 getTypeOriginal (Void _) = VoidT
 getTypeOriginal (Fun _ t _) =  FunT (getTypeOriginal t)
 
--- checkArgs []
--- checkArgs envLoc (arg: args)
 checkArgs [] = do
     curEnv <- ask
     return curEnv
@@ -211,20 +195,16 @@ checkArgs ((Ar pos argType (Ident argName)): args) = do
         Just _ -> throwError $ "Multiple entity declaration in arguments (row, col): " ++ show (getPos pos)
         Nothing -> do
             typeLoc <- alloc
-            -- insertToStore (TypeV argType) typeLoc
             insertToStore ((getTypeOriginal argType), 0) typeLoc
             local (Map.insert argName typeLoc) (checkArgs args)
 
 checkFunction [] = printSth "here" >> return (StringV "OK")
 
 checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
-
-        -- check args
         printSth rettype
         -- it is enough to replace the current function once
         curState <- get
         put curState {curFunc = (CurFuncData ident False False)}
-        --print pos
         if (ident == mainName)
         then do
             if not (isInt rettype)
@@ -237,24 +217,13 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
                 do
                 curEnv <- ask
                 local (const curEnv) (checkBody stmts 0 0 0) >> checkFunction rest
-                -- checkBody stmts what are the consequences?
 
         else
             do
             envWithParams <- checkArgs args
             printSth envWithParams
-            --return VoidV
-            -- >> discards the result, however we need to pass the whole program without errors and the last step has to be accepter
             local (const envWithParams) (checkBody stmts 0 0 0) >> checkFunction rest
 
--- get Expr Type
-
--- modify store, in function: ret lists [retIf, ertElse, ret]
--- in if add field list of if, in else - else; nested if - add a list; remove after leaving if or else
-    -- in the end of functo [] check return number and if void
-        -- check return type na on the go
-        -- stack
-        --- check func arguments, check if function is declared in expressions
 checkIfStringsEqual :: String -> String -> Bool
 checkIfStringsEqual [] [] = True
 checkIfStringsEqual [] _ = False
@@ -282,9 +251,7 @@ specialRet name = do
 
 getArgPos (Ar pos _ _) = pos
 getArgType (Ar _ t _) = Just (getTypeOriginal t)
---getPassedPos (Expr' pos) = pos
 
--- rettype argsOrig argsPassed
 checkArgsCall _ _ rettype [] [] = return (wrapOrigTypeInJust rettype)
 checkArgsCall ident pos _ [] _ = throwError $ "Too many arguments in " ++ ident ++ (writePos pos)
 checkArgsCall ident pos _ _ [] = throwError $ "Too few arguments in " ++ ident ++ (writePos pos)
@@ -322,11 +289,7 @@ getBlockDepth (Just (IntT, d)) = d
 getBlockDepth (Just (StringT, d)) = d
 getBlockDepth (Just (BoolT, d)) = d
 getBlockDepth (Just (VoidT, d)) = d
--- exprWithoutBDepth (Just (FunT val _)) = return (Just (FunT val))
--- | StringT Int | BoolT Int | VoidT Int | FunT Value Int
 
-
--- get type of a variable (x, a, b)
 getExprType (EVar pos (Ident name)) = do
     typeLoc <- asks (Map.lookup name)
     case typeLoc of
@@ -334,9 +297,8 @@ getExprType (EVar pos (Ident name)) = do
         Just loc -> do
             val <- gets (Map.lookup loc . store)
             return $ exprWithoutBDepth val
-            -- return val
 
-getExprType (ELitInt pos intVal) = return (Just IntT) --return IntT
+getExprType (ELitInt pos intVal) = return (Just IntT) 
 getExprType (ELitTrue pos) = return (Just BoolT)
 getExprType (ELitFalse pos) = return (Just BoolT)
 getExprType (EString _ _) = return (Just StringT)
@@ -393,21 +355,17 @@ getExprType (EApp pos (Ident ident) expr) = do
 
                 checkArgsCall ident pos funcRet funcArgs exprTypes
 
---getExprType (Neg pos expr) = checkNegNot pos expr "Negation"
-
---checkNegNot pos expr typeName = do
 getExprType (Neg pos expr) = do
     exprType <- getExprType expr
-    if (isIntType exprType) --(isBoolType exprType || isIntType exprType)
+    if (isIntType exprType) 
     then
         return exprType
     else
         throwError $ "Negation applied to non-numerical value" ++ (writePos pos)
 
--- getExprType (Not pos expr) = checkNegNot pos expr "Not"
 getExprType (Not pos expr) = do
     exprType <- getExprType expr
-    if (isBoolType exprType) --(isBoolType exprType || isIntType exprType)
+    if (isBoolType exprType) 
     then
         return exprType
     else
@@ -458,22 +416,15 @@ getExprType (ERel pos expr1 operand expr2) = do
             (EQU p) -> return (Just BoolT)
             (NE p) -> return (Just BoolT)
             otherwise -> do
-                -- if ((isIntType type1) && (isIntType type2))
                 -- we know that types must match so it's sufficient to check one result
-                if isIntType type1   -- || isStrType type1
+                if isIntType type1  
                 then
-                    return (Just BoolT) -- type1
+                    return (Just BoolT)
                 else
                     throwError $ "Value type not supported in logical comparison" ++ (writePos pos)
 
 getExprType (EAnd pos expr1 expr2) = checkAndOr pos expr1 expr2
 getExprType (EOr pos expr1 expr2) = checkAndOr pos expr1 expr2
-
--- getEpr of EApp - check if arguments are correct
-    -- check if the function exists
-
--- compareTypes (Just a) (Just b) = a == b
--- compareTypes _ _ = False
 
 writePos pos = " (row, col): " ++ show (getPos pos)
 
@@ -483,17 +434,7 @@ extractType _ = throwError $ "Type not assigned"
 wrapOrigTypeInJust vartype = Just (getTypeOriginal vartype)
 
 matchTypesOrigEval (Just a) (Just b) = a == b
---matchTypesOrigEval v (Just b) = v == b
 matchTypesOrigEval _ _ = False
--- matchExprType pos originalType evaluatedTypeToCompare = do
---     origEvaluated <- getExprType originalType
-
---     return (compareTypes origEvaluated evaluatedTypeToCompare)
-    
-    -- if (compareTypes origEvaluated evaluatedTypeToCompare)
-    --     then return True
-    -- else
-    --     throwError $ "Type M"
 
 checkBodyIncDec pos ident rest typeName depth ifdepth blockDepth = do
     varloc <- asks (Map.lookup ident)
@@ -525,7 +466,6 @@ checkDecl vartype ((NoInit posIn (Ident ident)) : rest) blockDepth = do
                 local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
         Nothing -> do
             decVarLoc <- alloc
-            -- insertToStore (TypeV vartype) decVarLoc
             insertToStore ((getTypeOriginal vartype), blockDepth) decVarLoc
             local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
 
@@ -538,33 +478,23 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) blockDepth = do
             then
                 throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
             else do
-               -- decVarLoc <- alloc
-                -- insertToStore (TypeV vartype) decVarLoc
-                -- insertToStore ((getTypeOriginal vartype) blockDepth) decVarLoc
-                -- printSth (getTypeOriginal vartype)
                 -- check if expression type is correct
                 exprType <- getExprType expr
 
-                -- if (matchTypesOrigEval (getTypeOriginal vartype) exprType)
                 if (matchTypesOrigEval (wrapOrigTypeInJust vartype) exprType)
                 then do
                     decVarLoc <- alloc
-                -- insertToStore (TypeV vartype) decVarLoc
                     insertToStore ((getTypeOriginal vartype), blockDepth) decVarLoc
 
                     local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
                 else
                     throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
-            -- throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
         Nothing -> do
             decVarLoc <- alloc
-            -- insertToStore (TypeV vartype) decVarLoc
             insertToStore ((getTypeOriginal vartype), blockDepth) decVarLoc
-            -- printSth (getTypeOriginal vartype)
             -- check if expression type is correct
             exprType <- getExprType expr
 
-            -- if (matchTypesOrigEval (getTypeOriginal vartype) exprType)
             if (matchTypesOrigEval (wrapOrigTypeInJust vartype) exprType)
             then
                 local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
@@ -604,25 +534,15 @@ checkBody [] depth ifdepth blockDepth = do
                         throwError $ ident ++ " lacks return statement" ++ (writePos (getFuncPos funcData))
     else
         return Success
-    --return (StringV "OK")
 
 checkBody ((Empty pos) : rest) depth ifdepth blockDepth = checkBody rest depth ifdepth blockDepth
 
 checkBody ((Decl pos vartype items) : rest) depth ifdepth blockDepth = do
     updatedEnv <- checkDecl vartype items blockDepth
     local (const updatedEnv) (checkBody rest depth ifdepth blockDepth)
-    -- foundDecl <- asks (Map.lookup ident)
-    -- case foundDecl of
-    --     Just _ -> throwError $ "Duplicate variable at (row, col): " ++ show (getPos pos)
-    --     Nothing -> do
-    --         declLoc <- alloc
-    --         insertToStore (TypeV vartype) declLoc
-    --         local (Map.insert ident declLoc) (checkBody rest)
 
 checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth blockDepth = do
     curEnv <- ask
-    -- checkBody stmts depth ifdepth >> checkBody rest depth ifdepth
-    printSth "checking block"
     local (const curEnv) (checkBody stmts depth ifdepth (blockDepth + 1)) >> checkBody rest depth ifdepth blockDepth
 
 checkBody ((SExp pos expr) : rest) depth ifdepth blockDepth = printSth "pizda" >> getExprType expr >> checkBody rest depth ifdepth blockDepth
@@ -633,9 +553,7 @@ checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth blockDepth = do
         Nothing -> throwError $ "Unknown variable " ++ ident ++ (writePos pos)
         Just loc -> do
             exprType <- getExprType expr
-            --printSth exprType
             varType <- gets (Map.lookup loc . store)
-            --printSth varType
             if not (matchTypesOrigEval (exprWithoutBDepth varType) exprType)
             then
                 throwError $ "Incompatible types for assignment: " ++ (writePos pos)
@@ -679,7 +597,6 @@ checkBody ((CondElse pos condExpr stm1 stm2): rest) depth ifdepth blockDepth = d
 
 checkBody ((Cond pos expr stmt) : rest) depth ifdepth blockDepth = do
     exprType <- getExprType expr
-    printSth "HERE COND"
 
     if not (isBoolType exprType)
     then
@@ -695,10 +612,8 @@ checkBody ((VRet pos) : rest) depth ifdepth blockDepth = retVoidOrValUpd (Just V
 
 checkBody ((Ret pos expr) : rest) depth ifdepth blockDepth = do
     exprType <- getExprType expr
-    printSth "checkret"
     retVoidOrValUpd exprType pos rest depth ifdepth blockDepth
 
--- checkBody _ _= printSth "there" >>  return VoidV
 
 retVoidOrValUpd justType pos rest depth ifdepth blockDepth = do
     -- check functio tupe depth == 0
@@ -753,7 +668,6 @@ checkRet ((CondElse pos expr1 stm1 stm2) : rest) =
             res2 = checkRet [stm2]
 checkRet [] = False
 checkRet (_ : rest) = checkRet rest
--- checkRet (a : []) = False
         
 
 ifElseCheck pos condExpr stm1 stm2 depth ifdepth blockDepth = do
@@ -770,7 +684,3 @@ ifElseCheck pos condExpr stm1 stm2 depth ifdepth blockDepth = do
             checkBody [stm1] (depth + 1) ifdepth blockDepth >> checkBody [stm2] depth ifdepth blockDepth >> return (checkRet [stm2])
         else
             checkBody [stm1] (depth + 1) ifdepth blockDepth >> checkBody [stm2] (depth + 1) ifdepth blockDepth >> return (checkRet [stm1] && checkRet [stm2])
-
--- findFuncDecl ( _ : rest) = do
---     findFuncDecl rest
-    
