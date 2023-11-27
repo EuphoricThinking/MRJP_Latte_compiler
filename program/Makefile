@@ -1,11 +1,9 @@
 TARGET = typechecker
 SRC_DIR = ./src
+GRAMMAR_DIR = Latte
 
-all: $(TARGET).hs
-	cd $(SRC_DIR)
-	ghc $(TARGET).hs -o ./..
+all: $(SRC_DIR)/$(TARGET).hs
+	ghc -i$(SRC_DIR) $(SRC_DIR)/$(TARGET).hs -o ./$(TARGET)
 
 clean:
-	$(RM) *.o *.hi $(TARGET) src/Latte/*.o src/Latte/*.hi
-
-
+	$(RM) $(TARGET) $(SRC_DIR)/*.o $(SRC_DIR)/*.hi
