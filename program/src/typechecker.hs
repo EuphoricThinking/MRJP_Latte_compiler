@@ -155,7 +155,6 @@ findFuncDecl [] = do
     return curEnv
 
 findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
-    printSth ident
     
     funDecLoc <- alloc
     let funDeclData = (FnDecl rettype args pos)
@@ -198,10 +197,9 @@ checkArgs ((Ar pos argType (Ident argName)): args) = do
             insertToStore ((getTypeOriginal argType), 0) typeLoc
             local (Map.insert argName typeLoc) (checkArgs args)
 
-checkFunction [] = printSth "here" >> return (StringV "OK")
+checkFunction [] = return Success -- (StringV "OK")
 
 checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
-        printSth rettype
         -- it is enough to replace the current function once
         curState <- get
         put curState {curFunc = (CurFuncData ident False False)}
@@ -221,7 +219,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
         else
             do
             envWithParams <- checkArgs args
-            printSth envWithParams
+
             local (const envWithParams) (checkBody stmts 0 0 0) >> checkFunction rest
 
 checkIfStringsEqual :: String -> String -> Bool
@@ -545,7 +543,7 @@ checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth blockDepth = do
     curEnv <- ask
     local (const curEnv) (checkBody stmts depth ifdepth (blockDepth + 1)) >> checkBody rest depth ifdepth blockDepth
 
-checkBody ((SExp pos expr) : rest) depth ifdepth blockDepth = printSth "pizda" >> getExprType expr >> checkBody rest depth ifdepth blockDepth
+checkBody ((SExp pos expr) : rest) depth ifdepth blockDepth = getExprType expr >> checkBody rest depth ifdepth blockDepth
 
 checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth blockDepth = do
     varloc <- asks (Map.lookup ident)

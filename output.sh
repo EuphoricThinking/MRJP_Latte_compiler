@@ -1,7 +1,7 @@
 for file in `ls ../lattests/good/*lat`
 do
 	echo "$file"
-	cat "$file" | ./ltc | grep -e "OK|ERROR"
+	cat "$file" | ./ltc
 	echo $?
 done
 
@@ -10,6 +10,6 @@ echo -e "\nBAD"
 for file in `ls ../lattests/bad/*lat`
 do
         echo "$file"
-        cat "$file" | ./ltc | grep "OK|ERROR"
+        cat "$file" | ./ltc 
 	echo $?
 done
