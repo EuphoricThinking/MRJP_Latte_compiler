@@ -483,7 +483,7 @@ checkBodyIncDec pos ident rest typeName depth ifdepth blockDepth = do
         Nothing -> throwError $ "Undefined variable " ++ ident ++ (writePos pos)
         Just loc -> do
             varType <- gets (Map.lookup loc . store)
-            if (isIntType varType)
+            if (isIntType $ exprWithoutBDepth varType)
             then
                 checkBody rest depth ifdepth blockDepth
             else
