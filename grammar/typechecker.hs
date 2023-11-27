@@ -117,7 +117,7 @@ checkError :: ExceptT String IO Value -> IO()
 checkError resWrapped = do
     res <- runExceptT $ resWrapped
     case res of
-        Left mes -> putStrLn mes >> exitFailure
+        Left mes -> hPutStrLn stderr mes >> exitFailure
         Right _ -> putStrLn "OK" >> exitSuccess
 
 executeProgram :: Either String Program -> IO () --IO (Either String Value)
@@ -127,7 +127,7 @@ executeProgram program =
         -- Right p -> runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})
 -- (runExceptT $ throwError mes)
 -- (runExceptT $ evalStateT ( --Right
-        Left mes -> putStrLn mes >> exitFailure
+        Left mes -> hPutStrLn stderr mes >> exitFailure
         Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})  -- >> exitSuccess
 
 -- executeRightProgram :: Program -> InterpreterMonad Value
