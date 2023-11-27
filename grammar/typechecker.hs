@@ -300,10 +300,10 @@ exprWithoutBDepth (Just (StringT, _)) = (Just StringT)
 exprWithoutBDepth (Just (BoolT, _)) = (Just BoolT)
 exprWithoutBDepth (Just (VoidT, _)) = (Just VoidT)
 
-getBlockDepth (IntT, d) = d
-getBlockDepth (StringT, d) = d
-getBlockDepth (BoolT, d) = d
-getBlockDepth (VoidT, d) = d
+getBlockDepth (Just (IntT, d)) = d
+getBlockDepth (Just (StringT, d)) = d
+getBlockDepth (Just (BoolT, d)) = d
+getBlockDepth (Just (VoidT, d)) = d
 -- exprWithoutBDepth (Just (FunT val _)) = return (Just (FunT val))
 -- | StringT Int | BoolT Int | VoidT Int | FunT Value Int
 
@@ -496,7 +496,8 @@ checkDecl _ [] _ = do
 checkDecl vartype ((NoInit posIn (Ident ident)) : rest) blockDepth = do
     foundVar <- asks (Map.lookup ident)
     case foundVar of
-        Just valD -> 
+        Just loc  -> do
+            valD <- gets (Map.lookup loc . store)
             if (getBlockDepth valD) == blockDepth
             then
                 throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
@@ -513,7 +514,8 @@ checkDecl vartype ((NoInit posIn (Ident ident)) : rest) blockDepth = do
 checkDecl vartype ((Init posIn (Ident ident) expr) : rest) blockDepth = do
     foundVar <- asks (Map.lookup ident)
     case foundVar of
-        Just valD -> 
+        Just loc -> do
+            valD <- gets (Map.lookup loc . store)
             if (getBlockDepth valD) == blockDepth
             then
                 throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
