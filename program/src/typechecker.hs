@@ -37,12 +37,6 @@ parseFile fileContent =
       parsed = pProgram tokens
     in executeProgram parsed
 
-printReturnCode :: Either String Value -> IO ()
-printReturnCode res = do
-    case res of
-        Left mes -> hPutStrLn stderr mes
-        Right cont -> print $ "Exit code: " ++ show cont 
-
 display_tokens :: [Token] -> IO()
 display_tokens tokens =  do 
   let 
@@ -50,9 +44,7 @@ display_tokens tokens =  do
       print parsed
 
 
-data Value = IntV Int | Success | StringV String | BoolV Bool 
-             | DeclGlobV | DeclFInvV | NonInitV | BreakV | ContinueV | VoidV 
-             | FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value
+data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success
              deriving (Eq)
 
 type IfElseRet = Bool
@@ -60,16 +52,7 @@ type FreeRet = Bool
 data CurFuncData = CurFuncData String IfElseRet FreeRet deriving (Show)
 
 instance Show Value where
-    show (IntV v) = show v
-    show (StringV v) = show v
-    show (BoolV v) = show v
     show Success = "Success"
-    show DeclGlobV = "DeclGlobV"
-    show DeclFInvV = "DeclFInvV"
-    show NonInitV = "NonInitV"
-    show BreakV = "BreakV"
-    show ContinueV = "ContinueV"
-    show VoidV = "VoidV"
     show BoolT = "BoolT"
     show IntT = "IntT"
     show StringT = "StringT"
