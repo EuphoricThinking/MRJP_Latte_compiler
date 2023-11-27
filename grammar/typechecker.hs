@@ -136,12 +136,12 @@ executeRightProgram (Prog pos topDefs) =
         -- lift $ lift $ lift $ print topDefs
         -- return VoidV
 
-getFuncRettype (Just (FnDecl rettype args _)) = rettype
+getFuncRettype (Just ((FnDecl rettype args _), _)) = rettype
 --getFuncRettype Nothing = throwError $ "No declaration data for function (rettype)"
 
-getFuncArgs (Just (FnDecl rettype args _)) = args
+getFuncArgs (Just ((FnDecl rettype args _), _)) = args
 
-getFuncPos (Just (FnDecl _ _ pos)) = pos
+getFuncPos (Just ((FnDecl _ _ pos), _)) = pos
 --getFuncArgs Nothing = throwError $ "No declaration data for function (args)"
 
 findFuncDecl [] = do
