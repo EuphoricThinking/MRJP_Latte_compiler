@@ -1,0 +1,9 @@
+The program is compiled by the command `make` executed in the root. Run the program by typing in the terminal:
+
+`cat path_to_file | ./ltc`
+
+or (followed by ENTER and the sequence of statements, ended with CTRL+D):
+
+`./ltc`
+
+The code incorporates fragments of the code from JPP interpreter project, who I am an author.
