@@ -44,7 +44,7 @@ display_tokens tokens =  do
       print parsed
 
 
-data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success
+data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType
              deriving (Eq)
 
 type IfElseRet = Bool
@@ -269,6 +269,8 @@ exprWithoutBDepth (Just (IntT, _)) = (Just IntT)
 exprWithoutBDepth (Just (StringT, _)) = (Just StringT)
 exprWithoutBDepth (Just (BoolT, _)) = (Just BoolT)
 exprWithoutBDepth (Just (VoidT, _)) = (Just VoidT)
+exprWithoutBDepth (Just ((FunT _), _)) = (Just FunRetType)
+exprWithoutBDepth (Just ((FnDecl _ _ _), _)) = (Just FunRetType)
 
 getBlockDepth (Just (IntT, d)) = d
 getBlockDepth (Just (StringT, d)) = d
