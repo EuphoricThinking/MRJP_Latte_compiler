@@ -2,3 +2,6 @@
 *.o
 Test
 typechecker
+build/
+program/am406133.tar.gz
+program/ltc

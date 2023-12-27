@@ -138,12 +138,16 @@ findFuncDecl [] = do
     return curEnv
 
 findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
+    prevLoc <- asks (Map.lookup ident)
+    case prevLoc of
+        Just foundLoc -> throwError $ "Multiple function declaration" ++ (writePos pos)
+        Nothing -> do
     
-    funDecLoc <- alloc
-    let funDeclData = (FnDecl rettype args pos)
-    insertToStore (funDeclData, 0) funDecLoc
+            funDecLoc <- alloc
+            let funDeclData = (FnDecl rettype args pos)
+            insertToStore (funDeclData, 0) funDecLoc
 
-    local (Map.insert ident funDecLoc) (findFuncDecl rest)
+            local (Map.insert ident funDecLoc) (findFuncDecl rest)
 
 
 isInt (Int a) = True
