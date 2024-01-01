@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+module Typechecker where
 
 import Latte.Abs
 import Latte.Lex
