@@ -5,3 +5,5 @@ typechecker
 build/
 program/am406133.tar.gz
 program/ltc
+lattests/good/*.s
+lattests/bad/*.s

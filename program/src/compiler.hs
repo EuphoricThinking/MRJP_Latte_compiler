@@ -13,12 +13,35 @@ import Control.Monad.Reader
 import Control.Monad.Except
 import System.Exit
 
+import System.FilePath
+
 main :: IO () 
 main = do
     args <- getArgs
     case args of
-        [] -> hGetContents stdin >>= parseFileExec    
-        [filename] -> readFile filename >>= parseFileExec
+        -- [] -> hGetContents stdin >>= parseFileExec
+        [] -> printError "Filename needed" >> exitFailure    
+        [filename] -> do --readFile filename >>= parseFileExec
+            fileContent <- readFile filename
+            let tokens = myLexer fileContent
+            let parsed = pProgram tokens
+
+            case parsed of
+                Left mes -> printError mes
+                Right p -> do
+                    resWrapped <- runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})
+                    case resWrapped of
+                        Left msg -> printError msg >> exitFailure
+                        Right _ -> printOK >> writeToFile (show p) filename >> exitSuccess
+
+writeToFile program path =
+    let
+        ftuple = splitExtension path
+        fname = fst ftuple
+        finalName = fname ++ ".s"
+    in
+        writeFile finalName program
+    
 
 checkErrorOrExecute :: ExceptT String IO Value -> Program -> IO()
 checkErrorOrExecute resWrapped program = do
