@@ -68,7 +68,7 @@ instance Show Value where
 type Loc = Int
 type Env = Map.Map String Loc
 data Store = Store {
-    store :: Map.Map Loc (Value, Int),
+    store :: Map.Map Loc (Value, Int), -- Int is blockDepth (probably)
     lastLoc :: Loc,
     curFunc :: CurFuncData
 } deriving (Show)
