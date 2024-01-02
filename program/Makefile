@@ -2,9 +2,9 @@ TARGET = compiler
 TCHECK = Typechecker
 SRC_DIR = ./src
 GRAMMAR_DIR = Latte
-TARGET_NAME = ltc
+TARGET_NAME = latc_x86_64
 
-all: $(SRC_DIR)/$(TARGET).hs $(SRC_DIR)/$(TCHECK).hs
+all: $(SRC_DIR)/$(TARGET).hs
 	ghc -i$(SRC_DIR) $(SRC_DIR)/$(TARGET).hs -o ./$(TARGET_NAME)
 
 clean:

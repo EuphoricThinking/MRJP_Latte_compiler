@@ -1,4 +1,5 @@
 import Typechecker hiding (main)
+import Quad
 
 import Latte.Abs
 import Latte.Lex
@@ -32,9 +33,14 @@ main = do
                     resWrapped <- runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})
                     case resWrapped of
                         Left msg -> printError msg >> exitFailure
-                        Right _ -> printOK >> writeToFile (show p) filename >> exitSuccess
+                        Right _ -> do
+                            printOK
+                            let quadcode = getQuadcode p
+                            writeFile filename (show quadcode)
+                            exitSuccess
+                            --printOK >> getQuadcode p >>= writeToFile filename >> exitSuccess
 
-writeToFile program path =
+writeToFile path program =
     let
         ftuple = splitExtension path
         fname = fst ftuple
