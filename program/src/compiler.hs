@@ -35,8 +35,13 @@ main = do
                         Left msg -> printError msg >> exitFailure
                         Right _ -> do
                             printOK
-                            let quadcode = getQuadcode p
-                            writeFile filename (show quadcode)
+                            (eitherQuad, quadcode) <- genQuadcode p
+                            print $ (show eitherQuad)
+                            let ftuple = splitExtension filename
+                            let fname = fst ftuple
+                            let finalName = fname ++ ".s"
+                            print $ finalName
+                            writeToFile filename (show quadcode)
                             exitSuccess
                             --printOK >> getQuadcode p >>= writeToFile filename >> exitSuccess
 
