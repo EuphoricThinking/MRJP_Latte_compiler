@@ -23,6 +23,7 @@ data Asm = AGlobl
     | ARet
     | ASpace
     | AFuncSpec String
+    | AExtern
 
 instance Show Asm where
     show AGlobl = "\tglobal main"
@@ -31,6 +32,7 @@ instance Show Asm where
     show ARet = "\tret"
     show ASpace = "\n"
     show (AFuncSpec s) = "\t" ++ s
+    show AExtern = "\textern "
 
 type AsmCode = [Asm]
 
@@ -102,11 +104,15 @@ genAssembly quadstore quadcode = runWriterT $ runExceptT $ evalStateT (runReader
 
 addExternals :: [String] -> AsmMonad ()
 addExternals [] = tell $ [ASpace]
-addExternals (s : ss) = do
-        tell $ [AFuncSpec s]
-        addExternals ss
+addExternals s = do
+        --tell $ []
+        --addExternals ss
+        tell $ [AFuncSpec (getSpecialWrapped s)]
+        tell $ [ASpace]
 
-getSpecialWrapped s = AFuncSpec s
+getSpecialWrapped s = (show AExtern) ++ (go s) where
+    go (s : []) = s
+    go (s : ss) = (show s) ++ ", " ++ (go ss)
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
