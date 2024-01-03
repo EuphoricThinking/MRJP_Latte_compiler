@@ -21,23 +21,23 @@ data Asm = AGlobl
     | SectText
     | ALabel String
     | ARet
+    | ASpace
+    | AFuncSpec String
 
 instance Show Asm where
     show AGlobl = "\tglobal main"
     show SectText = "section .text"
     show (ALabel s) = s ++ ":\n"
     show ARet = "\tret\n"
+    show ASpace = "\n"
+    show (AFuncSpec s) = "\t" ++ s ++ "\n"
 
 type AsmCode = [Asm]
 
 type AsmMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT AsmCode IO))) a 
 
-genAssembly quadstore quadcode = runWriterT $ runExceptT $ evalStateT (runReaderT (runGenAsm quadcode) Map.empty) quadstore
-
-runGenAsm :: QuadCode -> AsmMonad Value
-runGenAsm q = return BoolT
-
 extractQStore (Right (_, qstore)) = qstore
+extractAsmCode (Right (_, acode)) = acode
 
 main :: IO () 
 main = do
@@ -64,7 +64,7 @@ main = do
                             let fname = fst ftuple
                             let finalName = fname ++ ".s"
                             print $ finalName
-                            asmcode <- genAssembly (extractQStore eitherQuad)quadcode
+                            (eithAsm, asmcode) <- genAssembly (extractQStore eitherQuad)quadcode
                             writeToFile filename (show asmcode)
                             exitSuccess
                             --printOK >> getQuadcode p >>= writeToFile filename >> exitSuccess
@@ -97,3 +97,24 @@ typeCheckExecute program =
     case program of
         Left mes -> printError mes >> exitFailure
         Right p -> checkErrorOrExecute (evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})) p 
+
+genAssembly quadstore quadcode = runWriterT $ runExceptT $ evalStateT (runReaderT (runGenAsm quadcode) Map.empty) quadstore
+
+addExternals :: [String] -> AsmMonad ()
+addExternals [] = tell $ [ASpace]
+addExternals (s : ss) = do
+        tell $ [AFuncSpec s]
+        addExternals ss
+
+getSpecialWrapped s = AFuncSpec s
+
+runGenAsm :: QuadCode -> AsmMonad Value
+runGenAsm q = do--return BoolT
+    tell $ [SectText]
+    tell $ [AGlobl] 
+    curState <- get
+    addExternals (specialFunc curState)
+    -- case (specialFunc curState) of
+    --     [] -> 
+    return BoolT
+    
