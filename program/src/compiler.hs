@@ -27,10 +27,10 @@ data Asm = AGlobl
 instance Show Asm where
     show AGlobl = "\tglobal main"
     show SectText = "section .text"
-    show (ALabel s) = s ++ ":\n"
-    show ARet = "\tret\n"
+    show (ALabel s) = s ++ ":"
+    show ARet = "\tret"
     show ASpace = "\n"
-    show (AFuncSpec s) = "\t" ++ s ++ "\n"
+    show (AFuncSpec s) = "\t" ++ s
 
 type AsmCode = [Asm]
 
@@ -65,7 +65,7 @@ main = do
                             let finalName = fname ++ ".s"
                             print $ finalName
                             (eithAsm, asmcode) <- genAssembly (extractQStore eitherQuad)quadcode
-                            writeToFile filename (show asmcode)
+                            writeToFile filename (unlines $ map show asmcode)
                             exitSuccess
                             --printOK >> getQuadcode p >>= writeToFile filename >> exitSuccess
 
