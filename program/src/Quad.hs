@@ -21,7 +21,9 @@ type Env = Map.Map String Loc -- ident, location
 data QStore = QStore {
     storeQ :: Map.Map Loc (Val, Int), -- Int is blockDepth (probably)
     lastLocQ :: Loc,
-    curFuncQ :: FuncData
+    curFuncQ :: FuncData,
+    specialFunc :: [String],
+    defFunc :: Map.Map String FuncData
 } deriving (Show)
 
 data Val = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Val | Success | FunRetType
@@ -40,7 +42,7 @@ type QuadCode = [Quad]
 type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode IO))) a 
 
 -- genQuadcode :: Program -> Quadcode
-genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncQ = (FuncData "" [] 0)})
+genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncQ = (FuncData "" [] 0), specialFunc = [], defFunc = Map.empty})
 
 -- let 
     -- p = runQuadGen program
