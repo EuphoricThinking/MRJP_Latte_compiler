@@ -8,3 +8,4 @@ program/ltc
 lattests/good/*.s
 lattests/bad/*.s
 playground/
+program/latc_x86_64

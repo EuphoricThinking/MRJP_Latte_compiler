@@ -12,9 +12,32 @@ import qualified Data.Map as Map
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
+import Control.Monad.Writer
 import System.Exit
 
 import System.FilePath
+
+data Asm = AGlobl
+    | SectText
+    | ALabel String
+    | ARet
+
+instance Show Asm where
+    show AGlobl = "\tglobal main"
+    show SectText = "section .text"
+    show (ALabel s) = s ++ ":\n"
+    show ARet = "\tret\n"
+
+type AsmCode = [Asm]
+
+type AsmMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT AsmCode IO))) a 
+
+genAssembly quadstore quadcode = runWriterT $ runExceptT $ evalStateT (runReaderT (runGenAsm quadcode) Map.empty) quadstore
+
+runGenAsm :: QuadCode -> AsmMonad Value
+runGenAsm q = return BoolT
+
+extractQStore (Right (_, qstore)) = qstore
 
 main :: IO () 
 main = do
@@ -41,7 +64,8 @@ main = do
                             let fname = fst ftuple
                             let finalName = fname ++ ".s"
                             print $ finalName
-                            writeToFile filename (show quadcode)
+                            asmcode <- genAssembly (extractQStore eitherQuad)quadcode
+                            writeToFile filename (show asmcode)
                             exitSuccess
                             --printOK >> getQuadcode p >>= writeToFile filename >> exitSuccess
 

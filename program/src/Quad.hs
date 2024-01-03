@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Quad where
 
+import Typechecker (Loc, Env)
+
 import Latte.Abs
 import Latte.Lex
 import Latte.Par
@@ -16,8 +18,8 @@ import Control.Monad.Writer
 import System.Exit
 
 
-type Loc = Int
-type Env = Map.Map String Loc -- ident, location
+--type Loc = Int
+--type Env = Map.Map String Loc -- ident, location
 data QStore = QStore {
     storeQ :: Map.Map Loc (Val, Int), -- Int is blockDepth (probably)
     lastLocQ :: Loc,
@@ -26,7 +28,7 @@ data QStore = QStore {
     defFunc :: Map.Map String FuncData
 } deriving (Show)
 
-data Val = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Val | Success | FunRetType
+data Val = FnDecl Type [Arg] BNFC'Position | IntQ | StringQ | BoolQ | VoidQ | FunQ Val | SuccessQ | FunRetTypeQ
              deriving (Eq, Show)
 
 type LocNum = Int
@@ -53,7 +55,7 @@ genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadG
 runQuadGen :: Program -> QuadMonad (Val, QStore)
 runQuadGen p = do
     cur_state <- get
-    return (IntT, cur_state)
+    return (IntQ, cur_state)
 
 
 
