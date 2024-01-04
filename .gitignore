@@ -9,3 +9,4 @@ lattests/good/*.s
 lattests/bad/*.s
 playground/
 program/latc_x86_64
+am406133.tar.gz

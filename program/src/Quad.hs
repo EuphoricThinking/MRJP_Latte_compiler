@@ -23,7 +23,7 @@ import System.Exit
 data QStore = QStore {
     storeQ :: Map.Map Loc (Val, Int), -- Int is blockDepth (probably)
     lastLocQ :: Loc,
-    curFuncQ :: FuncData,
+    curFuncName :: String,
     specialFunc :: [String],
     defFunc :: Map.Map String FuncData
 } deriving (Show)
@@ -32,7 +32,9 @@ data Val = FnDecl Type [Arg] BNFC'Position | IntQ | StringQ | BoolQ | VoidQ | Fu
              deriving (Eq, Show)
 
 type LocNum = Int
-data FuncData = FuncData String [Arg] LocNum deriving (Show)
+type RetType = Val
+type Body = QuadCode
+data FuncData = FuncData String RetType [Arg] LocNum Body deriving (Show)
 
 data Quad = QLabel FuncData
     -- add special funcs
@@ -44,7 +46,7 @@ type QuadCode = [Quad]
 type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode IO))) a 
 
 -- genQuadcode :: Program -> Quadcode
-genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncQ = (FuncData "" [] 0), specialFunc = [], defFunc = Map.empty})
+genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncQ = "", specialFunc = [], defFunc = Map.empty})
 
 -- let 
     -- p = runQuadGen program
@@ -54,8 +56,34 @@ genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadG
 
 runQuadGen :: Program -> QuadMonad (Val, QStore)
 runQuadGen p = do
-    cur_state <- get
+    cur_state <- isOneByOne topDefs --get
     return (IntQ, cur_state)
+
+getRettypeDecl (Int _) = IntQ
+
+insertToStoreNewFunc name funcInfo = do
+    cur_state <- get
+    put cur_state {defFunc = Map.insert name funcInfo (defFunc cur_state)}
+
+updateCurFuncName name = do
+    curState <- get
+    put curState {curFunc = name}
+
+isOneByOne [] = do
+    cur_state <- get
+    return cur_state
+
+isOneByOne ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
+    curState <- get
+    let newFuncData = FuncData ident (getRettypeDecl rettype) args 0 []
+    insertToStoreNewFunc ident newFuncData
+    updateCurFuncName ident
+
+    -- funcBody <- genQCode stms
+    -- update body as funcBody, qcode saved also in writer
+
+
+
 
 
 
