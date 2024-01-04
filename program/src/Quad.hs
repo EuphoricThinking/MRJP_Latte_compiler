@@ -56,8 +56,8 @@ genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadG
 
 runQuadGen :: Program -> QuadMonad (Val, QStore)
 runQuadGen (Prog pos topDefs) = do
-   -- cur_state <- insOneByOne topDefs --get
-    cur_state <- get
+    cur_state <- insOneByOne topDefs --get
+    -- cur_state <- get
     return (IntQ, cur_state)
 
 getRettypeDecl (Int _) = IntQ
@@ -97,7 +97,7 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     updateCurFuncName ident
 
     funcBody <- genQStmt stmts []
- --   updateCurFuncBody funcBody
+    --updateCurFuncBody funcBody
 
     insOneByOne rest
 
