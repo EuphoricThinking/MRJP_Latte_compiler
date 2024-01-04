@@ -53,6 +53,7 @@ instance Show Asm where
     show AProlog = "\tpush rbp\n\tmov rsp, rbp"
     show AEpilog = "\tmov rbp, rsp\n\tpop rbp\n\tret" -- check recording 7.28
     show (AAllocLocals num)= "\tsub rsp, " ++ (show num)
+    show (AMov s1 s2) = "\tmov " ++ s1 ++ ", " ++ s2
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -172,7 +173,9 @@ genFuncsAsm ((QFunc (FuncData name retType args locNum body)) : rest) = do
 genStmtsAsm :: QuadCode -> AsmMonad ()
 genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
     tell $ [AMov (show AEAX) (show numVal)]
+    tell $ [ARet]
     tell $ [ASpace]
+    
     genStmtsAsm rest
 
 genStmtsAsm [] = return ()
