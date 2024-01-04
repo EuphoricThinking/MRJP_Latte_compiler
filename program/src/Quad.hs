@@ -28,7 +28,7 @@ data QStore = QStore {
     defFunc :: Map.Map String FuncData
 } deriving (Show)
 
-data Val = FnDecl Type [Arg] BNFC'Position | IntQ | StringQ | BoolQ | VoidQ | FunQ Val | SuccessQ | FunRetTypeQ
+data Val = FnDecl Type [Arg] BNFC'Position | IntQ | StringQ | BoolQ | VoidQ | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int
              deriving (Eq, Show)
 
 type LocNum = Int
@@ -56,7 +56,8 @@ genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadG
 
 runQuadGen :: Program -> QuadMonad (Val, QStore)
 runQuadGen (Prog pos topDefs) = do
-    cur_state <- insOneByOne topDefs --get
+   -- cur_state <- insOneByOne topDefs --get
+    cur_state <- get
     return (IntQ, cur_state)
 
 getRettypeDecl (Int _) = IntQ
@@ -65,9 +66,25 @@ insertToStoreNewFunc name funcInfo = do
     cur_state <- get
     put cur_state {defFunc = Map.insert name funcInfo (defFunc cur_state)}
 
+getFuncRet (FuncData _ rett _ _ _) = rett
+getFuncArgs (FuncData _ _ args _ _) = args
+getFuncNumLoc (FuncData _ _ _ numloc _) = numloc
 updateCurFuncName name = do
     curState <- get
     put curState {curFuncName = name}
+
+-- updateCurFuncBody body = do
+--     curState <- get
+--     curFName <- curFuncName curState
+--     -- curBody <- gets (Map.lookup curFName . defFunc)
+--     let curBody = Map.lookup curFName (defFunc curState)
+--     case curBody of
+--         Nothing -> throwError $ curFName ++ " cur not found"
+--         Just curFuncBody ->
+--             let 
+--                 newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body
+--             in
+--                 put curState {defFunc = Map.insert curFName newBody (defFunc curState)}
 
 insOneByOne [] = do
     cur_state <- get
@@ -80,6 +97,8 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     updateCurFuncName ident
 
     funcBody <- genQStmt stmts []
+ --   updateCurFuncBody funcBody
+
     insOneByOne rest
 
 -- genQIns [] = return [[]] -- [] should be
@@ -96,6 +115,11 @@ genQStmt ((BStmt pos (Blk posB stmts)) : rest) qcode = do
     -- funcBody <- genQCode stms
     -- update body as funcBody, qcode saved also in writer
 
+genQStmt ((Ret pos expr) : rest) qcode = do
+    (retVal, codeExpr) <- genQExpr expr qcode
+    genQStmt rest (codeExpr ++ [QRet retVal]) -- mem addr, const, register
+
+genQExpr (ELitInt pos intVal) qcode = return ((IntQVal (fromInteger intVal)), qcode)
 
 
 
