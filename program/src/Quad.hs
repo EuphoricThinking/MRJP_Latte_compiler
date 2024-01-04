@@ -31,10 +31,10 @@ data QStore = QStore {
 data Val = FnDecl Type [Arg] BNFC'Position | IntQ | StringQ | BoolQ | VoidQ | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int
              deriving (Eq, Show)
 
-type LocNum = Int
+type SizeLocals = Int
 type RetType = Val
 type Body = QuadCode
-data FuncData = FuncData String RetType [Arg] LocNum Body deriving (Show)
+data FuncData = FuncData String RetType [Arg] SizeLocals Body deriving (Show)
 
 data Quad = QLabel String --FuncData
     -- add special funcs

@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 import Typechecker hiding (main)
 import Quad
 
@@ -26,12 +28,15 @@ data Asm = AGlobl
     | AExtern
     | AProlog
     | AEpilog
+    | AAllocLocals Int
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
 -- mov rbp, rsp // rsp to rbp - top of stack in rbp
 -- rsp used for memory allocation, rbp for memory addressing
 -- return address | old rbp ^^^rbp points here^^^
+
+-- RSP ~ 0 mod 16 (before CALL, therefore 8 after CALL - pushed return address)
 
 instance Show Asm where
     show AGlobl = "\tglobal main"
@@ -43,6 +48,7 @@ instance Show Asm where
     show AExtern = "\textern "
     show AProlog = "\tpush rbp\n\tmov rsp, rbp"
     show AEpilog = "\tmov rbp, rsp\n\tpop rbp\n\tret" -- check recording 7.28
+    show (AAllocLocals num)= "\tsub rsp, " ++ (show num)
 
 
 type AsmCode = [Asm]
@@ -125,6 +131,9 @@ getSpecialWrapped s = (show AExtern) ++ (go s) where
     go (s : []) = s
     go (s : ss) = (show s) ++ ", " ++ (go ss)
 
+subLocals 0 = return ()
+subLocals numLoc = tell $ [AAllocLocals numLoc]
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [SectText]
@@ -137,6 +146,18 @@ runGenAsm q = do--return BoolT
 
 genFuncsAsm [] = return ()
 
-genFuncsAsm ((FuncData name RetType args LocNum Body) : rest) = do
+genFuncsAsm ((FuncData name retType args locNum body) : rest) = do
+    tell $ [ALabel name]
+    tell $ [AProlog]
+
+    subLocals locNum
+
+    genStmtsAsm body
+    genFuncsAsm rest
+
+    -- what about recurrent funcions?
+
+genStmtsAsm _ = undefined
+
 
     
