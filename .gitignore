@@ -10,3 +10,6 @@ lattests/bad/*.s
 playground/
 program/latc_x86_64
 am406133.tar.gz
+program/src/Latte/Doc.txt
+program/src/Latte/Par.y
+program/src/Makefile

@@ -46,7 +46,7 @@ type QuadCode = [Quad]
 type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode IO))) a 
 
 -- genQuadcode :: Program -> Quadcode
-genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncQ = "", specialFunc = [], defFunc = Map.empty})
+genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty})
 
 -- let 
     -- p = runQuadGen program
@@ -55,8 +55,8 @@ genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadG
             -- runwriterv $ runexcept $ evalstate (runreader p mapempty) s
 
 runQuadGen :: Program -> QuadMonad (Val, QStore)
-runQuadGen p = do
-    cur_state <- isOneByOne topDefs --get
+runQuadGen (Prog pos topDefs) = do
+    cur_state <- insOneByOne topDefs --get
     return (IntQ, cur_state)
 
 getRettypeDecl (Int _) = IntQ
@@ -67,18 +67,32 @@ insertToStoreNewFunc name funcInfo = do
 
 updateCurFuncName name = do
     curState <- get
-    put curState {curFunc = name}
+    put curState {curFuncName = name}
 
-isOneByOne [] = do
+insOneByOne [] = do
     cur_state <- get
     return cur_state
 
-isOneByOne ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
+insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     curState <- get
     let newFuncData = FuncData ident (getRettypeDecl rettype) args 0 []
     insertToStoreNewFunc ident newFuncData
     updateCurFuncName ident
 
+    funcBody <- genQStmt stmts []
+    insOneByOne rest
+
+-- genQIns [] = return [[]] -- [] should be
+
+-- genQIns ((BStmt pos (Blk posB stmts)) : rest) = (genQIns stmts) : (genQIns rest)
+    -- curEnv <- ask
+    -- return ((local (const curEnv) (genQIns stmts)) : genQIns
+
+genQStmt [] qcode = return qcode
+
+genQStmt ((BStmt pos (Blk posB stmts)) : rest) qcode = do
+    blockCode <- genQStmt stmts []
+    genQStmt rest (qcode ++ blockCode)
     -- funcBody <- genQCode stms
     -- update body as funcBody, qcode saved also in writer
 
