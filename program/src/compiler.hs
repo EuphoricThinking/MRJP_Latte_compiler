@@ -24,6 +24,14 @@ data Asm = AGlobl
     | ASpace
     | AFuncSpec String
     | AExtern
+    | AProlog
+    | AEpilog
+
+-- push rbp := sub rsp, 8 \ mov [rsp], rbp
+--
+-- mov rbp, rsp // rsp to rbp - top of stack in rbp
+-- rsp used for memory allocation, rbp for memory addressing
+-- return address | old rbp ^^^rbp points here^^^
 
 instance Show Asm where
     show AGlobl = "\tglobal main"
@@ -33,6 +41,9 @@ instance Show Asm where
     show ASpace = "\n"
     show (AFuncSpec s) = "\t" ++ s
     show AExtern = "\textern "
+    show AProlog = "\tpush rbp\n\tmov rsp, rbp"
+    show AEpilog = "\tmov rbp, rsp\n\tpop rbp\n\tret" -- check recording 7.28
+
 
 type AsmCode = [Asm]
 
@@ -123,4 +134,9 @@ runGenAsm q = do--return BoolT
     -- case (specialFunc curState) of
     --     [] -> 
     return BoolT
+
+genFuncsAsm [] = return ()
+
+genFuncsAsm ((FuncData name RetType args LocNum Body) : rest) = do
+
     

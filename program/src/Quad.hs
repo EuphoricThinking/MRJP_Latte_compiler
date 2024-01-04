@@ -126,6 +126,7 @@ genQStmt ((BStmt pos (Blk posB stmts)) : rest) qcode = do
     -- update body as funcBody, qcode saved also in writer
 
 genQStmt ((Ret pos expr) : rest) qcode = do
+    -- add inf if constant to avoid mov rax repetition
     (retVal, codeExpr) <- genQExpr expr qcode
     genQStmt rest (codeExpr ++ [QRet retVal]) -- mem addr, const, register
 
