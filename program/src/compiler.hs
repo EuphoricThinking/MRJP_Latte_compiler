@@ -32,6 +32,7 @@ data Asm = AGlobl
     | AProlog
     | AEpilog
     | AAllocLocals Int
+    | AMov String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -53,8 +54,9 @@ instance Show Asm where
     show AEpilog = "\tmov rbp, rsp\n\tpop rbp\n\tret" -- check recording 7.28
     show (AAllocLocals num)= "\tsub rsp, " ++ (show num)
 
--- instance Show Asm where
---     show AEAX = ""
+instance Show AsmRegister where
+    show ARAX = "rax"
+    show AEAX = "eax"
 
 type AsmCode = [Asm]
 
@@ -163,8 +165,10 @@ genFuncsAsm ((FuncData name retType args locNum body) : rest) = do
     -- what about recursive functions?
 
 -- ret needs to know the value, to move a good one to eax
--- genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
-
+genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
+    tell $ [AMov (show AEAX) (show numVal)]
+    tell $ [ASpace]
+    genStmtsAsm rest
 
 genStmtsAsm _ = undefined
 
