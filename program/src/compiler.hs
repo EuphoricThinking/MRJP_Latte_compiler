@@ -33,6 +33,7 @@ data Asm = AGlobl
     | AEpilog
     | AAllocLocals Int
     | AMov String String
+    | AEpiRestMem
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -50,10 +51,11 @@ instance Show Asm where
     show ASpace = "\n"
     show (AFuncSpec s) = "\t" ++ s
     show AExtern = "\textern "
-    show AProlog = "\tpush rbp\n\tmov rsp, rbp"
-    show AEpilog = "\tmov rbp, rsp\n\tpop rbp\n\tret" -- check recording 7.28
+    show AProlog = "\tpush rbp\n\tmov rbp, rsp"
+    show AEpilog = "\tpop rbp\n\tret" -- check recording 7.28
     show (AAllocLocals num)= "\tsub rsp, " ++ (show num)
     show (AMov s1 s2) = "\tmov " ++ s1 ++ ", " ++ s2
+    show AEpiRestMem = "\tmov rbp, rsp"
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -143,6 +145,7 @@ getSpecialWrapped s = (show AExtern) ++ (go s) where
 subLocals 0 = return ()
 subLocals numLoc = tell $ [AAllocLocals numLoc]
 
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [SectText]
@@ -158,11 +161,12 @@ runGenAsm q = do--return BoolT
 genFuncsAsm :: QuadCode -> AsmMonad ()
 genFuncsAsm [] = return ()
 
-genFuncsAsm ((QFunc (FuncData name retType args locNum body)) : rest) = do
+genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body)) : rest) = do
     tell $ [ALabel name]
     tell $ [AProlog]
 
     subLocals locNum
+    updateCurFuncName name
 
     genStmtsAsm body
     genFuncsAsm rest
@@ -173,10 +177,24 @@ genFuncsAsm ((QFunc (FuncData name retType args locNum body)) : rest) = do
 genStmtsAsm :: QuadCode -> AsmMonad ()
 genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
     tell $ [AMov (show AEAX) (show numVal)]
-    tell $ [ARet]
-    tell $ [ASpace]
-    
-    genStmtsAsm rest
+
+    funcName <- gets curFuncName
+    curBody <- gets (Map.lookup funcName . defFunc)
+
+    case curBody of
+        Nothing -> throwError $ funcName ++ " no such func in asm store"
+        Just bodyFunc -> do
+            if (getFuncNumLoc bodyFunc) > 0
+            then
+                do
+                tell $ [AEpiRestMem]
+                tell $ [AEpilog]
+            else
+                tell $ [AEpilog]
+
+            tell $ [ASpace]
+
+            genStmtsAsm rest
 
 genStmtsAsm [] = return ()
 
