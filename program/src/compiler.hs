@@ -19,6 +19,9 @@ import System.Exit
 
 import System.FilePath
 
+data AsmRegister = ARAX
+    | AEAX
+
 data Asm = AGlobl
     | SectText
     | ALabel String
@@ -50,6 +53,8 @@ instance Show Asm where
     show AEpilog = "\tmov rbp, rsp\n\tpop rbp\n\tret" -- check recording 7.28
     show (AAllocLocals num)= "\tsub rsp, " ++ (show num)
 
+-- instance Show Asm where
+--     show AEAX = ""
 
 type AsmCode = [Asm]
 
@@ -155,7 +160,11 @@ genFuncsAsm ((FuncData name retType args locNum body) : rest) = do
     genStmtsAsm body
     genFuncsAsm rest
 
-    -- what about recurrent funcions?
+    -- what about recursive functions?
+
+-- ret needs to know the value, to move a good one to eax
+-- genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
+
 
 genStmtsAsm _ = undefined
 

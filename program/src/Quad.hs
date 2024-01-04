@@ -74,11 +74,16 @@ updateCurFuncName name = do
     curState <- get
     put curState {curFuncName = name}
 
+updateCurFuncBody :: Body -> QuadMonad FuncData
 updateCurFuncBody body = do
     curState <- get
-    -- curFName <- curFuncName curState
+    let curFName = curFuncName curState
+
+
     -- throwError $ (show curFName)
-    curFName <- gets curFuncName
+
+    -- curFName <- gets curFuncName
+    
     --throwError $ [curFName]
     curBody <- gets (Map.lookup curFName . defFunc)
     -- let curBody = Map.lookup curFName (defFunc curState)
@@ -105,6 +110,7 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     --print (show curFName)
 
     funcBody <- genQStmt stmts []
+    -- PERFORM in local env (probably)
     newFullFunc <- updateCurFuncBody funcBody
 
     tell $ [QFunc newFullFunc]
