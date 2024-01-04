@@ -86,6 +86,7 @@ main = do
                             printOK
                             (eitherQuad, quadcode) <- genQuadcode p
                             print $ (show eitherQuad)
+                            print $ (show quadcode)
                             let ftuple = splitExtension filename
                             let fname = fst ftuple
                             let finalName = fname ++ ".s"
@@ -147,13 +148,16 @@ runGenAsm q = do--return BoolT
     tell $ [AGlobl] 
     curState <- get
     addExternals (specialFunc curState)
+    genFuncsAsm q
     -- case (specialFunc curState) of
     --     [] -> 
     return BoolT
 
+
+genFuncsAsm :: QuadCode -> AsmMonad ()
 genFuncsAsm [] = return ()
 
-genFuncsAsm ((FuncData name retType args locNum body) : rest) = do
+genFuncsAsm ((QFunc (FuncData name retType args locNum body)) : rest) = do
     tell $ [ALabel name]
     tell $ [AProlog]
 
@@ -165,12 +169,15 @@ genFuncsAsm ((FuncData name retType args locNum body) : rest) = do
     -- what about recursive functions?
 
 -- ret needs to know the value, to move a good one to eax
+genStmtsAsm :: QuadCode -> AsmMonad ()
 genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
     tell $ [AMov (show AEAX) (show numVal)]
     tell $ [ASpace]
     genStmtsAsm rest
 
-genStmtsAsm _ = undefined
+genStmtsAsm [] = return ()
+
+-- genStmtsAsm _ = undefined
 
 
     
