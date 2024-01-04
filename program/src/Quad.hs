@@ -36,9 +36,10 @@ type RetType = Val
 type Body = QuadCode
 data FuncData = FuncData String RetType [Arg] LocNum Body deriving (Show)
 
-data Quad = QLabel FuncData
+data Quad = QLabel String --FuncData
     -- add special funcs
     | QRet Val
+    | QFunc FuncData
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -87,7 +88,7 @@ updateCurFuncBody body = do
             let 
                 newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body
             in
-                put curState {defFunc = Map.insert curFName newBody (defFunc curState)}
+                put curState {defFunc = Map.insert curFName newBody (defFunc curState)} >> return newBody
 
 insOneByOne [] = do
     cur_state <- get
@@ -100,11 +101,13 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     updateCurFuncName ident
 
     -- curState <- get
-    curFName <- gets curFuncName
+    -- curFName <- gets curFuncName
     --print (show curFName)
 
     funcBody <- genQStmt stmts []
-    --updateCurFuncBody funcBody
+    newFullFunc <- updateCurFuncBody funcBody
+
+    tell $ [QFunc newFullFunc]
 
     insOneByOne rest
 
