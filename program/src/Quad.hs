@@ -73,18 +73,21 @@ updateCurFuncName name = do
     curState <- get
     put curState {curFuncName = name}
 
--- updateCurFuncBody body = do
---     curState <- get
---     curFName <- curFuncName curState
---     -- curBody <- gets (Map.lookup curFName . defFunc)
---     let curBody = Map.lookup curFName (defFunc curState)
---     case curBody of
---         Nothing -> throwError $ curFName ++ " cur not found"
---         Just curFuncBody ->
---             let 
---                 newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body
---             in
---                 put curState {defFunc = Map.insert curFName newBody (defFunc curState)}
+updateCurFuncBody body = do
+    curState <- get
+    -- curFName <- curFuncName curState
+    -- throwError $ (show curFName)
+    curFName <- gets curFuncName
+    --throwError $ [curFName]
+    curBody <- gets (Map.lookup curFName . defFunc)
+    -- let curBody = Map.lookup curFName (defFunc curState)
+    case curBody of
+        Nothing -> throwError $ curFName ++ " cur not found"
+        Just curFuncBody ->
+            let 
+                newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body
+            in
+                put curState {defFunc = Map.insert curFName newBody (defFunc curState)}
 
 insOneByOne [] = do
     cur_state <- get
@@ -95,6 +98,10 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     let newFuncData = FuncData ident (getRettypeDecl rettype) args 0 []
     insertToStoreNewFunc ident newFuncData
     updateCurFuncName ident
+
+    -- curState <- get
+    curFName <- gets curFuncName
+    --print (show curFName)
 
     funcBody <- genQStmt stmts []
     --updateCurFuncBody funcBody
