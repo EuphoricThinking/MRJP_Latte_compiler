@@ -69,8 +69,18 @@ type AsmCode = [Asm]
 
 type AsmMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT AsmCode IO))) a 
 
+data AStore = AStore {
+    -- storeA :: Map.Map Loc
+    curFuncName :: String,
+    funcInfo :: Map.Map String FuncData,
+    lastAddrRBP :: Int
+}
+
 extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
+
+prepareAsmStore qdata = AStore {curFuncName = "",
+funcInfo = (defFunc (extractQStore qdata)), lastAddrRBP = 0}
 
 main :: IO () 
 main = do
@@ -98,7 +108,7 @@ main = do
                             let fname = fst ftuple
                             let finalName = fname ++ ".s"
                             print $ finalName
-                            (eithAsm, asmcode) <- genAssembly (extractQStore eitherQuad)quadcode
+                            (eithAsm, asmcode) <- genAssembly (extractQStore eitherQuad) quadcode
                             writeToFile filename (unlines $ map show asmcode)
                             exitSuccess
                             --printOK >> getQuadcode p >>= writeToFile filename >> exitSuccess
