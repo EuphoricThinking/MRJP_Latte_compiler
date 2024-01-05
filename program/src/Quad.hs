@@ -25,7 +25,8 @@ data QStore = QStore {
     lastLocQ :: Loc,
     curFuncName :: String,
     specialFunc :: [String],
-    defFunc :: Map.Map String FuncData
+    defFunc :: Map.Map String FuncData,
+    countLabels :: Map.Map String Int
 } deriving (Show)
 
 data Val = FnDecl Type [Arg] BNFC'Position | IntQ | StringQ | BoolQ | VoidQ | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int
@@ -47,7 +48,7 @@ type QuadCode = [Quad]
 type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode IO))) a 
 
 -- genQuadcode :: Program -> Quadcode
-genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty})
+genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.Empty})
 
 -- let 
     -- p = runQuadGen program
@@ -66,6 +67,15 @@ getRettypeDecl (Int _) = IntQ
 insertToStoreNewFunc name funcInfo = do
     cur_state <- get
     put cur_state {defFunc = Map.insert name funcInfo (defFunc cur_state)}
+
+insertNewLabelToCounter ident = do
+    curState <- get
+    put curState {countLabels = Map.insert ident 1 (countLabels curState)}
+
+increaseLabelCounter ident = do
+    curState <- get
+    currentCount <- gets (Map.lookup ident . countLabels)
+    put curState {countLabels = Map.insert ident (currentCount + 1) (countLabels curState)}
 
 getFuncRet (FuncData _ rett _ _ _) = rett
 getFuncArgs (FuncData _ _ args _ _) = args
@@ -123,6 +133,18 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     -- curEnv <- ask
     -- return ((local (const curEnv) (genQIns stmts)) : genQIns
 
+-- evalDecl :: Type' -> [Item'] -> QuadMonad Env
+evalDecl _ [] = do
+    curEnv <- ask
+    return curEnv
+
+evalDecl declType ((Init posIn (Ident ident) expr) : rest) = do
+    countIdent <- gets (Map.lookup ident . countLabels)
+    case countIdent of
+        Nothing -> do
+
+
+
 genQStmt [] qcode = return qcode
 
 genQStmt ((BStmt pos (Blk posB stmts)) : rest) qcode = do
@@ -135,6 +157,10 @@ genQStmt ((Ret pos expr) : rest) qcode = do
     -- add inf if constant to avoid mov rax repetition
     (retVal, codeExpr) <- genQExpr expr qcode
     genQStmt rest (codeExpr ++ [QRet retVal]) -- mem addr, const, register
+
+genQStmt ((Decl pos vartype items) : rest) = 
+    updatedEnv <- evalDecl vartype items
+    local (const updatedEnv) (genQStmt rest)
 
 genQExpr (ELitInt pos intVal) qcode = return ((IntQVal (fromInteger intVal)), qcode)
 
