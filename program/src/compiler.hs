@@ -18,6 +18,7 @@ import Control.Monad.Writer
 import System.Exit
 
 import System.FilePath
+import System.Process
 
 data AsmRegister = ARAX
     | AEAX
@@ -102,10 +103,15 @@ main = do
 writeToFile path program =
     let
         ftuple = splitExtension path
-        fname = fst ftuple
-        finalName = fname ++ ".s"
+        finalName = fst ftuple
+        finalNameAsm = finalName ++ ".s"
+        finalNameObj = finalName ++ ".o"
     in
-        writeFile finalName program
+        do
+        writeFile finalNameAsm program
+        callProcess "nasm" [finalNameAsm, "-o", finalNameObj, "-f elf64"]
+        callProcess "gcc" [finalNameObj, "-o", finalName, "-z noexecstack"]
+        removeFile finalNameObj
     
 
 checkErrorOrExecute :: ExceptT String IO Value -> Program -> IO()
