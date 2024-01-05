@@ -19,6 +19,7 @@ import System.Exit
 
 import System.FilePath
 import System.Process
+import System.Directory
 
 data AsmRegister = ARAX
     | AEAX
@@ -35,6 +36,7 @@ data Asm = AGlobl
     | AAllocLocals Int
     | AMov String String
     | AEpiRestMem
+    | ANoExecStack
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -57,6 +59,7 @@ instance Show Asm where
     show (AAllocLocals num)= "\tsub rsp, " ++ (show num)
     show (AMov s1 s2) = "\tmov " ++ s1 ++ ", " ++ s2
     show AEpiRestMem = "\tmov rbp, rsp"
+    show ANoExecStack = "section .note.GNU-stack noalloc noexec nowrite progbits"
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -110,7 +113,7 @@ writeToFile path program =
         do
         writeFile finalNameAsm program
         callProcess "nasm" [finalNameAsm, "-o", finalNameObj, "-f elf64"]
-        callProcess "gcc" [finalNameObj, "-o", finalName, "-z noexecstack"]
+        callProcess "gcc" [finalNameObj, "-o", finalName]
         removeFile finalNameObj
     
 
@@ -154,6 +157,7 @@ subLocals numLoc = tell $ [AAllocLocals numLoc]
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
+    tell $ [ANoExecStack]
     tell $ [SectText]
     tell $ [AGlobl] 
     curState <- get
