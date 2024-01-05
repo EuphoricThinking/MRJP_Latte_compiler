@@ -1,0 +1,1 @@
+nano ../playground/base.lat

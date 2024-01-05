@@ -20,8 +20,9 @@ import System.Exit
 
 --type Loc = Int
 --type Env = Map.Map String Loc -- ident, location
+type LabelCustom = String
 data QStore = QStore {
-    storeQ :: Map.Map Loc (Val, Int), -- Int is blockDepth (probably)
+    storeQ :: Map.Map Loc (LabelCustom, Val) --(Val, Int), -- Int is blockDepth (probably)
     lastLocQ :: Loc,
     curFuncName :: String,
     specialFunc :: [String],
@@ -37,10 +38,13 @@ type RetType = Val
 type Body = QuadCode
 data FuncData = FuncData String RetType [Arg] SizeLocals Body deriving (Show)
 
+data QVar = QLoc String Val | QArg String Val
+
 data Quad = QLabel String --FuncData
     -- add special funcs
     | QRet Val
     | QFunc FuncData
+    | QAss QVar Val
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -62,11 +66,21 @@ runQuadGen (Prog pos topDefs) = do
     -- cur_state <- get
     return (IntQ, cur_state)
 
-getRettypeDecl (Int _) = IntQ
+getOrigQType (Int _) = IntQ
+
+alloc :: InterpreterMonad Loc
+alloc = do
+    cur_state <- get
+    put cur_state {lastLoc = lastLoc cur_state + 1}
+    return (lastLoc cur_state + 1)
 
 insertToStoreNewFunc name funcInfo = do
     cur_state <- get
     put cur_state {defFunc = Map.insert name funcInfo (defFunc cur_state)}
+
+insertToStoreNewIdentVal name val loc = do
+    curState <- get
+    put curState {storeQ = Map.insert loc (name, val) (storeQ curState)}
 
 insertNewLabelToCounter ident = do
     curState <- get
@@ -80,6 +94,13 @@ increaseLabelCounter ident = do
 getFuncRet (FuncData _ rett _ _ _) = rett
 getFuncArgs (FuncData _ _ args _ _) = args
 getFuncNumLoc (FuncData _ _ _ numloc _) = numloc
+getFuncBody (FuncData _ _ _ _ body) = body
+
+-- return Label
+-- createQVal (Int _) expr qcode= do
+--     (val,  <- genExpr
+--     return (IntQVal val)
+
 updateCurFuncName name = do
     curState <- get
     put curState {curFuncName = name}
@@ -105,13 +126,14 @@ updateCurFuncBody body = do
             in
                 put curState {defFunc = Map.insert curFName newBody (defFunc curState)} >> return newBody
 
+
 insOneByOne [] = do
     cur_state <- get
     return cur_state
 
 insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     curState <- get
-    let newFuncData = FuncData ident (getRettypeDecl rettype) args 0 []
+    let newFuncData = FuncData ident (getOrigQType rettype) args 0 []
     insertToStoreNewFunc ident newFuncData
     updateCurFuncName ident
 
@@ -134,14 +156,51 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     -- return ((local (const curEnv) (genQIns stmts)) : genQIns
 
 -- evalDecl :: Type' -> [Item'] -> QuadMonad Env
-evalDecl _ [] = do
-    curEnv <- ask
-    return curEnv
 
-evalDecl declType ((Init posIn (Ident ident) expr) : rest) = do
+createNewBody (Int numLoc) fname fbody= FuncData fname (getFuncRet fbody) (getFuncArgs fbody) numLoc (getFuncBody fbody)
+
+updateLocalNumCur = do
+    --update locals counter
+    curFName <- gets curFuncName
+    curFuncData <- gets (Map.lookup curFName . defFunc)
+    curState <- get
+    let updatedNumloc = createNewBody (Int ((getFuncNumLoc curFuncData) + 1)) curFName curFuncData
+    put curState {defFunc = Map.insert curFName updatedNumloc (defFunc curState)}
+
+evalDecl _ [] qcode = do
+    curEnv <- ask
+    return (curEnv, qcode)
+
+evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
+    updateLocalNumCur
+    (val, updcode) <- genExpr expr qcode
+
     countIdent <- gets (Map.lookup ident . countLabels)
     case countIdent of
         Nothing -> do
+            insertNewLabelToCounter ident
+            newLoc <- alloc
+            insertToStoreNewIdentVal ident val newLoc
+
+            let codeWithAsgn = updcode ++ [QAss (QLoc ident (getOrigQType declType)) val]
+
+            local (Map.insert ident newLoc) (evalDecl declType rest codeWithAsgn)
+
+        Just curNumId -> do
+            increaseLabelCounter ident
+            let newName = ident ++ "_" ++ (show curNumId)
+            newLoc <- alloc
+            insertToStoreNewIdentVal newName val newLoc
+
+            let codeWithAsgn = updcode ++ [QAss (QLoc newName (getOrigQType declType)) val]
+
+            local (Map.insert newName newLoc) (evalDecl declType rest codeWithAsgn)
+
+evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
+    case declType of
+        (Int _) -> evalDecl declType ((Init posIn (Ident ident) (fromInteger 0)) : rest) qcode
+
+            
 
 
 
@@ -158,9 +217,9 @@ genQStmt ((Ret pos expr) : rest) qcode = do
     (retVal, codeExpr) <- genQExpr expr qcode
     genQStmt rest (codeExpr ++ [QRet retVal]) -- mem addr, const, register
 
-genQStmt ((Decl pos vartype items) : rest) = 
-    updatedEnv <- evalDecl vartype items
-    local (const updatedEnv) (genQStmt rest)
+genQStmt ((Decl pos vartype items) : rest) qcode = 
+    (updatedEnv, updCode) <- evalDecl vartype items qcode
+    local (const updatedEnv) (genQStmt rest updCode)
 
 genQExpr (ELitInt pos intVal) qcode = return ((IntQVal (fromInteger intVal)), qcode)
 
