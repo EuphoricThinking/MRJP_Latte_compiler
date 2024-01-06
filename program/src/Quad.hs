@@ -236,8 +236,10 @@ paramsConcatCode ((_, paramCode) : rest) qcode = paramsConcatCode rest (qcode ++
 addParamsFromList [] qcode = return qcode
 addParamsFromList ((paramVal, _) : rest) qcode = addParamsFromList rest (qcode ++ [QParam paramVal])
 
-genParamCodeForExprList exprs = do
-
+genParamCodeForExprList exprList qcode = do
+    valsCodes <- mapM genQExpr exprList
+    paramGenCode <- paramsConcatCode valsCodes []
+    return (addParamsFromList valsCodes paramGenCode)
 
 
 addToSpecialFuncsIfSpecial fname = do
@@ -273,9 +275,9 @@ genQStmt ((SExp pos expr) : rest) qcode = do
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) = return ((IntQVal (fromInteger intVal)), [])
 
-genQExpr (EApp pos (Ident ident) exprList) qcode = do
+genQExpr (EApp pos (Ident ident) exprList) = do
     addToSpecialFuncsIfSpecial ident
-    valsCodes <- mapM genQExpr exprList
+    updCode <- genParamCodeForExprList exprList
 
 
 
