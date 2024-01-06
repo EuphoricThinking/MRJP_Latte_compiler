@@ -197,7 +197,7 @@ evalDecl _ [] qcode = do
 
 evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
     updateLocalNumCur
-    (val, updcode) <- genQExpr expr --qcode
+    (val, updcode, _) <- genQExpr expr --qcode
     increaseNumLocTypesCur val
 
     countIdent <- gets (Map.lookup ident . countLabels)
@@ -231,10 +231,10 @@ isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
 -- generateParams (e:exprs) qcode = do
 --     (val, updCode) <- genQExpr val qcode
 paramsConcatCode [] qcode = return qcode
-paramsConcatCode ((_, paramCode) : rest) qcode = paramsConcatCode rest (qcode ++ paramCode)
+paramsConcatCode ((_, paramCode, _) : rest) qcode = paramsConcatCode rest (qcode ++ paramCode)
 
-addParamsFromList [] qcode = return qcode
-addParamsFromList ((paramVal, _) : rest) qcode = addParamsFromList rest (qcode ++ [QParam paramVal])
+addParamsFromList [] qcode maxDepth = return (qcode, maxDepth)
+addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
 
 genParamCodeForExprList exprList qcode = do
     valsCodes <- mapM genQExpr exprList
@@ -261,7 +261,7 @@ genQStmt ((BStmt pos (Blk posB stmts)) : rest) qcode = do
 
 genQStmt ((Ret pos expr) : rest) qcode = do
     -- add inf if constant to avoid mov rax repetition
-    (retVal, codeExpr) <- genQExpr expr --qcode
+    (retVal, codeExpr, _) <- genQExpr expr --qcode
     genQStmt rest (qcode ++ codeExpr ++ [QRet retVal]) -- mem addr, const, register
 
 genQStmt ((Decl pos vartype items) : rest) qcode = do
@@ -269,15 +269,15 @@ genQStmt ((Decl pos vartype items) : rest) qcode = do
     local (const updatedEnv) (genQStmt rest updCode)
 
 genQStmt ((SExp pos expr) : rest) qcode = do
-    (val, updCode) <- genQExpr expr --qcode
+    (val, updCode, _) <- genQExpr expr --qcode
     genQStmt rest (qcode ++ updCode)
 
 -- fromInteger intVal
-genQExpr (ELitInt pos intVal) = return ((IntQVal (fromInteger intVal)), [])
+genQExpr (ELitInt pos intVal) = return ((IntQVal (fromInteger intVal)), [], 1)
 
-genQExpr (EApp pos (Ident ident) exprList) = do
-    addToSpecialFuncsIfSpecial ident
-    updCode <- genParamCodeForExprList exprList
+-- genQExpr (EApp pos (Ident ident) exprList) = do
+--     addToSpecialFuncsIfSpecial ident
+--     (updCode, depth) <- genParamCodeForExprList exprList
 
 
 
