@@ -171,8 +171,10 @@ getSpecialWrapped s = (show AExtern) ++ (go s) where
     go (s : []) = s
     go (s : ss) = (show s) ++ ", " ++ (go ss)
 
-subLocals 0 = return ()
-subLocals numLoc = tell $ [AAllocLocals numLoc]
+subLocals 0 _ = return ()
+subLocals numLoc (FuncData name retType args locNum body numInts) = do 
+    let localsSize = numInts*intBytes
+    tell $ [AAllocLocals localsSize] --[AAllocLocals numLoc]
 
 updateCurFuncNameAsm name = do
     curState <- get
@@ -207,7 +209,7 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts)) : re
     tell $ [ALabel name]
     tell $ [AProlog]
 
-    subLocals locNum
+    subLocals locNum finfo
     updateCurFuncNameAsm name
 
     genStmtsAsm body
