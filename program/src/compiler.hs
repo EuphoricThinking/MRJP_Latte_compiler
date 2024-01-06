@@ -71,7 +71,7 @@ type AsmMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT AsmCode IO
 
 data AStore = AStore {
     -- storeA :: Map.Map Loc
-    curFuncName :: String,
+    curFuncNameAsm :: String,
     funcInfo :: Map.Map String FuncData,
     lastAddrRBP :: Int
 }
@@ -79,7 +79,7 @@ data AStore = AStore {
 extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
 
-prepareAsmStore qdata = AStore {curFuncName = "",
+prepareAsmStore qdata = AStore {curFuncNameAsm = "",
 funcInfo = (defFunc (extractQStore qdata)), lastAddrRBP = 0}
 
 main :: IO () 
@@ -108,7 +108,7 @@ main = do
                             let fname = fst ftuple
                             let finalName = fname ++ ".s"
                             print $ finalName
-                            (eithAsm, asmcode) <- genAssembly (extractQStore eitherQuad) quadcode
+                            (eithAsm, asmcode) <- genAssembly (prepareAsmStore eitherQuad) quadcode--(extractQStore eitherQuad) quadcode
                             writeToFile filename (unlines $ map show asmcode)
                             exitSuccess
                             --printOK >> getQuadcode p >>= writeToFile filename >> exitSuccess
@@ -164,6 +164,10 @@ getSpecialWrapped s = (show AExtern) ++ (go s) where
 subLocals 0 = return ()
 subLocals numLoc = tell $ [AAllocLocals numLoc]
 
+updateCurFuncNameAsm name = do
+    curState <- get
+    put curState {curFuncNameAsm = name}
+
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -186,7 +190,7 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body)) : rest) = do
     tell $ [AProlog]
 
     subLocals locNum
-    updateCurFuncName name
+    updateCurFuncNameAsm name
 
     genStmtsAsm body
     genFuncsAsm rest
@@ -198,8 +202,8 @@ genStmtsAsm :: QuadCode -> AsmMonad ()
 genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
     tell $ [AMov (show AEAX) (show numVal)]
 
-    funcName <- gets curFuncName
-    curBody <- gets (Map.lookup funcName . defFunc)
+    funcName <- gets curFuncNameAsm
+    curBody <- gets (Map.lookup funcName . funcInfo)
 
     case curBody of
         Nothing -> throwError $ funcName ++ " no such func in asm store"

@@ -22,7 +22,7 @@ import System.Exit
 --type Env = Map.Map String Loc -- ident, location
 type LabelCustom = String
 data QStore = QStore {
-    storeQ :: Map.Map Loc (LabelCustom, Val) --(Val, Int), -- Int is blockDepth (probably)
+    storeQ :: Map.Map Loc (LabelCustom, Val), --(Val, Int), -- Int is blockDepth (probably)
     lastLocQ :: Loc,
     curFuncName :: String,
     specialFunc :: [String],
@@ -38,7 +38,7 @@ type RetType = Val
 type Body = QuadCode
 data FuncData = FuncData String RetType [Arg] SizeLocals Body deriving (Show)
 
-data QVar = QLoc String Val | QArg String Val
+data QVar = QLoc String Val | QArg String Val deriving (Show)
 
 data Quad = QLabel String --FuncData
     -- add special funcs
@@ -52,7 +52,7 @@ type QuadCode = [Quad]
 type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode IO))) a 
 
 -- genQuadcode :: Program -> Quadcode
-genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.Empty})
+genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
 
 -- let 
     -- p = runQuadGen program
@@ -68,11 +68,11 @@ runQuadGen (Prog pos topDefs) = do
 
 getOrigQType (Int _) = IntQ
 
-alloc :: InterpreterMonad Loc
+alloc :: QuadMonad Loc
 alloc = do
     cur_state <- get
-    put cur_state {lastLoc = lastLoc cur_state + 1}
-    return (lastLoc cur_state + 1)
+    put cur_state {lastLocQ = lastLocQ cur_state + 1}
+    return (lastLocQ cur_state + 1)
 
 insertToStoreNewFunc name funcInfo = do
     cur_state <- get
@@ -89,7 +89,9 @@ insertNewLabelToCounter ident = do
 increaseLabelCounter ident = do
     curState <- get
     currentCount <- gets (Map.lookup ident . countLabels)
-    put curState {countLabels = Map.insert ident (currentCount + 1) (countLabels curState)}
+    case currentCount of
+        Nothing -> throwError $ ident ++ " cannot increase counter"
+        Just countIdent -> put curState {countLabels = Map.insert ident (countIdent + 1) (countLabels curState)}
 
 getFuncRet (FuncData _ rett _ _ _) = rett
 getFuncArgs (FuncData _ _ args _ _) = args
@@ -126,7 +128,7 @@ updateCurFuncBody body = do
             in
                 put curState {defFunc = Map.insert curFName newBody (defFunc curState)} >> return newBody
 
-
+insOneByOne :: [TopDef] -> QuadMonad QStore
 insOneByOne [] = do
     cur_state <- get
     return cur_state
@@ -157,23 +159,26 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
 -- evalDecl :: Type' -> [Item'] -> QuadMonad Env
 
-createNewBody (Int numLoc) fname fbody= FuncData fname (getFuncRet fbody) (getFuncArgs fbody) numLoc (getFuncBody fbody)
+createNewBody (Int numLoc) fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) numLoc (getFuncBody fbody)
 
 updateLocalNumCur = do
     --update locals counter
     curFName <- gets curFuncName
     curFuncData <- gets (Map.lookup curFName . defFunc)
     curState <- get
-    let updatedNumloc = createNewBody (Int ((getFuncNumLoc curFuncData) + 1)) curFName curFuncData
-    put curState {defFunc = Map.insert curFName updatedNumloc (defFunc curState)}
-
+    case curFuncData of
+        Nothing -> throwError $ curFName ++ " unsuccessful current function data retrieval"
+        Just foundData -> do
+            let updatedNumloc = createNewBody (Int ((getFuncNumLoc foundData) + 1)) curFName foundData
+            put curState {defFunc = Map.insert curFName updatedNumloc (defFunc curState)}
+evalDecl :: Type -> [Item] -> QuadCode -> QuadMonad (Env, QuadCode)
 evalDecl _ [] qcode = do
     curEnv <- ask
     return (curEnv, qcode)
 
 evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
     updateLocalNumCur
-    (val, updcode) <- genExpr expr qcode
+    (val, updcode) <- genQExpr expr qcode
 
     countIdent <- gets (Map.lookup ident . countLabels)
     case countIdent of
@@ -198,12 +203,12 @@ evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
 
 evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
     case declType of
-        (Int _) -> evalDecl declType ((Init posIn (Ident ident) (fromInteger 0)) : rest) qcode
+        (Int _) -> evalDecl declType ((Init posIn (Ident ident) (ELitInt posIn 0)) : rest) qcode
 
             
 
 
-
+genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
 genQStmt ((BStmt pos (Blk posB stmts)) : rest) qcode = do
@@ -217,7 +222,7 @@ genQStmt ((Ret pos expr) : rest) qcode = do
     (retVal, codeExpr) <- genQExpr expr qcode
     genQStmt rest (codeExpr ++ [QRet retVal]) -- mem addr, const, register
 
-genQStmt ((Decl pos vartype items) : rest) qcode = 
+genQStmt ((Decl pos vartype items) : rest) qcode = do
     (updatedEnv, updCode) <- evalDecl vartype items qcode
     local (const updatedEnv) (genQStmt rest updCode)
 
