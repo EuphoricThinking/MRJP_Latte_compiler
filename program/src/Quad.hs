@@ -30,6 +30,7 @@ data QStore = QStore {
     countLabels :: Map.Map String Int
 } deriving (Show)
 
+
 data Val = FnDecl Type [Arg] BNFC'Position | IntQ | StringQ | BoolQ | VoidQ | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int
              deriving (Eq, Show)
 
@@ -40,6 +41,8 @@ type NumIntTypes = Int
 data FuncData = FuncData String RetType [Arg] SizeLocals Body NumIntTypes deriving (Show)
 
 data QVar = QLoc String Val | QArg String Val deriving (Show)
+
+data ParamIndicator = JustLocal | Param String deriving (Show)
 
 data Quad = QLabel String --FuncData
     -- add special funcs
@@ -239,8 +242,8 @@ paramsConcatCode ((_, paramCode, _) : rest) qcode = paramsConcatCode rest (qcode
 addParamsFromList [] qcode maxDepth = return (qcode, maxDepth)
 addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
 
-genParamCodeForExprList exprList qcode = do
-    valsCodes <- mapM genQExpr exprList
+genParamCodeForExprList exprList qcode isParam = do
+    valsCodes <- mapM genQExpr exprList isParam
     paramGenCode <- paramsConcatCode valsCodes []
     return (addParamsFromList valsCodes paramGenCode)
 
@@ -293,15 +296,17 @@ genQStmt ((SExp pos expr) : rest) qcode = do
     genQStmt rest (qcode ++ updCode)
 
 -- fromInteger intVal
-genQExpr (ELitInt pos intVal) = return ((IntQVal (fromInteger intVal)), [], 1)
+genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
 
-genQExpr (EApp pos (Ident ident) exprList) = do
+genQExpr (EApp pos (Ident ident) exprList) isParam = do
     addToSpecialFuncsIfSpecial ident
-    (updCode, depth) <- genParamCodeForExprList exprList
+    (updCode, depth) <- genParamCodeForExprList exprList isParam
     appliedFuncData <- gets (Map.lookup ident . defFunc)
     let retType = getFuncRet appliedFuncData
     let newTmpName = createTempVarName ident
-
+    case isParam of
+        JustLocal -> do
+            let paramVal = P
 
 
 
