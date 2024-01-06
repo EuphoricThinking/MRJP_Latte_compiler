@@ -32,7 +32,7 @@ data QStore = QStore {
 
 data ValType = IntQ | StringQ | BoolQ | VoidQ deriving (Eq, Show)
 
-data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType
+data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal
              deriving (Eq, Show)
 
 type SizeLocals = Int
@@ -59,6 +59,7 @@ type QuadCode = [Quad]
 type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode IO))) a 
 
 tmpInfix = "_tmp_"
+printInt = "printInt"
 
 -- genQuadcode :: Program -> Quadcode
 genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
@@ -299,6 +300,28 @@ genQStmt ((SExp pos expr) : rest) qcode = do
 
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
+
+genQExpr (EApp pos (Ident "printInt") expr) isParam = do
+    (val, code, depth) <- genQExpr (head expr) isParam
+    newTmpName <- createTempVarName printInt
+    let valParam = [QParam val]
+
+    --return ((IntQVal (fromInteger 1)), [], 1)
+
+    case isParam of
+        JustLocal -> 
+            let
+                funcVal = LocQVal newTmpName VoidQ
+                newCode = valParam ++ [QCall (QLoc newTmpName VoidQ) printInt 1]
+            in
+                return (funcVal, newCode, depth)
+        Param fname -> 
+            let
+                funcVal = ParamQVal newTmpName VoidQ
+                newCode = valParam ++ [QCall (QArg newTmpName VoidQ) printInt 1]
+            in
+                return (funcVal, newCode, depth)
+            
 
 genQExpr (EApp pos (Ident ident) exprList) isParam = do
     addToSpecialFuncsIfSpecial ident
