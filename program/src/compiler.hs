@@ -68,14 +68,14 @@ instance Show AsmRegister where
 type AsmCode = [Asm]
 type OffsetRBP = Int
 type AsmEnv = Map.Map String (QVar, OffsetRBP)
-type AsmMonad a = ReaderT Env (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
+type AsmMonad a = ReaderT AsmEnv (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
 
 data AStore = AStore {
     -- storeA :: Map.Map Loc
     curFuncNameAsm :: String,
     funcInfo :: Map.Map String FuncData,
     lastAddrRBP :: Int,
-    specialFuncExt :: [String],
+    specialFuncExt :: [String]
 }
 
 intBytes = 4
@@ -178,19 +178,14 @@ updateCurFuncNameAsm name = do
     curState <- get
     put curState {curFuncNameAsm = name}
 
-allocLocalVar varType = do
-    curRBP <- gets lastAddrRBP
-
-    case varType of
-        (IntQ v) -> do
-            let newRBPOffset = curRBP - intBytes
-            curState <- get
-            put curState {lastAddrRBP = newRBPOffset}
-
-isIntQ (IntQ _) = True
+isIntQ IntQ = True
 isIntQ _ = False
 
+createRelAddrRBP offset = "[rbp" ++ (show offset) ++ "]"
 
+createAddrIntRBP offset = "dword " ++ (createRelAddrRBP offset)
+
+getValToMov (IntQVal val) = val
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -245,8 +240,20 @@ genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
 
 genStmtsAsm [] = return ()
 
-genStmtsAsm ((QAss (QLoc name declType val)) : rest) = do
+genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
+    curRBP <- gets lastAddrRBP
 
+    case declType of
+        (IntQVal v) -> do
+            let newRBPOffset = curRBP - intBytes
+            curState <- get
+            put curState {lastAddrRBP = newRBPOffset}
+            -- gen command
+            -- if register, mem location, constant
+            tell $ [AMov (createAddrIntRBP newRBPOffset) (show v)]
+
+            curEnv <- ask
+            local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
 -- genStmtsAsm _ = undefined
 

@@ -227,6 +227,7 @@ genQStmt ((Decl pos vartype items) : rest) qcode = do
     (updatedEnv, updCode) <- evalDecl vartype items qcode
     local (const updatedEnv) (genQStmt rest updCode)
 
+-- fromInteger intVal
 genQExpr (ELitInt pos intVal) qcode = return ((IntQVal (fromInteger intVal)), qcode)
 
 
