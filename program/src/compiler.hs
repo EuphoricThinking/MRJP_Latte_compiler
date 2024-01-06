@@ -58,7 +58,7 @@ instance Show Asm where
     show AEpilog = "\tpop rbp\n\tret" -- check recording 7.28
     show (AAllocLocals num)= "\tsub rsp, " ++ (show num)
     show (AMov s1 s2) = "\tmov " ++ s1 ++ ", " ++ s2
-    show AEpiRestMem = "\tmov rbp, rsp"
+    show AEpiRestMem = "\tmov rsp, rbp"
     show ANoExecStack = "section .note.GNU-stack noalloc noexec nowrite progbits"
 
 instance Show AsmRegister where
@@ -243,7 +243,7 @@ genStmtsAsm [] = return ()
 genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
     curRBP <- gets lastAddrRBP
 
-    case declType of
+    case val of
         (IntQVal v) -> do
             let newRBPOffset = curRBP - intBytes
             curState <- get
