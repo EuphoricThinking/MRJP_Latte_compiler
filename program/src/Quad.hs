@@ -30,17 +30,18 @@ data QStore = QStore {
     countLabels :: Map.Map String Int
 } deriving (Show)
 
+data ValType = IntQ | StringQ | BoolQ | VoidQ deriving (Show)
 
-data Val = FnDecl Type [Arg] BNFC'Position | IntQ | StringQ | BoolQ | VoidQ | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int
+data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int
              deriving (Eq, Show)
 
 type SizeLocals = Int
-type RetType = Val
+type RetType = ValType --Val
 type Body = QuadCode
 type NumIntTypes = Int
 data FuncData = FuncData String RetType [Arg] SizeLocals Body NumIntTypes deriving (Show)
 
-data QVar = QLoc String Val | QArg String Val deriving (Show)
+data QVar = QLoc String ValType | QArg String ValType deriving (Show)
 
 data ParamIndicator = JustLocal | Param String deriving (Show)
 
@@ -68,7 +69,7 @@ genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadG
     -- in
             -- runwriterv $ runexcept $ evalstate (runreader p mapempty) s
 
-runQuadGen :: Program -> QuadMonad (Val, QStore)
+runQuadGen :: Program -> QuadMonad (ValType, QStore)
 runQuadGen (Prog pos topDefs) = do
     cur_state <- insOneByOne topDefs --get
     -- cur_state <- get
@@ -203,7 +204,7 @@ evalDecl _ [] qcode = do
 
 evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
     updateLocalNumCur
-    (val, updcode, _) <- genQExpr expr --qcode
+    (val, updcode, _) <- genQExpr expr JustLocal --qcode --LOOKOUT
     increaseNumLocTypesCur val
 
     countIdent <- gets (Map.lookup ident . countLabels)
@@ -284,7 +285,7 @@ genQStmt ((BStmt pos (Blk posB stmts)) : rest) qcode = do
 
 genQStmt ((Ret pos expr) : rest) qcode = do
     -- add inf if constant to avoid mov rax repetition
-    (retVal, codeExpr, _) <- genQExpr expr --qcode
+    (retVal, codeExpr, _) <- genQExpr expr JustLocal--qcode
     genQStmt rest (qcode ++ codeExpr ++ [QRet retVal]) -- mem addr, const, register
 
 genQStmt ((Decl pos vartype items) : rest) qcode = do
@@ -292,21 +293,21 @@ genQStmt ((Decl pos vartype items) : rest) qcode = do
     local (const updatedEnv) (genQStmt rest updCode)
 
 genQStmt ((SExp pos expr) : rest) qcode = do
-    (val, updCode, _) <- genQExpr expr --qcode
+    (val, updCode, _) <- genQExpr expr JustLocal --qcode
     genQStmt rest (qcode ++ updCode)
 
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
 
-genQExpr (EApp pos (Ident ident) exprList) isParam = do
-    addToSpecialFuncsIfSpecial ident
-    (updCode, depth) <- genParamCodeForExprList exprList isParam
-    appliedFuncData <- gets (Map.lookup ident . defFunc)
-    let retType = getFuncRet appliedFuncData
-    let newTmpName = createTempVarName ident
-    case isParam of
-        JustLocal -> do
-            let paramVal = P
+-- genQExpr (EApp pos (Ident ident) exprList) isParam = do
+--     addToSpecialFuncsIfSpecial ident
+--     (updCode, depth) <- genParamCodeForExprList exprList isParam
+--     appliedFuncData <- gets (Map.lookup ident . defFunc)
+--     let retType = getFuncRet appliedFuncData
+--     let newTmpName = createTempVarName ident
+--     case isParam of
+--         JustLocal -> do
+--             let paramVal = P
 
 
 
