@@ -1,5 +1,6 @@
 *.hi
 *.o
+!program/lib/runtime.o
 Test
 typechecker
 build/

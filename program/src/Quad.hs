@@ -46,6 +46,7 @@ data Quad = QLabel String --FuncData
     | QRet Val
     | QFunc FuncData
     | QAss QVar Val
+    | QParam Val
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -229,6 +230,15 @@ isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
 
 -- generateParams (e:exprs) qcode = do
 --     (val, updCode) <- genQExpr val qcode
+paramsConcatCode [] qcode = return qcode
+paramsConcatCode ((_, paramCode) : rest) qcode = paramsConcatCode rest (qcode ++ paramCode)
+
+addParamsFromList [] qcode = return qcode
+addParamsFromList ((paramVal, _) : rest) qcode = addParamsFromList rest (qcode ++ [QParam paramVal])
+
+genParamCodeForExprList exprs = do
+
+
 
 addToSpecialFuncsIfSpecial fname = do
     if isSpecialFuncQ fname
@@ -263,9 +273,9 @@ genQStmt ((SExp pos expr) : rest) qcode = do
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) = return ((IntQVal (fromInteger intVal)), [])
 
--- genQExpr (EApp pos (Ident ident) exprList) qcode = do
---     addToSpecialFuncsIfSpecial ident
---     valsCodes <- mapM genQExpr
+genQExpr (EApp pos (Ident ident) exprList) qcode = do
+    addToSpecialFuncsIfSpecial ident
+    valsCodes <- mapM genQExpr exprList
 
 
 
