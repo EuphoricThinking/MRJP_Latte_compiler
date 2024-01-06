@@ -39,6 +39,8 @@ type SizeLocals = Int
 type RetType = ValType --Val
 type Body = QuadCode
 type NumIntTypes = Int
+data ArgData = ArgData String ValType
+type Args = [ArgData]
 data FuncData = FuncData String RetType [Arg] SizeLocals Body NumIntTypes deriving (Show)
 
 data QVar = QLoc String ValType | QArg String ValType deriving (Show)
@@ -250,12 +252,15 @@ genParamCodeForExprList exprList isParam = do
     paramGenCode <- paramsConcatCode valsCodes []
     addParamsFromList valsCodes paramGenCode 0
 
-
 addToSpecialFuncsIfSpecial fname = do
     if isSpecialFuncQ fname
     then do
         curState <- get
         put curState {specialFunc = (fname : (specialFunc curState))}
+
+        case fname of
+            "printInt" -> do
+                let printBody = FuncData "printInt" VoidQ
     else
         return ()
 
