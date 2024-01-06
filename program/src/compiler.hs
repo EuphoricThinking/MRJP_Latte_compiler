@@ -73,7 +73,8 @@ data AStore = AStore {
     -- storeA :: Map.Map Loc
     curFuncNameAsm :: String,
     funcInfo :: Map.Map String FuncData,
-    lastAddrRBP :: Int
+    lastAddrRBP :: Int,
+    specialFuncExt :: [String]
 }
 
 extractQStore (Right (_, qstore)) = qstore
@@ -81,7 +82,7 @@ extractAsmCode (Right (_, acode)) = acode
 
 -- prepareAsmStore :: Either String Store -> AStore
 prepareAsmStore qdata = AStore {curFuncNameAsm = "",
-funcInfo = (defFunc qdata), lastAddrRBP = 0}
+funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata)}
 
 main :: IO () 
 main = do
@@ -181,7 +182,7 @@ runGenAsm q = do--return BoolT
     tell $ [SectText]
     tell $ [AGlobl] 
     curState <- get
-    addExternals (specialFunc curState)
+    addExternals (specialFuncExt curState)
     genFuncsAsm q
     -- case (specialFunc curState) of
     --     [] -> 
