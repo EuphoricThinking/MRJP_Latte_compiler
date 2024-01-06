@@ -36,7 +36,8 @@ data Val = FnDecl Type [Arg] BNFC'Position | IntQ | StringQ | BoolQ | VoidQ | Fu
 type SizeLocals = Int
 type RetType = Val
 type Body = QuadCode
-data FuncData = FuncData String RetType [Arg] SizeLocals Body deriving (Show)
+type NumIntTypes = Int
+data FuncData = FuncData String RetType [Arg] SizeLocals Body NumIntTypes deriving (Show)
 
 data QVar = QLoc String Val | QArg String Val deriving (Show)
 
@@ -93,10 +94,11 @@ increaseLabelCounter ident = do
         Nothing -> throwError $ ident ++ " cannot increase counter"
         Just countIdent -> put curState {countLabels = Map.insert ident (countIdent + 1) (countLabels curState)}
 
-getFuncRet (FuncData _ rett _ _ _) = rett
-getFuncArgs (FuncData _ _ args _ _) = args
-getFuncNumLoc (FuncData _ _ _ numloc _) = numloc
-getFuncBody (FuncData _ _ _ _ body) = body
+getFuncRet (FuncData _ rett _ _ _ _) = rett
+getFuncArgs (FuncData _ _ args _ _ _) = args
+getFuncNumLoc (FuncData _ _ _ numloc _ _) = numloc
+getFuncBody (FuncData _ _ _ _ body _) = body
+getFuncBodyIntsNum (FuncData _ _ _ _ _ numInts) = numInts
 
 -- return Label
 -- createQVal (Int _) expr qcode= do
@@ -124,7 +126,8 @@ updateCurFuncBody body = do
         Nothing -> throwError $ curFName ++ " cur not found"
         Just curFuncBody ->
             let 
-                newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body
+                newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body (getFuncBodyIntsNum curFuncBody)
+                -- newBody = createNewBody (getFuncNumLoc curFuncBody) curFName curFuncBody
             in
                 put curState {defFunc = Map.insert curFName newBody (defFunc curState)} >> return newBody
 
@@ -135,7 +138,7 @@ insOneByOne [] = do
 
 insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     curState <- get
-    let newFuncData = FuncData ident (getOrigQType rettype) args 0 []
+    let newFuncData = FuncData ident (getOrigQType rettype) args 0 [] 0
     insertToStoreNewFunc ident newFuncData
     updateCurFuncName ident
 
@@ -159,7 +162,21 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
 -- evalDecl :: Type' -> [Item'] -> QuadMonad Env
 
-createNewBody (Int numLoc) fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) numLoc (getFuncBody fbody)
+createNewBody (Int numLoc) fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) numLoc (getFuncBody fbody) (getFuncBodyIntsNum fbody)
+
+createIncreaseNumInts numInts fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) ((getFuncBodyIntsNum fbody) + numInts)
+
+increaseNumLocTypesCur exprVal = do
+    curState <- get
+    fname <- gets curFuncName
+    fbody <- gets (Map.lookup fname . defFunc)
+    case fbody of
+        Nothing -> throwError $ fname ++ " curfunc not found"
+        Just curBody -> do
+            case exprVal of
+                (IntQVal _) -> do
+                    let updatedNumInts = createIncreaseNumInts 1 fname curBody
+                    put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
 updateLocalNumCur = do
     --update locals counter
@@ -180,6 +197,7 @@ evalDecl _ [] qcode = do
 evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
     updateLocalNumCur
     (val, updcode) <- genQExpr expr qcode
+    increaseNumLocTypesCur val
 
     countIdent <- gets (Map.lookup ident . countLabels)
     case countIdent of

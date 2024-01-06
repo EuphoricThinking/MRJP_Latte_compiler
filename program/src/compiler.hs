@@ -203,7 +203,7 @@ runGenAsm q = do--return BoolT
 genFuncsAsm :: QuadCode -> AsmMonad ()
 genFuncsAsm [] = return ()
 
-genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body)) : rest) = do
+genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts)) : rest) = do
     tell $ [ALabel name]
     tell $ [AProlog]
 
