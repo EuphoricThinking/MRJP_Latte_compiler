@@ -302,26 +302,26 @@ genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
 
 genQExpr (EApp pos (Ident ident) exprList) isParam = do
     addToSpecialFuncsIfSpecial ident
-    -- (updCode, depth) <- genParamCodeForExprList exprList isParam
-    --fbody <- gets (Map.lookup ident . defFunc)
+    (updCode, depth) <- genParamCodeForExprList exprList isParam
+    fbody <- gets (Map.lookup ident . defFunc)
     return ((IntQVal (fromInteger 1)), [], 1)
-    -- case fbody of
-    --     Nothing -> throwError $ ident ++ " function call error: no such function"
-    --     Just appliedFuncData -> do
-    --         let retType = getFuncRet appliedFuncData
-    --         newTmpName <- createTempVarName ident -- move decl depending on param
-    --         case isParam of
-    --             JustLocal -> do
-    --                 let locVal = QLoc newTmpName retType
-    --                 let newCode = updCode ++ [QCall locVal ident (length exprList)]
+    case fbody of
+        Nothing -> throwError $ ident ++ " function call error: no such function"
+        Just appliedFuncData -> do
+            let retType = getFuncRet appliedFuncData
+            newTmpName <- createTempVarName ident -- move decl depending on param
+            case isParam of
+                JustLocal -> do
+                    let locVal = QLoc newTmpName retType
+                    let newCode = updCode ++ [QCall locVal ident (length exprList)]
 
-    --                 return ((LocQVal newTmpName retType), newCode, depth)
+                    return ((LocQVal newTmpName retType), newCode, depth)
 
-    --             Param funcName -> do
-    --                 let paramVal = QArg newTmpName retType
-    --                 let newCode = updCode ++ [QCall paramVal ident (length exprList)]
+                Param funcName -> do
+                    let paramVal = QArg newTmpName retType
+                    let newCode = updCode ++ [QCall paramVal ident (length exprList)]
 
-    --                 return ((ParamQVal newTmpName retType), newCode, depth)
+                    return ((ParamQVal newTmpName retType), newCode, depth)
 
 
 
