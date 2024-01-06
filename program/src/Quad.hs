@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Quad where
 
-import Typechecker (Loc, Env)
+import Typechecker (Loc, Env, checkIfAnyNameFromList)
 
 import Latte.Abs
 import Latte.Lex
@@ -196,7 +196,7 @@ evalDecl _ [] qcode = do
 
 evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
     updateLocalNumCur
-    (val, updcode) <- genQExpr expr qcode
+    (val, updcode) <- genQExpr expr --qcode
     increaseNumLocTypesCur val
 
     countIdent <- gets (Map.lookup ident . countLabels)
@@ -206,7 +206,7 @@ evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
             newLoc <- alloc
             insertToStoreNewIdentVal ident val newLoc
 
-            let codeWithAsgn = updcode ++ [QAss (QLoc ident (getOrigQType declType)) val]
+            let codeWithAsgn = qcode ++ updcode ++ [QAss (QLoc ident (getOrigQType declType)) val]
 
             local (Map.insert ident newLoc) (evalDecl declType rest codeWithAsgn)
 
@@ -216,7 +216,7 @@ evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
             newLoc <- alloc
             insertToStoreNewIdentVal newName val newLoc
 
-            let codeWithAsgn = updcode ++ [QAss (QLoc newName (getOrigQType declType)) val]
+            let codeWithAsgn = qcode ++ updcode ++ [QAss (QLoc newName (getOrigQType declType)) val]
 
             local (Map.insert newName newLoc) (evalDecl declType rest codeWithAsgn)
 
@@ -227,8 +227,11 @@ evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
 specialFuncsList = ["printInt", "printString", "error", "readInt", "readString"]
 isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
 
+-- generateParams (e:exprs) qcode = do
+--     (val, updCode) <- genQExpr val qcode
+
 addToSpecialFuncsIfSpecial fname = do
-    if isSpecialFunc fname
+    if isSpecialFuncQ fname
     then do
         curState <- get
         put curState {specialFunc = (fname : (specialFunc curState))}
@@ -246,23 +249,23 @@ genQStmt ((BStmt pos (Blk posB stmts)) : rest) qcode = do
 
 genQStmt ((Ret pos expr) : rest) qcode = do
     -- add inf if constant to avoid mov rax repetition
-    (retVal, codeExpr) <- genQExpr expr qcode
-    genQStmt rest (codeExpr ++ [QRet retVal]) -- mem addr, const, register
+    (retVal, codeExpr) <- genQExpr expr --qcode
+    genQStmt rest (qcode ++ codeExpr ++ [QRet retVal]) -- mem addr, const, register
 
 genQStmt ((Decl pos vartype items) : rest) qcode = do
     (updatedEnv, updCode) <- evalDecl vartype items qcode
     local (const updatedEnv) (genQStmt rest updCode)
 
 genQStmt ((SExp pos expr) : rest) qcode = do
-    (val, updCode) <- genQExpr expr qcode
-    genQStmt rest updCode
+    (val, updCode) <- genQExpr expr --qcode
+    genQStmt rest (qcode ++ updCode)
 
 -- fromInteger intVal
-genQExpr (ELitInt pos intVal) qcode = return ((IntQVal (fromInteger intVal)), qcode)
+genQExpr (ELitInt pos intVal) = return ((IntQVal (fromInteger intVal)), [])
 
-genQExpr (EApp pos (Ident ident) exprList) qcode = do
-    addToSpecialFuncsIfSpecial ident
-    valsCodes <- mapM genQExpr
+-- genQExpr (EApp pos (Ident ident) exprList) qcode = do
+--     addToSpecialFuncsIfSpecial ident
+--     valsCodes <- mapM genQExpr
 
 
 
