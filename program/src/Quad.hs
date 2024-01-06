@@ -244,7 +244,8 @@ addParamsFromList [] qcode maxDepth = return (qcode, maxDepth)
 addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
 
 genParamCodeForExprList exprList isParam = do
-    valsCodes <- mapM genQExpr exprList isParam
+    let genExpParams exp = genQExpr exp isParam
+    valsCodes <- mapM genExpParams exprList --exprList isParam
     paramGenCode <- paramsConcatCode valsCodes []
     addParamsFromList valsCodes paramGenCode 0
 
@@ -301,25 +302,26 @@ genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
 
 genQExpr (EApp pos (Ident ident) exprList) isParam = do
     addToSpecialFuncsIfSpecial ident
-    (updCode, depth) <- genParamCodeForExprList exprList isParam
-    fbody <- gets (Map.lookup ident . defFunc)
-    case fbody of
-        Nothing -> throwError $ ident ++ " function call error: no such function"
-        Just appliedFuncData -> do
-            let retType = getFuncRet appliedFuncData
-            let newTmpName = "xd"--createTempVarName ident
-            case isParam of
-                JustLocal -> do
-                    let locVal = QLoc newTmpName retType
-                    let newCode = updCode ++ [QCall locVal ident (length exprList)]
+    -- (updCode, depth) <- genParamCodeForExprList exprList isParam
+    --fbody <- gets (Map.lookup ident . defFunc)
+    return ((IntQVal (fromInteger 1)), [], 1)
+    -- case fbody of
+    --     Nothing -> throwError $ ident ++ " function call error: no such function"
+    --     Just appliedFuncData -> do
+    --         let retType = getFuncRet appliedFuncData
+    --         newTmpName <- createTempVarName ident -- move decl depending on param
+    --         case isParam of
+    --             JustLocal -> do
+    --                 let locVal = QLoc newTmpName retType
+    --                 let newCode = updCode ++ [QCall locVal ident (length exprList)]
 
-                    return ((LocQVal newTmpName retType), newCode, depth)
+    --                 return ((LocQVal newTmpName retType), newCode, depth)
 
-                Param funcName -> do
-                    let paramVal = QArg newTmpName retType
-                    let newCode = updCode ++ [QCall paramVal ident (length exprList)]
+    --             Param funcName -> do
+    --                 let paramVal = QArg newTmpName retType
+    --                 let newCode = updCode ++ [QCall paramVal ident (length exprList)]
 
-                    return ((ParamQVal newTmpName retType), newCode, depth)
+    --                 return ((ParamQVal newTmpName retType), newCode, depth)
 
 
 
