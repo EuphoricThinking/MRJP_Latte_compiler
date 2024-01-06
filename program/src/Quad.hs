@@ -224,8 +224,16 @@ evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
     case declType of
         (Int _) -> evalDecl declType ((Init posIn (Ident ident) (ELitInt posIn 0)) : rest) qcode
 
-            
+specialFuncsList = ["printInt", "printString", "error", "readInt", "readString"]
+isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
 
+addToSpecialFuncsIfSpecial fname = do
+    if isSpecialFunc fname
+    then do
+        curState <- get
+        put curState {specialFunc = (fname : (specialFunc curState))}
+    else
+        return ()
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
@@ -245,8 +253,18 @@ genQStmt ((Decl pos vartype items) : rest) qcode = do
     (updatedEnv, updCode) <- evalDecl vartype items qcode
     local (const updatedEnv) (genQStmt rest updCode)
 
+genQStmt ((SExp pos expr) : rest) qcode = do
+    (val, updCode) <- genQExpr expr qcode
+    genQStmt rest updCode
+
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) qcode = return ((IntQVal (fromInteger intVal)), qcode)
+
+genQExpr (EApp pos (Ident ident) exprList) qcode = do
+    addToSpecialFuncsIfSpecial ident
+    valsCodes <- mapM genQExpr
+
+
 
 
 
