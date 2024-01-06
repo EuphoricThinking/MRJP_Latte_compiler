@@ -30,9 +30,9 @@ data QStore = QStore {
     countLabels :: Map.Map String Int
 } deriving (Show)
 
-data ValType = IntQ | StringQ | BoolQ | VoidQ deriving (Show)
+data ValType = IntQ | StringQ | BoolQ | VoidQ deriving (Eq, Show)
 
-data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int
+data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType
              deriving (Eq, Show)
 
 type SizeLocals = Int
@@ -243,10 +243,10 @@ paramsConcatCode ((_, paramCode, _) : rest) qcode = paramsConcatCode rest (qcode
 addParamsFromList [] qcode maxDepth = return (qcode, maxDepth)
 addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
 
-genParamCodeForExprList exprList qcode isParam = do
+genParamCodeForExprList exprList isParam = do
     valsCodes <- mapM genQExpr exprList isParam
     paramGenCode <- paramsConcatCode valsCodes []
-    return (addParamsFromList valsCodes paramGenCode)
+    addParamsFromList valsCodes paramGenCode 0
 
 
 addToSpecialFuncsIfSpecial fname = do
@@ -299,15 +299,29 @@ genQStmt ((SExp pos expr) : rest) qcode = do
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
 
--- genQExpr (EApp pos (Ident ident) exprList) isParam = do
---     addToSpecialFuncsIfSpecial ident
---     (updCode, depth) <- genParamCodeForExprList exprList isParam
---     appliedFuncData <- gets (Map.lookup ident . defFunc)
---     let retType = getFuncRet appliedFuncData
---     let newTmpName = createTempVarName ident
---     case isParam of
---         JustLocal -> do
---             let paramVal = P
+genQExpr (EApp pos (Ident ident) exprList) isParam = do
+    addToSpecialFuncsIfSpecial ident
+    (updCode, depth) <- genParamCodeForExprList exprList isParam
+    fbody <- gets (Map.lookup ident . defFunc)
+    case fbody of
+        Nothing -> throwError $ ident ++ " function call error: no such function"
+        Just appliedFuncData -> do
+            let retType = getFuncRet appliedFuncData
+            let newTmpName = "xd"--createTempVarName ident
+            case isParam of
+                JustLocal -> do
+                    let locVal = QLoc newTmpName retType
+                    let newCode = updCode ++ [QCall locVal ident (length exprList)]
+
+                    return ((LocQVal newTmpName retType), newCode, depth)
+
+                Param funcName -> do
+                    let paramVal = QArg newTmpName retType
+                    let newCode = updCode ++ [QCall paramVal ident (length exprList)]
+
+                    return ((ParamQVal newTmpName retType), newCode, depth)
+
+
 
 
 
