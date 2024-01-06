@@ -47,11 +47,14 @@ data Quad = QLabel String --FuncData
     | QFunc FuncData
     | QAss QVar Val
     | QParam Val
+    | QCall QVar String Int
     deriving (Show)
 
 type QuadCode = [Quad]
 
 type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode IO))) a 
+
+tmpInfix = "_tmp_"
 
 -- genQuadcode :: Program -> Quadcode
 genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
@@ -219,7 +222,7 @@ evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
 
             let codeWithAsgn = qcode ++ updcode ++ [QAss (QLoc newName (getOrigQType declType)) val]
 
-            local (Map.insert newName newLoc) (evalDecl declType rest codeWithAsgn)
+            local (Map.insert ident newLoc) (evalDecl declType rest codeWithAsgn) -- newName changed to ident
 
 evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
     case declType of
@@ -250,6 +253,23 @@ addToSpecialFuncsIfSpecial fname = do
     else
         return ()
 
+createTempVarName ident = do
+    let candName = ident ++ tmpInfix
+    cntLbl <- gets (Map.lookup candName . countLabels)
+    case cntLbl of
+        Nothing -> do
+            insertNewLabelToCounter candName
+
+            return candName
+
+        Just numLabels -> do
+            let newName = candName ++ (show numLabels)
+            curState <- get
+            put curState {countLabels = Map.insert newName (numLabels + 1) (countLabels curState)}
+
+            return newName
+
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -275,9 +295,13 @@ genQStmt ((SExp pos expr) : rest) qcode = do
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) = return ((IntQVal (fromInteger intVal)), [], 1)
 
--- genQExpr (EApp pos (Ident ident) exprList) = do
---     addToSpecialFuncsIfSpecial ident
---     (updCode, depth) <- genParamCodeForExprList exprList
+genQExpr (EApp pos (Ident ident) exprList) = do
+    addToSpecialFuncsIfSpecial ident
+    (updCode, depth) <- genParamCodeForExprList exprList
+    appliedFuncData <- gets (Map.lookup ident . defFunc)
+    let retType = getFuncRet appliedFuncData
+    let newTmpName = createTempVarName ident
+
 
 
 
