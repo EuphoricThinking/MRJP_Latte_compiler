@@ -76,7 +76,7 @@ data AStore = AStore {
     funcInfo :: Map.Map String FuncData,
     lastAddrRBP :: Int,
     specialFuncExt :: [String]
-}
+} deriving (Show)
 
 intBytes = 4
 
@@ -189,6 +189,8 @@ createAddrIntRBP offset = "dword " ++ (createRelAddrRBP offset)
 
 getValToMov (IntQVal val) = val
 
+printMesA mes = lift $ lift $ lift $ lift $ print mes
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
@@ -196,7 +198,14 @@ runGenAsm q = do--return BoolT
     tell $ [AGlobl] 
     curState <- get
     addExternals (specialFuncExt curState)
-    genFuncsAsm q
+
+    asmEnv <- ask
+    local (const asmEnv) (genFuncsAsm q)
+    -- genFuncsAsm q
+
+    -- asmEnv <- ask
+    -- printMesA "encLoc print"
+    -- printMesA asmEnv
     -- case (specialFunc curState) of
     --     [] -> 
     return BoolT
@@ -244,6 +253,7 @@ genStmtsAsm [] = return ()
 
 genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
     curRBP <- gets lastAddrRBP
+    
 
     case val of
         (IntQVal v) -> do
@@ -255,6 +265,8 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
             tell $ [AMov (createAddrIntRBP newRBPOffset) (show v)]
 
             curEnv <- ask
+            -- printMesA $ "envLoc " ++ name
+            -- printMesA curEnv
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
 -- genStmtsAsm _ = undefined
