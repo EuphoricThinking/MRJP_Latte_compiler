@@ -67,7 +67,7 @@ instance Show AsmRegister where
 
 type AsmCode = [Asm]
 
-type AsmMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT AsmCode IO))) a 
+type AsmMonad a = ReaderT Env (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
 
 data AStore = AStore {
     -- storeA :: Map.Map Loc
@@ -79,8 +79,9 @@ data AStore = AStore {
 extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
 
+-- prepareAsmStore :: Either String Store -> AStore
 prepareAsmStore qdata = AStore {curFuncNameAsm = "",
-funcInfo = (defFunc (extractQStore qdata)), lastAddrRBP = 0}
+funcInfo = (defFunc qdata), lastAddrRBP = 0}
 
 main :: IO () 
 main = do
@@ -108,7 +109,7 @@ main = do
                             let fname = fst ftuple
                             let finalName = fname ++ ".s"
                             print $ finalName
-                            (eithAsm, asmcode) <- genAssembly (prepareAsmStore eitherQuad) quadcode--(extractQStore eitherQuad) quadcode
+                            (eithAsm, asmcode) <- genAssembly (extractQStore eitherQuad) quadcode --(prepareAsmStore eitherQuad) quadcode
                             writeToFile filename (unlines $ map show asmcode)
                             exitSuccess
                             --printOK >> getQuadcode p >>= writeToFile filename >> exitSuccess
@@ -147,7 +148,12 @@ typeCheckExecute program =
         Left mes -> printError mes >> exitFailure
         Right p -> checkErrorOrExecute (evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)})) p 
 
-genAssembly quadstore quadcode = runWriterT $ runExceptT $ evalStateT (runReaderT (runGenAsm quadcode) Map.empty) quadstore
+-- genAssembly :: AStore -> QuadCode -> AsmMonad (Either String AsmCode, AsmCode)
+genAssembly quadstore quadcode = 
+    let
+        astore = prepareAsmStore quadstore
+    in
+        runWriterT $ runExceptT $ evalStateT (runReaderT (runGenAsm quadcode) Map.empty) astore --quadstore
 
 addExternals :: [String] -> AsmMonad ()
 addExternals [] = tell $ [ASpace]
