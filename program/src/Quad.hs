@@ -171,6 +171,7 @@ updateLocalNumCur = do
         Just foundData -> do
             let updatedNumloc = createNewBody (Int ((getFuncNumLoc foundData) + 1)) curFName foundData
             put curState {defFunc = Map.insert curFName updatedNumloc (defFunc curState)}
+            
 evalDecl :: Type -> [Item] -> QuadCode -> QuadMonad (Env, QuadCode)
 evalDecl _ [] qcode = do
     curEnv <- ask

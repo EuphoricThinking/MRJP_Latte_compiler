@@ -66,7 +66,8 @@ instance Show AsmRegister where
     show AEAX = "eax"
 
 type AsmCode = [Asm]
-
+type OffsetRBP = Int
+type AsmEnv = Map.Map String (QVar, OffsetRBP)
 type AsmMonad a = ReaderT Env (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
 
 data AStore = AStore {
@@ -74,8 +75,10 @@ data AStore = AStore {
     curFuncNameAsm :: String,
     funcInfo :: Map.Map String FuncData,
     lastAddrRBP :: Int,
-    specialFuncExt :: [String]
+    specialFuncExt :: [String],
 }
+
+intBytes = 4
 
 extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
@@ -175,6 +178,19 @@ updateCurFuncNameAsm name = do
     curState <- get
     put curState {curFuncNameAsm = name}
 
+allocLocalVar varType = do
+    curRBP <- gets lastAddrRBP
+
+    case varType of
+        (IntQ v) -> do
+            let newRBPOffset = curRBP - intBytes
+            curState <- get
+            put curState {lastAddrRBP = newRBPOffset}
+
+isIntQ (IntQ _) = True
+isIntQ _ = False
+
+
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -228,6 +244,9 @@ genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
             genStmtsAsm rest
 
 genStmtsAsm [] = return ()
+
+genStmtsAsm ((QAss (QLoc name declType val)) : rest) = do
+
 
 -- genStmtsAsm _ = undefined
 
