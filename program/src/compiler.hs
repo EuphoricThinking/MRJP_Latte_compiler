@@ -325,9 +325,9 @@ pushParams ((QParam val) : rest) = do
             tell $ [APush (show v)]
             pushParams rest
 
-genParams qcall@((QCall qvar ident numArgs) : rest) _ = genStmtsAsm qcall
-genParams [] _ = genStmtsAsm []
-genParams qcode [] = do
+genParams qcall@((QCall qvar ident numArgs) : rest) _ _ = genStmtsAsm qcall
+genParams [] _ _ = genStmtsAsm []
+genParams qcode [] _ = do
     let qcallcode = getQCallCode qcode
     let reverseParams = paramsToStack qcode []
     pushParams reverseParams
@@ -335,11 +335,11 @@ genParams qcode [] = do
     genStmtsAsm qcallcode
 
 
-genParams ((QParam val) : rest) (reg : regs) = do
+genParams ((QParam val) : rest) (reg : regs) (ereg : eregs)= do
     case val of
         (IntQVal v) -> do
-            tell $ [AMov (show reg) (show v)]
-            genParams rest regs
+            tell $ [AMov (show ereg) (show v)]
+            genParams rest regs eregs
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -437,7 +437,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
             newRBPOffset <- allocInt v
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
---genStmtsAsm params@((QParam val) : rest) =
+genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
 
 -- genStmtsAsm _ = undefined
 
