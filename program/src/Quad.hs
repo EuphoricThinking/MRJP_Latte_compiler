@@ -39,9 +39,10 @@ type SizeLocals = Int
 type RetType = ValType --Val
 type Body = QuadCode
 type NumIntTypes = Int
-data ArgData = ArgData String ValType
-type Args = [ArgData]
-data FuncData = FuncData String RetType [Arg] SizeLocals Body NumIntTypes deriving (Show)
+data ArgData = ArgData String ValType deriving (Show)
+type Args = [ArgData] 
+
+data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes deriving (Show)
 
 data QVar = QLoc String ValType | QArg String ValType deriving (Show)
 
@@ -142,6 +143,10 @@ updateCurFuncBody body = do
             in
                 put curState {defFunc = Map.insert curFName newBody (defFunc curState)} >> return newBody
 
+getArgData (Ar _ (Int _) (Ident ident)) = ArgData ident IntQ
+getArgData (Ar _ (Bool _) (Ident ident)) = ArgData ident BoolQ
+getArgData (Ar _ (Str _) (Ident ident)) = ArgData ident StringQ
+
 insOneByOne :: [TopDef] -> QuadMonad QStore
 insOneByOne [] = do
     cur_state <- get
@@ -149,7 +154,7 @@ insOneByOne [] = do
 
 insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     curState <- get
-    let newFuncData = FuncData ident (getOrigQType rettype) args 0 [] 0
+    let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0
     insertToStoreNewFunc ident newFuncData
     updateCurFuncName ident
 
@@ -258,9 +263,9 @@ addToSpecialFuncsIfSpecial fname = do
         curState <- get
         put curState {specialFunc = (fname : (specialFunc curState))}
 
-        case fname of
-            "printInt" -> do
-                let printBody = FuncData "printInt" VoidQ
+        -- case fname of
+        --     "printInt" -> do
+        --         let printBody = FuncData "printInt" VoidQ [Arg]
     else
         return ()
 
