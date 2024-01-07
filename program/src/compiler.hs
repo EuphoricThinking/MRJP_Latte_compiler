@@ -246,6 +246,7 @@ updateRSP valueToAdd = do
     curState <- get
     put curState {curRSP = ((curRSP curState) + valueToAdd)}
 
+checkRSPmod :: AsmMonad Int
 checkRSPmod = do
     curOffRSP <- gets curRSP
     let absRSP = abs curOffRSP
