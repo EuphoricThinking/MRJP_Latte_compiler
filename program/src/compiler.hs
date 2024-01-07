@@ -93,7 +93,7 @@ instance Show Asm where
     show (APush s) = "\tpush " ++ s
     show (ACall s) = "\tcall " ++ s
     show (ADealloc v) = "\tadd rsp, " ++ (show v)
-    show (SecStr s) = "\t.string" ++ (show s) -- in order to preserve ""
+    show (SecStr s) = "\tdb " ++ (show s) ++ ", 0" -- in order to preserve ""
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -220,7 +220,7 @@ writeToFile path program =
     in
         do
         writeFile finalNameAsm program
-        callProcess "nasm" [finalNameAsm, "-o", finalNameObj, "-f elf64"]
+        -- callProcess "nasm" [finalNameAsm, "-o", finalNameObj, "-f elf64"]
         callProcess "gcc" [finalNameObj, "-o", finalName, "-no-pie", "lib/runtime.o"]
         removeFile finalNameObj
     
