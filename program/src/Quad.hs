@@ -44,7 +44,7 @@ type Args = [ArgData]
 
 data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes [String] deriving (Show)
 
-data QVar = QLoc String ValType | QArg String ValType deriving (Show)
+data QVar = QLoc String ValType | QArg String ValType | NoMeaning deriving (Show)
 
 data ParamIndicator = JustLocal | Param String deriving (Show)
 

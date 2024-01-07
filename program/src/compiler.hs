@@ -46,6 +46,7 @@ data AsmRegister = ARAX
     | AEBP
     | AR11D
     | AR11
+    | ARIP
 
 data Asm = AGlobl
     | SectText
@@ -64,6 +65,7 @@ data Asm = AGlobl
     | APush String
     | ACall String
     | ADealloc Int
+    | SecStr String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -91,6 +93,7 @@ instance Show Asm where
     show (APush s) = "\tpush " ++ s
     show (ACall s) = "\tcall " ++ s
     show (ADealloc v) = "\tadd rsp, " ++ (show v)
+    show (SecStr s) = "\t.string" ++ (show s) -- in order to preserve ""
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -118,19 +121,24 @@ instance Show AsmRegister where
     show AEBP = "ebp"
     show AR11D = "r11d"
     show AR11 = "r11"
+    show ARIP = "rip"
 
     -- ah:al in eax
 
-data StoragePlace = OffsetRBP Int | Register AsmRegister
+data StoragePlace = OffsetRBP Int | Register AsmRegister | ProgLabel String
 
 instance Show StoragePlace where
     show (OffsetRBP i) = show i
     show (Register reg) = show reg
+    show (ProgLabel l) = l
 
 type AsmCode = [Asm]
 
 type AsmEnv = Map.Map String (QVar, StoragePlace)
 type AsmMonad a = ReaderT AsmEnv (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
+
+type StrProgLabel = String
+type VarLabel = String
 
 data AStore = AStore {
     -- storeA :: Map.Map Loc
@@ -138,7 +146,10 @@ data AStore = AStore {
     funcInfo :: Map.Map String FuncData,
     lastAddrRBP :: Int,
     specialFuncExt :: [String],
-    curRSP :: Int
+    curRSP :: Int,
+    strLabelsCounter :: Int,
+    labelsCounter :: Int
+    -- strLabels :: Map.Map VarLabel StrProgLabel
 } deriving (Show)
 
 parametersRegistersInts32 = [AEDI, AESI, AEDX, AECX, AR8D, AR9D]
@@ -154,6 +165,10 @@ stackParamSize = 8
 numRegisterParams = 6
 
 endSuffix = "_END"
+functionLabel = ".L"
+stringLabel = ".LS"
+
+labelRegister = ARIP
 
 stackAlignment = 16
 pushWord = 8
@@ -163,7 +178,7 @@ extractAsmCode (Right (_, acode)) = acode
 
 -- prepareAsmStore :: Either String Store -> AStore
 prepareAsmStore qdata = AStore {curFuncNameAsm = "",
-funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
+funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0, strLabelsCounter = 0, labelsCounter = 0} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
 
 main :: IO () 
 main = do
@@ -463,6 +478,30 @@ genParams ((QParam val) : rest) (reg : regs) (ereg : eregs)= do
 assignResToRegister var@(QLoc varTmpId varType) =
     case varType of
         IntQ -> (var, (Register AEAX))
+
+increaseStrLblCounterByOne curStrLblCnt = do
+    curState <- get
+    put curState {strLabelsCounter = (curStrLblCnt + 1)}
+
+createStrLiteralLabels :: [String] -> AsmMonad AsmEnv
+createStrLiteralLabels [] = do
+    curEnv <- ask
+    return curEnv
+
+createStrLiteralLabels (s : ss) = do
+    curStrLblCnt <- gets strLabelsCounter
+    let newStrLbl = stringLabel ++ (show curStrLblCnt)
+
+    increaseStrLblCounterByOne curStrLblCnt
+
+    tell $ [ALabel newStrLbl]
+    tell $ [SecStr s]
+    tell $ [ASpace]
+
+    curEnv <- ask
+
+    local (Map.insert s (NoMeaning, (ProgLabel newStrLbl))) (createStrLiteralLabels ss)
+
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
