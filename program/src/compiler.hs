@@ -121,8 +121,13 @@ instance Show AsmRegister where
 
     -- ah:al in eax
 
-type AsmCode = [Asm]
 data StoragePlace = OffsetRBP Int | Register AsmRegister
+
+instance Show StoragePlace where
+    show (OffsetRBP i) = show i
+    show (Register reg) = show reg
+
+type AsmCode = [Asm]
 
 type AsmEnv = Map.Map String (QVar, StoragePlace)
 type AsmMonad a = ReaderT AsmEnv (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
@@ -445,6 +450,10 @@ genParams ((QParam val) : rest) (reg : regs) (ereg : eregs)= do
                     --gen
     genParams rest regs eregs
 
+assignResToRegister var@(QLoc varTmpId varType) =
+    case varType of
+        IntQ -> (var, (Register AEAX))
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
@@ -545,9 +554,17 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
             newRBPOffset <- allocInt v
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
-        -- (LocQVal name valType) -> do
-        --     case valType of
-        --         IntQ -> do
+        (LocQVal name valType) -> do
+            valStorage <- asks (Map.lookup name)
+            case valStorage of
+                Nothing -> throwError $ name ++ " var not in env"
+                Just (var, storage) -> do
+                    case valType of
+                        IntQ -> do
+                            newRBPOffset <- allocInt storage
+                            local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
+
+
 
 
 genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
@@ -575,7 +592,7 @@ genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPo
 --     case ident of
 --         "printInt" -> do return ()
 
-genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
+genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
     valSubtracted <- alignStack
 
     case ident of
@@ -583,9 +600,16 @@ genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
             tell $ [ACall "printInt"]
             dealloc valSubtracted
 
+            genStmtsAsm rest
+
         "readInt" -> do
             tell $ [ACall "readInt"]
+            dealloc valSubtracted
 
-    genStmtsAsm rest
+            let valStorage = assignResToRegister qvar
+
+            local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
+
+    --genStmtsAsm rest
 
     
