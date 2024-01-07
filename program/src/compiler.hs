@@ -63,6 +63,7 @@ data Asm = AGlobl
     | AJmp String
     | APush String
     | ACall String
+    | ADealloc Int
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -89,6 +90,7 @@ instance Show Asm where
     show (AJmp s) = "\tjmp " ++ s
     show (APush s) = "\tpush " ++ s
     show (ACall s) = "\tcall " ++ s
+    show (ADealloc v) = "\tadd rsp, " ++ (show v)
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -268,6 +270,26 @@ checkHowToUpdateRSP candidateVal =
 helperCheckVal candidateVal toUpd
     | toUpd == stackAlignment = candidateVal
     | otherwise = (abs candidateVal) + toUpd
+
+alignStack :: AsmMonad Int
+alignStack = do
+    toRoundUp <- getValToRoundUpRSP
+    if toRoundUp == stackAlignment
+    then
+        return 0
+    else do
+        updateRSP toRoundUp
+        tell $ [AAllocLocals toRoundUp]
+        return toRoundUp
+
+dealloc spaceToDealloc = do
+    if spaceToDealloc /= 0
+    then do
+        updateRSP (-spaceToDealloc)
+        tell $ [ADealloc spaceToDealloc]
+    else
+        return ()
+
 
 sumParamsSizes [] sumParams = sumParams
 sumParamsSizes ((ArgData ident valType) : args) sumParams = sumParamsSizes args (sumParams + stackParamSize)
@@ -532,11 +554,13 @@ genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPo
 
 -- genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
 
-genStmtsAsm ((QCall qvar "printInt" numArgs) : rest) = do
-    -- tell $ [AMov (show AEAX) "0"]
-    tell $ [ACall "printInt"]
+-- genStmtsAsm ((QCall qvar "printInt" numArgs) : rest) = do
+--     -- tell $ [AMov (show AEAX) "0"]
+--     tell $ [ACall "printInt"]
 
-    genStmtsAsm rest
+--     genStmtsAsm rest
+
+
 
 
 -- ALIGN STACK
@@ -550,3 +574,16 @@ genStmtsAsm ((QCall qvar "printInt" numArgs) : rest) = do
 --     --     return ()
 --     case ident of
 --         "printInt" -> do return ()
+
+genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
+    valSubtracted <- alignStack
+
+    case ident of
+        "printInt" -> do
+            tell $ [ACall "printInt"]
+            dealloc valSubtracted
+
+
+    genStmtsAsm rest
+
+    
