@@ -194,6 +194,18 @@ increaseNumLocTypesCur exprVal = do
                     let updatedNumInts = createIncreaseNumInts 1 fname curBody
                     put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
+                (LocQVal tmpName retType) -> do
+                    case retType of
+                        IntQ -> do 
+                            let updatedNumInts = createIncreaseNumInts 1 fname curBody
+                            put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
+
+                (ParamQVal tmpName retType) -> do
+                    case retType of
+                        IntQ -> do 
+                            let updatedNumInts = createIncreaseNumInts 1 fname curBody
+                            put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
+
 updateLocalNumCur = do
     --update locals counter
     curFName <- gets curFuncName
@@ -312,10 +324,13 @@ createTempVarName ident = do
 getSpecialRetType fname =
     case fname of
         "printInt" -> VoidQ
+        "readInt" -> IntQ
 
 getValType val =
     case val of
         (IntQVal _) -> IntQ
+        (LocQVal _ vtype) -> vtype
+        (ParamQVal _ vtype) -> vtype
 
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
