@@ -133,6 +133,8 @@ intBytes = 4
 paramsStartOff = 16
 stackParamSize = 8
 
+numRegisterParams = 6
+
 endSuffix = "_END"
 
 extractQStore (Right (_, qstore)) = qstore
@@ -226,10 +228,22 @@ getSpecialWrapped s = (show AExtern) ++ (go s) where
     go (s : []) = s
     go (s : ss) = (show s) ++ ", " ++ (go ss)
 
+sumParamsSizes [] sumParams = sumParams
+sumParamsSizes ((ArgData ident valType) : args) sumParams = sumParamsSizes args (sumParams + stackParamSize)
+    -- case valType of
+    --     IntQ -> sumParamsSizes args (sumParams + intBytes)
+
+sumParamsSizesPastRegisters [] regs = 0
+sumParamsSizesPastRegisters args 0 = sumParamsSizes args 0
+sumParamsSizesPastRegisters (a : args) numRegs = sumParamsSizesPastRegisters args (numRegs - 1)
+
 subLocals 0 _ = return ()
 subLocals numLoc (FuncData name retType args locNum body numInts) = do 
     let localsSize = numInts*intBytes --TODO add rest
-    tell $ [AAllocLocals localsSize] --[AAllocLocals numLoc]
+    let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
+    let sumLocalsAndParamsSizes = localsSize + stackParamsSize
+    -- tell $ [AAllocLocals localsSize] --[AAllocLocals numLoc]
+    tell $ [AAllocLocals sumLocalsAndParamsSizes]
 
 updateCurFuncNameAsm name = do
     curState <- get
