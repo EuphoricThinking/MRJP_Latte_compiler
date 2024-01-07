@@ -44,6 +44,8 @@ data AsmRegister = ARAX
     | ARSP
     | AESP
     | AEBP
+    | AR11D
+    | AR11
 
 data Asm = AGlobl
     | SectText
@@ -112,6 +114,8 @@ instance Show AsmRegister where
     show ARSP = "rsp"
     show AESP = "esp"
     show AEBP = "ebp"
+    show AR11D = "r11d"
+    show AR11 = "r11"
 
     -- ah:al in eax
 
@@ -326,7 +330,18 @@ pushParams ((QParam val) : rest) = do
     case val of
         (IntQVal v) -> do
             tell $ [APush (show v)]
-            pushParams rest
+
+        (LocQVal ident valType) -> do
+            varData <- asks (Map.lookup ident)
+            case varData of
+                Nothing -> throwError $ "No env data for " ++ ident
+                Just (var, offset) -> do
+                    case valType of
+                        (IntQ) -> do
+                            tell $ [AMov (show AR11D) (createAddrIntRBP offset)]
+                            tell $ [APush (show AR11)]
+
+    pushParams rest
 
 genParams qcall@((QCall qvar ident numArgs) : rest) _ _ = genStmtsAsm qcall
 genParams [] _ _ = genStmtsAsm []
@@ -342,7 +357,19 @@ genParams ((QParam val) : rest) (reg : regs) (ereg : eregs)= do
     case val of
         (IntQVal v) -> do
             tell $ [AMov (show ereg) (show v)]
-            genParams rest regs eregs
+            -- genParams rest regs eregs
+
+        (LocQVal ident valType) -> do
+            varData <- asks (Map.lookup ident)
+            case varData of
+                Nothing -> throwError $ "No env data for " ++ ident
+                Just (var, offset) -> do
+                    case valType of
+                        (IntQ) -> do
+                            tell $ [AMov (show ereg) (createAddrIntRBP offset)]
+
+                    --gen
+    genParams rest regs eregs
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
