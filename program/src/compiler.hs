@@ -30,7 +30,7 @@ data AsmRegister = ARAX
     | AR14
     | AR15
     | ARDI
-    | ARSI
+    | ARSIpush
     | ARDX
     | ARCX
     | AR8
@@ -148,6 +148,7 @@ numRegisterParams = 6
 endSuffix = "_END"
 
 stackAlignment = 16
+pushWord = 8
 
 extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
@@ -267,8 +268,6 @@ helperCheckVal candidateVal toUpd
     | toUpd == stackAlignment = candidateVal
     | otherwise = (abs candidateVal) + toUpd
 
-
-
 sumParamsSizes [] sumParams = sumParams
 sumParamsSizes ((ArgData ident valType) : args) sumParams = sumParamsSizes args (sumParams + stackParamSize)
     -- case valType of
@@ -284,6 +283,8 @@ subLocals numLoc (FuncData name retType args locNum body numInts) = do
     let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
     let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
 
+    let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
+    updateRSP stackUpdate
 
 
     -- tell $ [AAllocLocals localsSize] --[AAllocLocals numLoc]
@@ -374,6 +375,8 @@ pushParams ((QParam val) : rest) = do
         (IntQVal v) -> do
             tell $ [APush (show v)]
 
+            updateRSP pushWord
+
         (LocQVal ident valType) -> do
             varData <- asks (Map.lookup ident)
             case varData of
@@ -383,6 +386,8 @@ pushParams ((QParam val) : rest) = do
                         (IntQ) -> do
                             tell $ [AMov (show AR11D) (createAddrIntRBP offset)]
                             tell $ [APush (show AR11)]
+
+                            updateRSP pushWord
 
     pushParams rest
 
