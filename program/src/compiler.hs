@@ -30,7 +30,7 @@ data AsmRegister = ARAX
     | AR14
     | AR15
     | ARDI
-    | ARSIpush
+    | ARSI
     | ARDX
     | ARCX
     | AR8
