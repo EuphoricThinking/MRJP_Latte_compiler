@@ -554,15 +554,15 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
             newRBPOffset <- allocInt v
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
-        (LocQVal name valType) -> do
-            valStorage <- asks (Map.lookup name)
+        (LocQVal ident valType) -> do
+            valStorage <- asks (Map.lookup ident)
             case valStorage of
-                Nothing -> throwError $ name ++ " var not in env"
-                Just (var, storage) -> do
+                Nothing -> throwError $ ident ++ " var not in env"
+                Just (varFromAssigned, storage) -> do
                     case valType of
                         IntQ -> do
                             newRBPOffset <- allocInt storage
-                            local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
+                            local (Map.insert name (varFromAssigned, newRBPOffset)) (genStmtsAsm rest)
 
 
 
@@ -607,6 +607,9 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             dealloc valSubtracted
 
             let valStorage = assignResToRegister qvar
+
+            printMesA "REST"
+            printMesA rest
 
             local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
