@@ -344,6 +344,7 @@ genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
     tell $ [AMov (show AEAX) (show numVal)] -- zostaw, później skoncz do ret
     endLabel <- createEndRetLabel
     tell $ [AJmp endLabel]
+    tell $ [ASpace]
 
     genStmtsAsm rest
 
