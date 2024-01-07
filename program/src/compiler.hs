@@ -360,6 +360,12 @@ createAddrIntRBP memStorage =
         OffsetRBP offset -> "dword " ++ (createRelAddrRBP offset) -- was before
         Register reg -> show reg
 
+createAddrPtrRBP memStorage =
+    case memStorage of
+        OffsetRBP offset -> "qword " ++ (createRelAddrRBP offset)
+        Register reg -> show reg
+        ProgLabel l -> l  -- ++ [rip] to check
+
 getValToMov (IntQVal val) = val
 
 printMesA mes = lift $ lift $ lift $ lift $ print mes
@@ -386,6 +392,30 @@ allocInt v = do
 
     -- return newRBPOffset
 
+-- allocPtr v = do
+--     curRBP <- gets lastAddrRBP
+--     let newRBPOffset = curRBP - strPointerBytes
+
+--     curState <- get
+--     put curState {lastAddrRBP = newRBPOffset}
+allocVar v memSize = do
+    curRBP <- gets lastAddrRBP
+    let newRBPOffset = curRBP - memSize
+    curState <- get
+    put curState {lastAddrRBP = newRBPOffset}
+
+    let storageOffset = OffsetRBP newRBPOffset
+    -- gen command
+    -- if register, mem location, constant
+    if memSize == intBytes
+    then
+        tell $ [AMov (createAddrIntRBP storageOffset) (show v)]
+    else -- TODO extend for extensions  at this moment other is ptr
+        tell $ [AMov (createAddrPtrRBP storageOffset) (show v)]
+
+    return storageOffset
+
+
 
 --moveParamsToLocal fname fbody = do
     -- move over the lists, up to zero
@@ -401,7 +431,7 @@ moveFromRegisters ((ArgData ident valType) : args) (reg : regs) (ereg : eregs)= 
     case valType of
         IntQ -> do
             let var = (QLoc ident valType)
-            offsetRBP <- allocInt ereg
+            offsetRBP <- allocVar ereg intBytes -- allocInt ereg
 
             local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs)
 
@@ -415,7 +445,7 @@ moveStackParams ((ArgData ident valType): args) stackOffset = do
         IntQ -> do
             tell $ [AMov (show ARAX) (createAddrIntRBP (OffsetRBP stackOffset))] 
             let var = QLoc ident valType
-            offsetRBP <- allocInt ARAX
+            offsetRBP <- allocVar ARAX intBytes -- allocInt ARAX
 
             local (Map.insert ident (var, offsetRBP)) (moveStackParams args (stackOffset + stackParamSize))
 
@@ -527,6 +557,9 @@ genFuncsAsm :: QuadCode -> AsmMonad ()
 genFuncsAsm [] = return ()
 
 genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVars)) : rest) = do
+    env <- ask
+    strEnv <- local (const env) (createStrLiteralLabels strVars)
+
     tell $ [ALabel name]
     tell $ [AProlog]
 
@@ -536,7 +569,7 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     subLocals locNum finfo
     updateCurFuncNameAsm name
 
-    curEnv <- moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32
+    curEnv <- local (const strEnv) (moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32)
 
     local (const curEnv) (genStmtsAsm body)
 
@@ -600,7 +633,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
 
             -- printMesA $ "envLoc " ++ name
             -- printMesA curEnv
-            newRBPOffset <- allocInt v
+            newRBPOffset <- allocVar v intBytes -- allocInt v
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
         (LocQVal ident valType) -> do
@@ -610,10 +643,16 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                 Just (varFromAssigned, storage) -> do
                     case valType of
                         IntQ -> do
-                            newRBPOffset <- allocInt storage
+                            newRBPOffset <- allocVar storage intBytes -- allocInt storage
                             local (Map.insert name (varFromAssigned, newRBPOffset)) (genStmtsAsm rest)
 
-
+        (StrQVal s) -> do
+            strData <- asks (Map.lookup s)
+            case strData of
+                Nothing -> throwError $ "No string label for literal value: " ++ s
+                Just (_, strLabel) -> do
+                    newRBPOffset <- allocVar strLabel strPointerBytes
+                    local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
 
 genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
