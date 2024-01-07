@@ -260,19 +260,21 @@ allocInt v = do
 
 --moveParamsToLocal fname fbody = do
     -- move over the lists, up to zero
-moveFromRegisters args [] = moveStackParams args paramsStartOff
 
-moveFromRegisters [] _ = do
+-- statt
+moveFromRegisters args [] [] = moveStackParams args paramsStartOff
+
+moveFromRegisters [] _ _ = do
     curEnv <- ask
     return curEnv
 
-moveFromRegisters ((ArgData ident valType) : args) (reg : regs) = do
+moveFromRegisters ((ArgData ident valType) : args) (reg : regs) (ereg : eregs)= do
     case valType of
         IntQ -> do
             let var = (QLoc ident valType)
-            offsetRBP <- allocInt reg
+            offsetRBP <- allocInt ereg
 
-            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs)
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs)
 
 --moveParamsToLocal 
 moveStackParams [] _ = do
@@ -315,10 +317,17 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts)) : re
     tell $ [ALabel name]
     tell $ [AProlog]
 
+    -- get size of params, subtract from the stack (probably iterate once again)
+    -- clear store before function leave
+
     subLocals locNum finfo
     updateCurFuncNameAsm name
 
-    genStmtsAsm body
+    curEnv <- moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32
+
+    local (const curEnv) (genStmtsAsm body)
+
+    -- genStmtsAsm body
     genFuncsAsm rest
 
     -- what about recursive functions?
