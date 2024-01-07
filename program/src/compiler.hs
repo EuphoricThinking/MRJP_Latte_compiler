@@ -306,7 +306,8 @@ sumParamsSizesPastRegisters args 0 = sumParamsSizes args 0
 sumParamsSizesPastRegisters (a : args) numRegs = sumParamsSizesPastRegisters args (numRegs - 1)
 
 subLocals 0 _ = return ()
-subLocals numLoc (FuncData name retType args locNum body numInts) = do 
+-- TODO fix it -> all params are saved in memory
+subLocals numLoc (FuncData name retType args locNum body numInts strVars) = do 
     let localsSize = numInts*intBytes --TODO add rest
     let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
     let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
@@ -339,7 +340,7 @@ getValToMov (IntQVal val) = val
 
 printMesA mes = lift $ lift $ lift $ lift $ print mes
 
-getNumArgs (FuncData _ _ args _ _ _) = length args
+getNumArgs (FuncData _ _ args _ _ _ _) = length args
 
 createEndRetLabel = do
     curFName <- gets curFuncNameAsm
@@ -477,7 +478,7 @@ runGenAsm q = do--return BoolT
 genFuncsAsm :: QuadCode -> AsmMonad ()
 genFuncsAsm [] = return ()
 
-genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts)) : rest) = do
+genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVars)) : rest) = do
     tell $ [ALabel name]
     tell $ [AProlog]
 
