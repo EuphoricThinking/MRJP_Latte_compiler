@@ -269,6 +269,10 @@ addToSpecialFuncsIfSpecial fname = do
     else
         return ()
 
+addToSpecialUncond fname = do
+    curState <- get
+    put curState {specialFunc = (fname : (specialFunc curState))}
+
 createTempVarName ident = do
     let candName = ident ++ tmpInfix
     cntLbl <- gets (Map.lookup candName . countLabels)
@@ -314,6 +318,8 @@ genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
 genQExpr (EApp pos (Ident "printInt") expr) isParam = do
     (val, code, depth) <- genQExpr (head expr) isParam
     newTmpName <- createTempVarName printInt
+    addToSpecialUncond printInt
+    
     let valParam = [QParam val]
 
     --return ((IntQVal (fromInteger 1)), [], 1)
