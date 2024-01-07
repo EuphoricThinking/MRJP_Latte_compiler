@@ -273,7 +273,11 @@ addToSpecialFuncsIfSpecial fname = do
 
 addToSpecialUncond fname = do
     curState <- get
-    put curState {specialFunc = (fname : (specialFunc curState))}
+    if checkIfAnyNameFromList (specialFunc curState) fname
+    then
+        return ()
+    else
+        put curState {specialFunc = (fname : (specialFunc curState))}
 
 callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth = do
     case isParam of
