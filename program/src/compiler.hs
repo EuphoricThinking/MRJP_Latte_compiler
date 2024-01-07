@@ -130,7 +130,8 @@ data AStore = AStore {
     curFuncNameAsm :: String,
     funcInfo :: Map.Map String FuncData,
     lastAddrRBP :: Int,
-    specialFuncExt :: [String]
+    specialFuncExt :: [String],
+    curRSP :: Int
 } deriving (Show)
 
 parametersRegistersInts32 = [AEDI, AESI, AEDX, AECX, AR8D, AR9D]
@@ -146,12 +147,14 @@ numRegisterParams = 6
 
 endSuffix = "_END"
 
+stackAlignment = 16
+
 extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
 
 -- prepareAsmStore :: Either String Store -> AStore
 prepareAsmStore qdata = AStore {curFuncNameAsm = "",
-funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata)}
+funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
 
 main :: IO () 
 main = do
@@ -238,6 +241,34 @@ getSpecialWrapped s = (show AExtern) ++ (go s) where
     go (s : []) = s
     go (s : ss) = s ++ ", " ++ (go ss)
 
+updateRSP valueToAdd = do
+    curState <- get
+    put curState {curRSP = ((curRSP curState) + valueToAdd)}
+
+checkRSPmod = do
+    curOffRSP <- gets curRSP
+    let absRSP = abs curOffRSP
+    return (absRSP `mod` stackAlignment)
+
+getValToRoundUpRSP = do
+    curModulo <- checkRSPmod
+    return (stackAlignment - curModulo)
+
+
+
+checkHowToUpdateRSP candidateVal =
+    let
+        curMod = (abs candidateVal) `mod` stackAlignment
+        toUpd = stackAlignment - curMod
+    in
+        helperCheckVal candidateVal toUpd
+
+helperCheckVal candidateVal toUpd
+    | toUpd == stackAlignment = candidateVal
+    | otherwise = (abs candidateVal) + toUpd
+
+
+
 sumParamsSizes [] sumParams = sumParams
 sumParamsSizes ((ArgData ident valType) : args) sumParams = sumParamsSizes args (sumParams + stackParamSize)
     -- case valType of
@@ -251,7 +282,10 @@ subLocals 0 _ = return ()
 subLocals numLoc (FuncData name retType args locNum body numInts) = do 
     let localsSize = numInts*intBytes --TODO add rest
     let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
-    let sumLocalsAndParamsSizes = localsSize + stackParamsSize
+    let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
+
+
+
     -- tell $ [AAllocLocals localsSize] --[AAllocLocals numLoc]
     tell $ [AAllocLocals sumLocalsAndParamsSizes]
 
