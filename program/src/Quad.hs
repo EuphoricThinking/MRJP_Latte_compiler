@@ -262,16 +262,32 @@ addToSpecialFuncsIfSpecial fname = do
     then do
         curState <- get
         put curState {specialFunc = (fname : (specialFunc curState))}
+        return True
 
         -- case fname of
         --     "printInt" -> do
         --         let printBody = FuncData "printInt" VoidQ [Arg]
     else
-        return ()
+        --return ()
+        return False
 
 addToSpecialUncond fname = do
     curState <- get
     put curState {specialFunc = (fname : (specialFunc curState))}
+
+callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth = do
+    case isParam of
+                JustLocal -> do
+                    let locVal = QLoc newTmpName retType
+                    let newCode = updCode ++ [QCall locVal ident (length exprList)]
+
+                    return ((LocQVal newTmpName retType), newCode, depth)
+
+                Param funcName -> do
+                    let paramVal = QArg newTmpName retType
+                    let newCode = updCode ++ [QCall paramVal ident (length exprList)]
+
+                    return ((ParamQVal newTmpName retType), newCode, depth)
 
 createTempVarName ident = do
     let candName = ident ++ tmpInfix
@@ -288,6 +304,10 @@ createTempVarName ident = do
             put curState {countLabels = Map.insert newName (numLabels + 1) (countLabels curState)}
 
             return newName
+
+getSpecialRetType fname =
+    case fname of
+        "printInt" -> VoidQ
 
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
@@ -315,52 +335,62 @@ genQStmt ((SExp pos expr) : rest) qcode = do
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
 
-genQExpr (EApp pos (Ident "printInt") expr) isParam = do
-    (val, code, depth) <- genQExpr (head expr) isParam
-    newTmpName <- createTempVarName printInt
-    addToSpecialUncond printInt
-    
-    let valParam = [QParam val]
+-- genQExpr (EApp pos (Ident "printInt") expr) isParam = do
+--     (val, code, depth) <- genQExpr (head expr) isParam
+--     newTmpName <- createTempVarName printInt
+--     addToSpecialUncond printInt
 
-    --return ((IntQVal (fromInteger 1)), [], 1)
+--     let valParam = [QParam val]
 
-    case isParam of
-        JustLocal -> 
-            let
-                funcVal = LocQVal newTmpName VoidQ
-                newCode = valParam ++ [QCall (QLoc newTmpName VoidQ) printInt 1]
-            in
-                return (funcVal, newCode, depth)
-        Param fname -> 
-            let
-                funcVal = ParamQVal newTmpName VoidQ
-                newCode = valParam ++ [QCall (QArg newTmpName VoidQ) printInt 1]
-            in
-                return (funcVal, newCode, depth)
+--     --return ((IntQVal (fromInteger 1)), [], 1)
+
+--     case isParam of
+--         JustLocal -> 
+--             let
+--                 funcVal = LocQVal newTmpName VoidQ
+--                 newCode = valParam ++ [QCall (QLoc newTmpName VoidQ) printInt 1]
+--             in
+--                 return (funcVal, newCode, depth)
+--         Param fname -> 
+--             let
+--                 funcVal = ParamQVal newTmpName VoidQ
+--                 newCode = valParam ++ [QCall (QArg newTmpName VoidQ) printInt 1]
+--             in
+--                 return (funcVal, newCode, depth)
             
 
 genQExpr (EApp pos (Ident ident) exprList) isParam = do
-    addToSpecialFuncsIfSpecial ident
+    let isSpecial = isSpecialFuncQ ident --addToSpecialFuncsIfSpecial ident
     (updCode, depth) <- genParamCodeForExprList exprList isParam
-    fbody <- gets (Map.lookup ident . defFunc)
-    return ((IntQVal (fromInteger 1)), [], 1)
-    case fbody of
-        Nothing -> throwError $ ident ++ " function call error: no such function"
-        Just appliedFuncData -> do
-            let retType = getFuncRet appliedFuncData
-            newTmpName <- createTempVarName ident -- move decl depending on param
-            case isParam of
-                JustLocal -> do
-                    let locVal = QLoc newTmpName retType
-                    let newCode = updCode ++ [QCall locVal ident (length exprList)]
 
-                    return ((LocQVal newTmpName retType), newCode, depth)
+    if isSpecial
+    then do
+        addToSpecialUncond ident
+        newTmpName <- createTempVarName ident
+        let retType = getSpecialRetType ident
 
-                Param funcName -> do
-                    let paramVal = QArg newTmpName retType
-                    let newCode = updCode ++ [QCall paramVal ident (length exprList)]
+        callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
+    else do
+        fbody <- gets (Map.lookup ident . defFunc)
+        -- return ((IntQVal (fromInteger 1)), [], 1)
+        case fbody of
+            Nothing -> throwError $ ident ++ " function call error: no such function"
+            Just appliedFuncData -> do
+                let retType = getFuncRet appliedFuncData
+                newTmpName <- createTempVarName ident -- move decl depending on param
+                callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
+                -- case isParam of
+                --     JustLocal -> do
+                --         let locVal = QLoc newTmpName retType
+                --         let newCode = updCode ++ [QCall locVal ident (length exprList)]
 
-                    return ((ParamQVal newTmpName retType), newCode, depth)
+                --         return ((LocQVal newTmpName retType), newCode, depth)
+
+                --     Param funcName -> do
+                --         let paramVal = QArg newTmpName retType
+                --         let newCode = updCode ++ [QCall paramVal ident (length exprList)]
+
+                --         return ((ParamQVal newTmpName retType), newCode, depth)
 
 
 

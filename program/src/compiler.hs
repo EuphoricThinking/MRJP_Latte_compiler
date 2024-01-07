@@ -406,6 +406,8 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
             newRBPOffset <- allocInt v
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
+--genStmtsAsm params@((QParam val) : rest) =
+
 -- genStmtsAsm _ = undefined
 
 
