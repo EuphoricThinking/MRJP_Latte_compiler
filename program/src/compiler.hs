@@ -23,6 +23,27 @@ import System.Directory
 
 data AsmRegister = ARAX
     | AEAX
+    | ARBP
+    | ARBX
+    | AR12
+    | AR13
+    | AR14
+    | AR15
+    | ARDI
+    | ARSI
+    | ARDX
+    | ARCX
+    | AR8
+    | AR9
+    | AEDI
+    | AESI
+    | AEDX
+    | AECX
+    | AR8D
+    | AR9D
+    | ARSP
+    | AESP
+    | AEBP
 
 data Asm = AGlobl
     | SectText
@@ -64,6 +85,29 @@ instance Show Asm where
 instance Show AsmRegister where
     show ARAX = "rax"
     show AEAX = "eax"
+    show ARBP = "rbp"
+    show ARBX = "rbx"
+    show AR12 = "r12"
+    show AR13 = "r13"
+    show AR14 = "r14"
+    show AR15 = "r15"
+    show ARDI = "rdi"
+    show ARSI = "rsi"
+    show ARDX = "rdx"
+    show ARCX = "rcx"
+    show AR8 = "r8"
+    show AR9 = "r9"
+    show AEDI = "edi"
+    show AESI = "esi"
+    show AEDX = "edx"
+    show AECX = "ecx"
+    show AR8D = "r8d"
+    show AR9D = "r9d"
+    show ARSP = "rsp"
+    show AESP = "esp"
+    show AEBP = "ebp"
+
+    -- ah:al in eax
 
 type AsmCode = [Asm]
 type OffsetRBP = Int
@@ -78,6 +122,7 @@ data AStore = AStore {
     specialFuncExt :: [String]
 } deriving (Show)
 
+parametersRegistersInts = 
 intBytes = 4
 
 extractQStore (Right (_, qstore)) = qstore
