@@ -66,6 +66,8 @@ data Asm = AGlobl
     | ACall String
     | ADealloc Int
     | SecStr String
+    | SecData
+    | StrLabel String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -94,6 +96,8 @@ instance Show Asm where
     show (ACall s) = "\tcall " ++ s
     show (ADealloc v) = "\tadd rsp, " ++ (show v)
     show (SecStr s) = "\tdb " ++ (show s) ++ ", 0" -- in order to preserve ""
+    show SecData = "section .data"
+    show (StrLabel lbl valStr) = "\t" ++ lbl ++ ": db" ++ (show valStr) ++ ", 0"
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -166,7 +170,7 @@ numRegisterParams = 6
 
 endSuffix = "_END"
 functionLabel = ".L"
-stringLabel = ".LS"
+stringLabel = "LS"
 
 labelRegister = ARIP
 
@@ -220,7 +224,7 @@ writeToFile path program =
     in
         do
         writeFile finalNameAsm program
-        -- callProcess "nasm" [finalNameAsm, "-o", finalNameObj, "-f elf64"]
+        callProcess "nasm" [finalNameAsm, "-o", finalNameObj, "-f elf64"]
         callProcess "gcc" [finalNameObj, "-o", finalName, "-no-pie", "lib/runtime.o"]
         removeFile finalNameObj
     
@@ -532,16 +536,58 @@ createStrLiteralLabels (s : ss) = do
 
     local (Map.insert s (NoMeaning, (ProgLabel newStrLbl))) (createStrLiteralLabels ss)
 
+saveStrLiteralsInDataSec [] = do
+    curEnv <- ask
+    return curEnv
+
+saveStrLiteralsInDataSec (s: ss) = do
+    curStrLblCnt <- gets strLabelsCounter
+    let newStrLbl = stringLabel ++ (show curStrLblCnt)
+
+    increaseStrLblCounterByOne curStrLblCnt
+
+    tell $ [StrLabel newStrLbl s]
+
+    curEnv <- ask
+
+    local (Map.insert s (NoMeaning, (ProgLabel newStrLbl))) (saveStrLiteralsInDataSec ss)
+
+iterOverAllFuncs [] = do
+    env <- ask
+    return env
+
+iterOverAllFuncs ((QFunc finfo@(FuncData name retType args locNum body numInts strVars)) : rest) = do
+    let args = getFuncStringList finfo
+
+    env <- saveStrLiteralsInDataSec args
+
+    local (const env) (iterOverAllFuncs rest)
+
+prepareDataSect funcs = do
+    tell $ [SecData]
+
+    env <- ask
+
+    updEnv <- local (const env) (iterOverAllFuncs funcs)
+
+    tell $ [ASpace]
+
+    return updEnv
+
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
+
+    asmEnv <- prepareDataSect q
+
     tell $ [SectText]
     tell $ [AGlobl] 
+
     curState <- get
     addExternals (specialFuncExt curState)
 
-    asmEnv <- ask
+    -- asmEnv <- ask
     local (const asmEnv) (genFuncsAsm q)
     -- genFuncsAsm q
 
@@ -557,8 +603,8 @@ genFuncsAsm :: QuadCode -> AsmMonad ()
 genFuncsAsm [] = return ()
 
 genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVars)) : rest) = do
-    env <- ask
-    strEnv <- local (const env) (createStrLiteralLabels strVars)
+    -- env <- ask
+    -- strEnv <- local (const env) (createStrLiteralLabels strVars)
 
     tell $ [ALabel name]
     tell $ [AProlog]
@@ -569,7 +615,8 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     subLocals locNum finfo
     updateCurFuncNameAsm name
 
-    curEnv <- local (const strEnv) (moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32)
+    env <- ask
+    curEnv <- local (const env) (moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32)
 
     local (const curEnv) (genStmtsAsm body)
 
