@@ -122,7 +122,10 @@ data AStore = AStore {
     specialFuncExt :: [String]
 } deriving (Show)
 
-parametersRegistersInts = 
+parametersRegistersInts32 = [AEDI, AESI, AEDX, AECX, AR8D, AR9D]
+parametersRegisterPoniters64 = [ARDI, ARSI, ARDX, ARCX, AR8, AR9]
+calleeSaved = [ARBP, ARBX, AR12, AR13, AR14, AR15] 
+
 intBytes = 4
 
 extractQStore (Right (_, qstore)) = qstore
@@ -236,6 +239,25 @@ getValToMov (IntQVal val) = val
 
 printMesA mes = lift $ lift $ lift $ lift $ print mes
 
+getNumArgs (FuncData _ _ args _ _ _) = length args
+
+
+
+allocInt var v = do
+    curRBP <- gets lastAddrRBP
+    let newRBPOffset = curRBP - intBytes
+    curState <- get
+    put curState {lastAddrRBP = newRBPOffset}
+    -- gen command
+    -- if register, mem location, constant
+    tell $ [AMov (createAddrIntRBP newRBPOffset) (show v)]
+
+    return newRBPOffset
+
+
+--moveParamsToLocal fname fbody = do
+    -- move over the lists, up to zero
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
@@ -302,16 +324,18 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
 
     case val of
         (IntQVal v) -> do
-            let newRBPOffset = curRBP - intBytes
-            curState <- get
-            put curState {lastAddrRBP = newRBPOffset}
-            -- gen command
-            -- if register, mem location, constant
-            tell $ [AMov (createAddrIntRBP newRBPOffset) (show v)]
+            -- let newRBPOffset = curRBP - intBytes
+            -- curState <- get
+            -- put curState {lastAddrRBP = newRBPOffset}
+            -- -- gen command
+            -- -- if register, mem location, constant
+            -- tell $ [AMov (createAddrIntRBP newRBPOffset) (show v)]
 
-            curEnv <- ask
+            -- curEnv <- ask
+
             -- printMesA $ "envLoc " ++ name
             -- printMesA curEnv
+            newRBPOffset <- allocInt var v
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
 -- genStmtsAsm _ = undefined
