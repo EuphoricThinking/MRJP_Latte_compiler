@@ -59,6 +59,7 @@ data Asm = AGlobl
     | AEpiRestMem
     | ANoExecStack
     | AJmp String
+    | APush String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -83,6 +84,7 @@ instance Show Asm where
     show AEpiRestMem = "\tmov rsp, rbp"
     show ANoExecStack = "section .note.GNU-stack noalloc noexec nowrite progbits"
     show (AJmp s) = "\tjmp " ++ s
+    show (APush s) = "\tpush " ++ s
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -304,11 +306,40 @@ moveStackParams [] _ = do
 moveStackParams ((ArgData ident valType): args) stackOffset = do
     case valType of
         IntQ -> do
-            tell $ [AMov (show ARAX) (createAddrIntRBP stackOffset)]
+            tell $ [AMov (show ARAX) (createAddrIntRBP stackOffset)] 
             let var = QLoc ident valType
             offsetRBP <- allocInt ARAX
 
             local (Map.insert ident (var, offsetRBP)) (moveStackParams args (stackOffset + stackParamSize))
+
+getQCallCode qcall@((QCall qvar ident numArgs) : rest) = qcall
+getQCallCode ((QParam val) : rest) = getQCallCode rest
+
+paramsToStack qcall@((QCall qvar ident numArgs) : rest) accum = accum
+paramsToStack (qparam@(QParam val) : rest) accum = (qparam : accum)
+
+pushParams [] = return ()
+pushParams ((QParam val) : rest) = do
+    case val of
+        (IntQVal v) -> do
+            tell $ [APush (show v)]
+            pushParams rest
+
+genParams qcall@((QCall qvar ident numArgs) : rest) _ = genStmtsAsm qcall
+genParams [] _ = genStmtsAsm []
+genParams qcode [] = do
+    let qcallcode = getQCallCode qcode
+    let reverseParams = paramsToStack qcode []
+    pushParams reverseParams
+
+    genStmtsAsm qcallcode
+
+
+genParams ((QParam val) : rest) (reg : regs) = do
+    case val of
+        (IntQVal v) -> do
+            tell $ [AMov (show reg) (show v)]
+            genParams rest regs
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
