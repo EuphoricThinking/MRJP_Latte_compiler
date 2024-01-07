@@ -334,29 +334,6 @@ genQStmt ((SExp pos expr) : rest) qcode = do
 
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
-
--- genQExpr (EApp pos (Ident "printInt") expr) isParam = do
---     (val, code, depth) <- genQExpr (head expr) isParam
---     newTmpName <- createTempVarName printInt
---     addToSpecialUncond printInt
-
---     let valParam = [QParam val]
-
---     --return ((IntQVal (fromInteger 1)), [], 1)
-
---     case isParam of
---         JustLocal -> 
---             let
---                 funcVal = LocQVal newTmpName VoidQ
---                 newCode = valParam ++ [QCall (QLoc newTmpName VoidQ) printInt 1]
---             in
---                 return (funcVal, newCode, depth)
---         Param fname -> 
---             let
---                 funcVal = ParamQVal newTmpName VoidQ
---                 newCode = valParam ++ [QCall (QArg newTmpName VoidQ) printInt 1]
---             in
---                 return (funcVal, newCode, depth)
             
 
 genQExpr (EApp pos (Ident ident) exprList) isParam = do
@@ -379,18 +356,6 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
                 let retType = getFuncRet appliedFuncData
                 newTmpName <- createTempVarName ident -- move decl depending on param
                 callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
-                -- case isParam of
-                --     JustLocal -> do
-                --         let locVal = QLoc newTmpName retType
-                --         let newCode = updCode ++ [QCall locVal ident (length exprList)]
-
-                --         return ((LocQVal newTmpName retType), newCode, depth)
-
-                --     Param funcName -> do
-                --         let paramVal = QArg newTmpName retType
-                --         let newCode = updCode ++ [QCall paramVal ident (length exprList)]
-
-                --         return ((ParamQVal newTmpName retType), newCode, depth)
 
 
 
