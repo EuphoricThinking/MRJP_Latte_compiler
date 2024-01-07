@@ -97,7 +97,7 @@ instance Show Asm where
     show (ADealloc v) = "\tadd rsp, " ++ (show v)
     show (SecStr s) = "\tdb " ++ (show s) ++ ", 0" -- in order to preserve ""
     show SecData = "section .data"
-    show (StrLabel lbl valStr) = "\t" ++ lbl ++ ": db" ++ (show valStr) ++ ", 0"
+    show (StrLabel lbl valStr) = "\t" ++ lbl ++ ": db " ++ (show valStr) ++ ", 0"
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -331,9 +331,10 @@ allParamsTypeSizes ((ArgData ident valType) : args) sumParams =
         IntQ -> allParamsTypeSizes args (sumParams + intBytes)
         StringQ -> allParamsTypeSizes args (sumParams + strPointerBytes)
 
-subLocals 0 _ = return ()
+subLocals 0 _ = printMesA "here" >> return ()
 -- TODO fix it -> all params are saved in memory
 subLocals numLoc (FuncData name retType args locNum body numInts strVars) = do 
+    printMesA $ "should not BE" ++ (show numLoc)
     let localsSize = numInts*intBytes --TODO add rest
     -- let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
     -- let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
@@ -378,7 +379,7 @@ getNumArgs (FuncData _ _ args _ _ _ _) = length args
 
 createEndRetLabel = do
     curFName <- gets curFuncNameAsm
-    return (curFName ++ endSuffix)
+    return ("." ++ curFName ++ endSuffix)
 
 allocInt v = do
     curRBP <- gets lastAddrRBP

@@ -188,6 +188,7 @@ createIncreaseNumInts numInts fname fbody = FuncData fname (getFuncRet fbody) (g
 
 addToStringVars strVal fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody))
 
+-- TODO REMEMBER WHEN TO UPDATE!
 increaseNumLocTypesCur exprVal = do
     curState <- get
     fname <- gets curFuncName
@@ -197,18 +198,24 @@ increaseNumLocTypesCur exprVal = do
         Just curBody -> do
             case exprVal of
                 (IntQVal _) -> do
+                    updateLocalNumCur
+
                     let updatedNumInts = createIncreaseNumInts 1 fname curBody
                     put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
                 (LocQVal tmpName retType) -> do
                     case retType of
                         IntQ -> do 
+                            updateLocalNumCur
+
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
                 (ParamQVal tmpName retType) -> do
                     case retType of
                         IntQ -> do 
+                            updateLocalNumCur
+
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
@@ -233,7 +240,7 @@ evalDecl _ [] qcode = do
     return (curEnv, qcode)
 
 evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
-    updateLocalNumCur
+    -- updateLocalNumCur
     (val, updcode, _) <- genQExpr expr JustLocal --qcode --LOOKOUT
     increaseNumLocTypesCur val
 
