@@ -12,6 +12,10 @@ void error() {
     exit(EXIT_FAILURE);
 }
 
+void printString(char* c) {
+    printf("%s\n", c);
+}
+
 int readInt() {
     int res;
     scanf("%d", &res);
@@ -20,9 +24,9 @@ int readInt() {
     return res;
 }
 
-char* createString(char* toCopy) {
-    return strdup(toCopy);
-}
+// char* createString(char* toCopy) {
+//     return strdup(toCopy);
+// }
 
 char* readString() {
     char *line = NULL;
