@@ -129,6 +129,7 @@ calleeSaved = [ARBP, ARBX, AR12, AR13, AR14, AR15]
 intBytes = 4
 
 paramsStartOff = 16
+stackParamSize = 8
 
 extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
@@ -245,7 +246,7 @@ getNumArgs (FuncData _ _ args _ _ _) = length args
 
 
 
-allocInt var v = do
+allocInt v = do
     curRBP <- gets lastAddrRBP
     let newRBPOffset = curRBP - intBytes
     curState <- get
@@ -259,29 +260,33 @@ allocInt var v = do
 
 --moveParamsToLocal fname fbody = do
     -- move over the lists, up to zero
-moveFromRegisters _ [] numElems = do
-    curEnv <- ask
-    return (curEnv, numElems)
+moveFromRegisters args [] = moveStackParams args paramsStartOff
 
-moveFromRegisters [] _ numElems = do
-    curEnv <- ask
-    return (curEnv, numElems)
-
-moveFromRegisters ((ArgData ident valType) : args) (reg : regs) numElems = do
-    case valType of
-        IntQ -> do
-            let var = (QLoc ident valType)
-            offsetRBP <- allocInt var reg
-
-            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs (numElems + 1))
-
---moveParamsToLocal 
-moveStackParams _ 0 = do
+moveFromRegisters [] _ = do
     curEnv <- ask
     return curEnv
 
-moveStackParams stackOffset numLeft = do
-    tell $ [AMov ARAX (createAddrIntRBP stackOffset)]
+moveFromRegisters ((ArgData ident valType) : args) (reg : regs) = do
+    case valType of
+        IntQ -> do
+            let var = (QLoc ident valType)
+            offsetRBP <- allocInt reg
+
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs)
+
+--moveParamsToLocal 
+moveStackParams [] _ = do
+    curEnv <- ask
+    return curEnv
+
+moveStackParams ((ArgData ident valType): args) stackOffset = do
+    case valType of
+        IntQ -> do
+            tell $ [AMov (show ARAX) (createAddrIntRBP stackOffset)]
+            let var = QLoc ident valType
+            offsetRBP <- allocInt ARAX
+
+            local (Map.insert ident (var, offsetRBP)) (moveStackParams args (stackOffset + stackParamSize))
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -360,7 +365,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
 
             -- printMesA $ "envLoc " ++ name
             -- printMesA curEnv
-            newRBPOffset <- allocInt var v
+            newRBPOffset <- allocInt v
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
 -- genStmtsAsm _ = undefined
