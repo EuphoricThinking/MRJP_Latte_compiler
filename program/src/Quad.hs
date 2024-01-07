@@ -291,6 +291,8 @@ addToSpecialUncond fname = do
     else
         put curState {specialFunc = (fname : (specialFunc curState))}
 
+printMesQ mes = lift $ lift $ lift $ lift $ print mes
+
 callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth = do
     case isParam of
                 JustLocal -> do
@@ -312,12 +314,18 @@ createTempVarName ident = do
         Nothing -> do
             insertNewLabelToCounter candName
 
+            printMesQ $ "cand " ++ candName
+
             return candName
 
         Just numLabels -> do
             let newName = candName ++ (show numLabels)
             curState <- get
-            put curState {countLabels = Map.insert newName (numLabels + 1) (countLabels curState)}
+            put curState {countLabels = Map.insert candName (numLabels + 1) (countLabels curState)}
+
+
+
+            printMesQ $ "newn " ++ newName
 
             return newName
 

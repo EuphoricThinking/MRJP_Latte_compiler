@@ -583,6 +583,8 @@ genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
             tell $ [ACall "printInt"]
             dealloc valSubtracted
 
+        "readInt" -> do
+            tell $ [ACall "readInt"]
 
     genStmtsAsm rest
 
