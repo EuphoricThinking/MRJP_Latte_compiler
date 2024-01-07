@@ -60,6 +60,7 @@ data Asm = AGlobl
     | ANoExecStack
     | AJmp String
     | APush String
+    | ACall String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -75,7 +76,7 @@ instance Show Asm where
     show (ALabel s) = s ++ ":"
     show ARet = "\tret"
     show ASpace = "\n"
-    show (AFuncSpec s) = "\t" ++ s
+    show (AFuncSpec s) = s
     show AExtern = "\textern "
     show AProlog = "\tpush rbp\n\tmov rbp, rsp"
     show AEpilog = "\tpop rbp\n\tret" -- check recording 7.28
@@ -85,6 +86,7 @@ instance Show Asm where
     show ANoExecStack = "section .note.GNU-stack noalloc noexec nowrite progbits"
     show (AJmp s) = "\tjmp " ++ s
     show (APush s) = "\tpush " ++ s
+    show (ACall s) = "\tcall " ++ s
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -187,7 +189,7 @@ writeToFile path program =
         do
         writeFile finalNameAsm program
         callProcess "nasm" [finalNameAsm, "-o", finalNameObj, "-f elf64"]
-        callProcess "gcc" [finalNameObj, "-o", finalName]
+        callProcess "gcc" [finalNameObj, "-o", finalName, "-no-pie", "lib/runtime.o"]
         removeFile finalNameObj
     
 
@@ -224,6 +226,7 @@ addExternals s = do
         --tell $ []
         --addExternals ss
         tell $ [AFuncSpec (getSpecialWrapped s)]
+        -- tell $ [getSpecialWrapped s]
         tell $ [ASpace]
 
 getSpecialWrapped s = (show AExtern) ++ (go s) where
@@ -439,6 +442,12 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
 
 genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
 
+-- genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
+genStmtsAsm ((QCall qvar "printInt" numArgs) : rest) = do
+    -- tell $ [AMov (show AEAX) "0"]
+    tell $ [ACall "printInt"]
+
+    genStmtsAsm rest
 -- genStmtsAsm _ = undefined
 
 
