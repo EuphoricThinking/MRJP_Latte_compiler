@@ -146,6 +146,7 @@ parametersRegisterPoniters64 = [ARDI, ARSI, ARDX, ARCX, AR8, AR9]
 calleeSaved = [ARBP, ARBX, AR12, AR13, AR14, AR15] 
 
 intBytes = 4
+strPointerBytes = 8
 
 paramsStartOff = 16
 stackParamSize = 8
@@ -305,12 +306,20 @@ sumParamsSizesPastRegisters [] regs = 0
 sumParamsSizesPastRegisters args 0 = sumParamsSizes args 0
 sumParamsSizesPastRegisters (a : args) numRegs = sumParamsSizesPastRegisters args (numRegs - 1)
 
+allParamsTypeSizes [] sumParams = sumParams
+allParamsTypeSizes ((ArgData ident valType) : args) sumParams =
+    case valType of
+        IntQ -> allParamsTypeSizes args (sumParams + intBytes)
+        StringQ -> allParamsTypeSizes args (sumParams + strPointerBytes)
+
 subLocals 0 _ = return ()
 -- TODO fix it -> all params are saved in memory
 subLocals numLoc (FuncData name retType args locNum body numInts strVars) = do 
     let localsSize = numInts*intBytes --TODO add rest
-    let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
-    let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
+    -- let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
+    -- let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
+    let paramsSizes = allParamsTypeSizes args 0
+    let sumLocalsAndParamsSizes = paramsSizes + localsSize
 
     let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
     updateRSP stackUpdate
