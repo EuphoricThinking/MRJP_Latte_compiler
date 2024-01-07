@@ -335,7 +335,7 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts)) : re
 -- ret needs to know the value, to move a good one to eax
 genStmtsAsm :: QuadCode -> AsmMonad ()
 genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
-    tell $ [AMov (show AEAX) (show numVal)]
+    tell $ [AMov (show AEAX) (show numVal)] -- zostaw, później skoncz do ret
 
     funcName <- gets curFuncNameAsm
     curBody <- gets (Map.lookup funcName . funcInfo)
@@ -355,7 +355,7 @@ genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
 
             genStmtsAsm rest
 
-genStmtsAsm [] = return ()
+genStmtsAsm [] = return () -- NIE, zamień miejscmi, w QRET zrób GOTO ret, tutaj dodaj epilog itp.
 
 genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
     curRBP <- gets lastAddrRBP
