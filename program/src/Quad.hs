@@ -166,7 +166,9 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
     funcBody <- genQStmt stmts []
     -- PERFORM in local env (probably)
-    newFullFunc <- updateCurFuncBody funcBody
+    curEnv <- ask
+    -- newFullFunc <- updateCurFuncBody funcBody
+    newFullFunc <- local (const curEnv) (updateCurFuncBody funcBody)
 
     tell $ [QFunc newFullFunc]
 
