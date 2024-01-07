@@ -11,3 +11,11 @@ void error() {
     fprintf(stderr, "runtime error\n");
     exit(EXIT_FAILURE);
 }
+
+int readInt() {
+    int res;
+    scanf("%d", &res);
+    getchar(); // consumes trailing newline from buffer
+
+    return res;
+}
