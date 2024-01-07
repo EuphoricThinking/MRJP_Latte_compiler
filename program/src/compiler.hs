@@ -484,12 +484,21 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
 genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
 
 -- genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
-genStmtsAsm ((QCall qvar "printInt" numArgs) : rest) = do
-    -- tell $ [AMov (show AEAX) "0"]
-    tell $ [ACall "printInt"]
+-- genStmtsAsm ((QCall qvar "printInt" numArgs) : rest) = do
+--     -- tell $ [AMov (show AEAX) "0"]
+--     tell $ [ACall "printInt"]
 
-    genStmtsAsm rest
+--     genStmtsAsm rest
 -- genStmtsAsm _ = undefined
 
+-- ALIGN STACK
+genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
+    -- let isSpecial = isSpecialFuncQ ident
 
-    
+    -- if isSpecial
+    -- then
+
+    -- else
+    --     return ()
+    case ident of
+        "printInt" -> do return ()
