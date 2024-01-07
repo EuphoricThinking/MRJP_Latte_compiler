@@ -121,6 +121,7 @@ instance Show AsmRegister where
 
 type AsmCode = [Asm]
 type OffsetRBP = Int
+
 type AsmEnv = Map.Map String (QVar, OffsetRBP)
 type AsmMonad a = ReaderT AsmEnv (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
 
@@ -466,6 +467,11 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
             -- printMesA curEnv
             newRBPOffset <- allocInt v
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
+
+        -- (LocQVal name valType) -> do
+        --     case valType of
+        --         IntQ -> do
+
 
 genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
 
