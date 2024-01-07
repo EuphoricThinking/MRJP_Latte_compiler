@@ -19,3 +19,16 @@ int readInt() {
 
     return res;
 }
+
+char* createString(char* toCopy) {
+    return strdup(toCopy);
+}
+
+char* readString() {
+    char *line = NULL;
+    size_t len = 0;
+    size_t read = getline(&line, &len, stdin);
+    line[read - 1] = '\0';
+
+    return line;
+}
