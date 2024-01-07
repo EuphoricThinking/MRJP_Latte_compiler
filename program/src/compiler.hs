@@ -289,7 +289,10 @@ subLocals numLoc (FuncData name retType args locNum body numInts) = do
 
 
     -- tell $ [AAllocLocals localsSize] --[AAllocLocals numLoc]
-    tell $ [AAllocLocals sumLocalsAndParamsSizes]
+
+    -- tell $ [AAllocLocals sumLocalsAndParamsSizes]
+
+    tell $ [AAllocLocals stackUpdate]
 
 updateCurFuncNameAsm name = do
     curState <- get
@@ -457,6 +460,10 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts)) : re
 
     local (const curEnv) (genStmtsAsm body)
 
+    st <- get
+    printMesA "curs"
+    printMesA st
+
     -- genStmtsAsm body
     genFuncsAsm rest
 
@@ -524,21 +531,22 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
 genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
 
 -- genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
--- genStmtsAsm ((QCall qvar "printInt" numArgs) : rest) = do
---     -- tell $ [AMov (show AEAX) "0"]
---     tell $ [ACall "printInt"]
 
---     genStmtsAsm rest
--- genStmtsAsm _ = undefined
+genStmtsAsm ((QCall qvar "printInt" numArgs) : rest) = do
+    -- tell $ [AMov (show AEAX) "0"]
+    tell $ [ACall "printInt"]
+
+    genStmtsAsm rest
+
 
 -- ALIGN STACK
-genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
-    -- let isSpecial = isSpecialFuncQ ident
+-- genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
+--     -- let isSpecial = isSpecialFuncQ ident
 
-    -- if isSpecial
-    -- then
+--     -- if isSpecial
+--     -- then
 
-    -- else
-    --     return ()
-    case ident of
-        "printInt" -> do return ()
+--     -- else
+--     --     return ()
+--     case ident of
+--         "printInt" -> do return ()
