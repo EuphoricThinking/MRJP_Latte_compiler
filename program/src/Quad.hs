@@ -309,6 +309,10 @@ getSpecialRetType fname =
     case fname of
         "printInt" -> VoidQ
 
+getValType val =
+    case val of
+        (IntQVal _) -> IntQ
+
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
@@ -356,6 +360,25 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
                 let retType = getFuncRet appliedFuncData
                 newTmpName <- createTempVarName ident -- move decl depending on param
                 callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
+
+genQExpr (EVar pos (Ident ident)) isParam = do
+    curLoc <- asks (Map.lookup ident)
+    case curLoc of
+        Nothing -> throwError $ ident ++ " var not found"
+        Just loc -> do
+            curVal <- gets (Map.lookup loc . storeQ)
+            case curVal of
+                Nothing -> throwError $ "No value in streQ for " ++ ident ++ " at " ++ (show loc)
+                Just (curName, val) ->
+                    case isParam of
+                        JustLocal -> do
+                            let locVal = LocQVal curName (getValType val)
+                            return (locVal, [], 0)
+                        Param fname -> do
+                            let paramVal = ParamQVal curName (getValType val)
+                            return (paramVal, [], 0)
+
+
 
 
 
