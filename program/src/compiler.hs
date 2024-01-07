@@ -58,6 +58,7 @@ data Asm = AGlobl
     | AMov String String
     | AEpiRestMem
     | ANoExecStack
+    | AJmp String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -81,6 +82,7 @@ instance Show Asm where
     show (AMov s1 s2) = "\tmov " ++ s1 ++ ", " ++ s2
     show AEpiRestMem = "\tmov rsp, rbp"
     show ANoExecStack = "section .note.GNU-stack noalloc noexec nowrite progbits"
+    show (AJmp s) = "\tjmp " ++ s
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -130,6 +132,8 @@ intBytes = 4
 
 paramsStartOff = 16
 stackParamSize = 8
+
+endSuffix = "_END"
 
 extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
@@ -224,7 +228,7 @@ getSpecialWrapped s = (show AExtern) ++ (go s) where
 
 subLocals 0 _ = return ()
 subLocals numLoc (FuncData name retType args locNum body numInts) = do 
-    let localsSize = numInts*intBytes
+    let localsSize = numInts*intBytes --TODO add rest
     tell $ [AAllocLocals localsSize] --[AAllocLocals numLoc]
 
 updateCurFuncNameAsm name = do
@@ -244,7 +248,9 @@ printMesA mes = lift $ lift $ lift $ lift $ print mes
 
 getNumArgs (FuncData _ _ args _ _ _) = length args
 
-
+createEndRetLabel = do
+    curFName <- gets curFuncNameAsm
+    return (curFName ++ endSuffix)
 
 allocInt v = do
     curRBP <- gets lastAddrRBP
@@ -336,7 +342,15 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts)) : re
 genStmtsAsm :: QuadCode -> AsmMonad ()
 genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
     tell $ [AMov (show AEAX) (show numVal)] -- zostaw, później skoncz do ret
+    endLabel <- createEndRetLabel
+    tell $ [AJmp endLabel]
 
+    genStmtsAsm rest
+
+genStmtsAsm [] = do
+    endLabel <- createEndRetLabel
+    tell $ [ALabel endLabel]
+-- was in QRet val
     funcName <- gets curFuncNameAsm
     curBody <- gets (Map.lookup funcName . funcInfo)
 
@@ -353,9 +367,9 @@ genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
 
             tell $ [ASpace]
 
-            genStmtsAsm rest
+            -- genStmtsAsm rest
 
-genStmtsAsm [] = return () -- NIE, zamień miejscmi, w QRET zrób GOTO ret, tutaj dodaj epilog itp.
+--genStmtsAsm [] = return () -- NIE, zamień miejscmi, w QRET zrób GOTO ret, tutaj dodaj epilog itp.
 
 genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
     curRBP <- gets lastAddrRBP
