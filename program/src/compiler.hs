@@ -120,9 +120,9 @@ instance Show AsmRegister where
     -- ah:al in eax
 
 type AsmCode = [Asm]
-type OffsetRBP = Int
+data StoragePlace = OffsetRBP Int | Register AsmRegister
 
-type AsmEnv = Map.Map String (QVar, OffsetRBP)
+type AsmEnv = Map.Map String (QVar, StoragePlace)
 type AsmMonad a = ReaderT AsmEnv (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
 
 data AStore = AStore {
@@ -264,7 +264,10 @@ isIntQ _ = False
 
 createRelAddrRBP offset = "[rbp" ++ (show offset) ++ "]"
 
-createAddrIntRBP offset = "dword " ++ (createRelAddrRBP offset)
+createAddrIntRBP memStorage = 
+    case memStorage of
+        OffsetRBP offset -> "dword " ++ (createRelAddrRBP offset) -- was before
+        Register reg -> show reg
 
 getValToMov (IntQVal val) = val
 
@@ -281,11 +284,16 @@ allocInt v = do
     let newRBPOffset = curRBP - intBytes
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
+
+    let storageOffset = OffsetRBP newRBPOffset
     -- gen command
     -- if register, mem location, constant
-    tell $ [AMov (createAddrIntRBP newRBPOffset) (show v)]
+    tell $ [AMov (createAddrIntRBP storageOffset) (show v)]
 
-    return newRBPOffset
+    return storageOffset
+    -- tell $ [AMov (createAddrIntRBP newRBPOffset) (show v)]
+
+    -- return newRBPOffset
 
 
 --moveParamsToLocal fname fbody = do
@@ -314,7 +322,7 @@ moveStackParams [] _ = do
 moveStackParams ((ArgData ident valType): args) stackOffset = do
     case valType of
         IntQ -> do
-            tell $ [AMov (show ARAX) (createAddrIntRBP stackOffset)] 
+            tell $ [AMov (show ARAX) (createAddrIntRBP (OffsetRBP stackOffset))] 
             let var = QLoc ident valType
             offsetRBP <- allocInt ARAX
 
