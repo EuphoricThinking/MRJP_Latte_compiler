@@ -235,7 +235,7 @@ addExternals s = do
 
 getSpecialWrapped s = (show AExtern) ++ (go s) where
     go (s : []) = s
-    go (s : ss) = (show s) ++ ", " ++ (go ss)
+    go (s : ss) = s ++ ", " ++ (go ss)
 
 sumParamsSizes [] sumParams = sumParams
 sumParamsSizes ((ArgData ident valType) : args) sumParams = sumParamsSizes args (sumParams + stackParamSize)
