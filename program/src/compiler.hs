@@ -968,6 +968,6 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
 
 genStmtsAsm ((QConcat qvar val1 val2) : rest) =
     let 
-        newCode = (QParam val1) : (QParam val2) : (QCall qvar "concatenateStrings" 2) : rest
+        newCode = (QParam val1) : (QParam val2) : (QCall qvar concatStr 2) : rest
     in
         genStmtsAsm newCode

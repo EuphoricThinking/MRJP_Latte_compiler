@@ -71,7 +71,7 @@ type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode 
 tmpInfix = "_tmp_"
 printInt = "printInt"
 exprInfix = "_expr_"
-concatStr = "concatenateStrings"
+concatStr = "___concatenateStrings"
 
 -- genQuadcode :: Program -> Quadcode
 genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
@@ -265,12 +265,30 @@ updateStringVarsNum fname curBody = do
 
     return updatedStringVarsNum
 
+createStrVarListTwoVals False False _ _ strVarList = strVarList
+createStrVarListTwoVals True True val1 val2 strVarList = (extractString val1) : (extractString val2) : strVarList
+createStrVarListTwoVals True False val1 _ strVarList = (extractString val1) : strVarList
+createStrVarListTwoVals False True _ val2 strVarList = (extractString val2) : strVarList
+
 updBothStrNumAndList strVal fname fbody = do
     curState <- get
 
     let newBody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) ((getFuncNumStrVars fbody) + 1)
 
     put curState {defFunc = Map.insert fname newBody (defFunc curState)}
+
+updBothStrNumAndListTwoVals val1 val2 fname fbody = do
+    curState <- get
+
+    let isRaw1 = isRawString val1
+    let isRaw2 = isRawString val2
+    let strVarList = createStrVarListTwoVals isRaw1 isRaw2 val1 val2 (getFuncStringList fbody)
+    let strVarNumUpd = (cntIsRawString val1) + (cntIsRawString val2)
+
+    let newBody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) strVarList ((getFuncNumStrVars fbody) + strVarNumUpd)
+
+    put curState {defFunc = Map.insert fname newBody (defFunc curState)}
+
 
 -- TODO REMEMBER WHEN TO UPDATE!
 -- check other possibilities of updating strings
@@ -374,7 +392,7 @@ evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
         (Int _) -> evalDecl declType ((Init posIn (Ident ident) (ELitInt posIn 0)) : rest) qcode
         (Str _) -> evalDecl declType ((Init posIn (Ident ident) (EString posIn "")) : rest) qcode
 
-specialFuncsList = ["printInt", "printString", "error", "readInt", "readString", "concatenateStrings"]
+specialFuncsList = ["printInt", "printString", "error", "readInt", "readString", concatStr]
 isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
 
 -- generateParams (e:exprs) qcode = do
@@ -494,6 +512,9 @@ getValType val =
 
 isRawString (StrQVal _) = True
 isRawString _ = False
+
+cntIsRawString (StrQVal _) = 1
+cntIsRawString _ = 0
 
 extractString (StrQVal s) = s
 
@@ -635,8 +656,17 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
             let newCode = code1 ++ code2 ++ [QConcat concVar val1 val2]
 
             addToSpecialUncond concatStr
+-- is string literal
+            cfbody <- gets (Map.lookup curFName . defFunc)
+            case cfbody of
+                Nothing -> throwError $ "Quad Concat error: no cur func"
+                Just curBody -> do
 
-            return ((LocQVal resTmpName StringQ), newCode, (max depth1 depth2) + 1)
+                updateStringVarsNum curFName curBody
+
+                updBothStrNumAndListTwoVals val1 val2 curFName curBody
+
+                return ((LocQVal resTmpName StringQ), newCode, (max depth1 depth2) + 1)
 
 
 

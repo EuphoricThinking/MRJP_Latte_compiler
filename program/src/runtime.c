@@ -38,7 +38,7 @@ char* readString() {
     return line;
 }
 
-char* concatenateStrings(char* s1, char* s2) {
+char* ___concatenateStrings(char* s1, char* s2) {
     size_t l1 = strlen(s1);
     size_t l2 = strlen(s2);
 
