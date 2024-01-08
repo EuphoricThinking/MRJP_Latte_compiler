@@ -950,6 +950,7 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
 
             genStmtsAsm rest
 
+
         _ -> do
             tell $ [ACall ident]
             -- dealloc valSubtracted -- result in eax, at this moment - without biger args
@@ -965,4 +966,8 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
 
     --genStmtsAsm rest
 
-    
+genStmtsAsm ((QConcat qvar val1 val2) : rest) =
+    let 
+        newCode = (QParam val1) : (QParam val2) : (QCall qvar "concatenateStrings" 2) : rest
+    in
+        genStmtsAsm newCode
