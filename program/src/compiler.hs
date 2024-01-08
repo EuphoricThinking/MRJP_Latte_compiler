@@ -709,7 +709,11 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                     -- memory storage does not change
 
                 (StrQVal s) -> do
-                    tell $ [AMov (createAddrPtrRBP memStorageL) s]
+                    fndLbl <- asks (Map.lookup s)
+                    case fndLbl of
+                        Nothing -> throwError $ "No found label for " ++ s
+                        Just (_, lbl) ->
+                            tell $ [AMov (createAddrPtrRBP memStorageL) (show lbl)]
 
                 (LocQVal ident valType) -> do
                     valStorage <- asks (Map.lookup ident)

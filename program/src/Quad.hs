@@ -439,6 +439,10 @@ getValType val =
         (ParamQVal _ vtype) -> vtype
         (StrQVal _) -> StringQ
 
+isRawString (StrQVal _) = True
+isRawString _ = False
+
+extractString (StrQVal s) = s
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
@@ -474,7 +478,21 @@ genQStmt ((Ass pos (Ident ident) expr) : rest) qcode = do
             newLoc <- alloc
             insertToStoreNewIdentVal ident val newLoc
 
-            local (Map.insert ident newLoc) (genQStmt rest updCode)
+            if isRawString val
+            then do
+                -- printMesQ $ "RAW " ++ (show val)
+                cfname <- gets curFuncName
+                cfbody <- gets (Map.lookup cfname . defFunc)
+                case cfbody of
+                    Nothing -> throwError $ "assignment (re) failed for var: " ++ ident ++ " and val: " ++ (show val)
+                    Just body -> do
+                        updBothStrNumAndList (extractString val) cfname body
+
+                        local (Map.insert ident newLoc) (genQStmt rest updCode)
+
+            else do
+                -- printMesQ $ "NOT RAW: " ++ (show val)
+                local (Map.insert ident newLoc) (genQStmt rest updCode)
 
             
 
