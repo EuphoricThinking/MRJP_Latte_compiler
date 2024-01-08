@@ -188,6 +188,12 @@ createIncreaseNumInts numInts fname fbody = FuncData fname (getFuncRet fbody) (g
 
 addToStringVars strVal fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody))
 
+updateStringVars strVal fname curBody = do
+    curState <- get
+    let updatedStringList = addToStringVars strVal fname curBody
+
+    put curState {defFunc = Map.insert fname updatedStringList (defFunc curState)} 
+
 -- TODO REMEMBER WHEN TO UPDATE!
 increaseNumLocTypesCur exprVal = do
     curState <- get
@@ -219,10 +225,11 @@ increaseNumLocTypesCur exprVal = do
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
-                t@(StrQVal strVal) -> do
-                    printMesQ $ "LALAL " ++ (show t)
-                    let updatedStringList = addToStringVars strVal fname curBody
-                    put curState {defFunc = Map.insert fname updatedStringList (defFunc curState)}
+                (StrQVal strVal) -> do
+                    -- --printMesQ $ "LALAL " ++ (show t)
+                    -- let updatedStringList = addToStringVars strVal fname curBody
+                    -- put curState {defFunc = Map.insert fname updatedStringList (defFunc curState)}
+                    updateStringVars strVal fname curBody
 
 updateLocalNumCur = do
     --update locals counter
@@ -279,9 +286,18 @@ paramsConcatCode [] qcode = return qcode
 paramsConcatCode ((_, paramCode, _) : rest) qcode = paramsConcatCode rest (qcode ++ paramCode)
 
 addParamsFromList [] qcode maxDepth = return (qcode, maxDepth)
-addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = 
-    
-    addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
+addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = do
+    case paramVal of
+        (StrQVal s) -> do
+            curFName <- gets curFuncName
+            cbody <- gets (Map.lookup curFName . defFunc)
+            case cbody of
+                Nothing -> throwError $ "param creation for " ++ s ++ ": cur func not found"
+                Just body -> do
+                    updateStringVars s curFName body
+                    addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
+
+        _ -> addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
 
 genParamCodeForExprList exprList isParam = do
     let genExpParams exp = genQExpr exp isParam
