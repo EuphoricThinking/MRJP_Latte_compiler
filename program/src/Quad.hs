@@ -57,6 +57,7 @@ data Quad = QLabel String --FuncData
     | QAss QVar Val
     | QParam Val
     | QCall QVar String Int
+    | QDecl QVar Val
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -299,7 +300,8 @@ evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
             newLoc <- alloc
             insertToStoreNewIdentVal ident val newLoc
 
-            let codeWithAsgn = qcode ++ updcode ++ [QAss (QLoc ident (getOrigQType declType)) val]
+            -- CHANGED
+            let codeWithAsgn = qcode ++ updcode ++ [QDecl (QLoc ident (getOrigQType declType)) val]
 
             local (Map.insert ident newLoc) (evalDecl declType rest codeWithAsgn)
 
@@ -309,7 +311,8 @@ evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
             newLoc <- alloc
             insertToStoreNewIdentVal newName val newLoc
 
-            let codeWithAsgn = qcode ++ updcode ++ [QAss (QLoc newName (getOrigQType declType)) val]
+            -- CHANGED
+            let codeWithAsgn = qcode ++ updcode ++ [QDecl (QLoc newName (getOrigQType declType)) val]
 
             local (Map.insert ident newLoc) (evalDecl declType rest codeWithAsgn) -- newName changed to ident
 

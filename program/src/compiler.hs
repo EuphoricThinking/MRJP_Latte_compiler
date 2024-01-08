@@ -597,6 +597,16 @@ clearCurFuncParams = do
     curState <- get
     put curState {lastAddrRBP = 0, curRSP = 0}
 
+isOffset offset =
+    case offset of
+        (OffsetRBP _) -> True
+        _ -> False
+
+is32bit valType = 
+    case valType of
+        IntQ -> True
+        _ -> False
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
@@ -686,9 +696,50 @@ genStmtsAsm [] = do
             -- genStmtsAsm rest
 
 --genStmtsAsm [] = return () -- NIE, zamień miejscmi, w QRET zrób GOTO ret, tutaj dodaj epilog itp.
-
 genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
-    
+    id <- asks (Map.lookup name)
+
+    case id of
+        Nothing -> throwError $ "Assignment to undeclared var in asm: " ++ name
+        Just (var, memStorageL) -> do
+            case val of
+                (IntQVal v) -> do
+                    tell $ [AMov (createAddrIntRBP memStorageL) (show v)]
+
+                    -- memory storage does not change
+
+                (StrQVal s) -> do
+                    tell $ [AMov (createAddrPtrRBP memStorageL) s]
+
+                (LocQVal ident valType) -> do
+                    valStorage <- asks (Map.lookup ident)
+                    case valStorage of
+                        Nothing -> throwError $ ident ++ " var to be assigned not in env"
+                        Just (varFromAssigned, storageR) -> do
+                            -- all variables are stored in the memory at this moment, but this is for further extensions
+                            -- TODO mov to another procedure, add more options
+                            if isOffset storageR
+                            then do
+                                if is32bit valType
+                                then do
+                                    tell $ [AMov (show AR11D) (createAddrIntRBP storageR)]
+                                    tell $ [AMov (createAddrIntRBP memStorageL) (show AR11D)]
+                                else do
+                                    tell $ [AMov (show AR11) (createAddrPtrRBP storageR)]
+                                    tell $ [AMov (createAddrPtrRBP memStorageL) (show AR11)]
+                            
+                            else do
+                                if is32bit valType
+                                then
+                                    tell $ [AMov (createAddrIntRBP memStorageL) (show storageR)]
+                                else
+                                    tell $ [AMov (createAddrPtrRBP memStorageL) (show storageR)]
+                            
+
+            genStmtsAsm rest
+-- CHANGED
+genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
+
     curRBP <- gets lastAddrRBP
 
     case val of
