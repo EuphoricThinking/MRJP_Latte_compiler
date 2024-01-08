@@ -84,6 +84,7 @@ runQuadGen (Prog pos topDefs) = do
 
 getOrigQType (Int _) = IntQ
 getOrigQType (Str _) = StringQ
+getOrigQType (Void _) = VoidQ
 
 alloc :: QuadMonad Loc
 alloc = do

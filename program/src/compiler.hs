@@ -623,6 +623,43 @@ clearStackParamsAndAlignment numArgs toDealloc = do
     else
         dealloc toDealloc
 
+createMemAddr memStorage isLoc32bit =
+    case memStorage of
+        OffsetRBP offset -> do
+            case isLoc32bit of
+                True -> "dword " ++ (createRelAddrRBP offset)
+                False -> "qword " ++ (createRelAddrRBP offset)
+
+        Register reg -> show reg
+        ProgLabel l -> l
+
+createMemAddrRBPdword_qword (OffsetRBP offset) isLoc32bit =
+    case isLoc32bit of
+        True -> "dword " ++ (createRelAddrRBP offset)
+        False -> "qword " ++ (createRelAddrRBP offset)
+
+moveTempToR11 memStorageAddr isLoc32bit = 
+    case isLoc32bit of
+        True -> do
+            tell $ [AMov (show AR11D) memStorageAddr]
+            return AR11D
+        False -> do
+            tell $ [AMov (show AR11) memStorageAddr]
+            return AR11
+
+movMemoryVals memToL memFromR valType = do
+    let isLoc32bit = is32bit valType
+    let rightAddr = createMemAddr memFromR isLoc32bit
+    let leftAddr = createMemAddr memToL isLoc32bit
+
+    if isOffset memFromR
+    then do
+        r11_sized <- moveTempToR11 rightAddr isLoc32bit
+        tell $ [AMov leftAddr (show r11_sized)]
+    else do
+        tell $ [AMov leftAddr rightAddr]
+
+        
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -682,13 +719,26 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
 
 -- ret needs to know the value, to move a good one to eax
 genStmtsAsm :: QuadCode -> AsmMonad ()
-genStmtsAsm ((QRet (IntQVal numVal)) : rest) = do
-    tell $ [AMov (show AEAX) (show numVal)] -- zostaw, później skoncz do ret
-    endLabel <- createEndRetLabel
-    tell $ [AJmp endLabel]
-    tell $ [ASpace]
+genStmtsAsm ((QRet res) : rest) = do
+    printMesA $ "RETCOMP " ++ (show res)
+    case res of
+        (IntQVal numVal) -> do
+            tell $ [AMov (show AEAX) (show numVal)] -- zostaw, później skoncz do ret
+            endLabel <- createEndRetLabel
+            tell $ [AJmp endLabel]
+            tell $ [ASpace]
 
-    genStmtsAsm rest
+            genStmtsAsm rest
+
+        (LocQVal ident valType) -> do
+            fndId <- asks (Map.lookup fndId)
+            case fndId of
+                Nothing -> throwError $ "ret: " ++ ident ++ " var not found"
+                Just (qvar, memStorage) ->
+                    if is32bit valType
+                    then do
+
+
 
 genStmtsAsm [] = do
     endLabel <- createEndRetLabel
