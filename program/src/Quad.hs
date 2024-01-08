@@ -17,6 +17,7 @@ import Control.Monad.Except
 import Control.Monad.Writer
 import System.Exit
 
+-- POSSIBLE UPGRADE TO SSA (NEW LABELS): countLabels not empited, args are not mapped, but the list is iterated over
 
 --type Loc = Int
 --type Env = Map.Map String Loc -- ident, location
