@@ -59,6 +59,7 @@ data Quad = QLabel String --FuncData
     | QParam Val
     | QCall QVar String Int
     | QDecl QVar Val
+    | QVRet
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -562,7 +563,9 @@ genQStmt ((Ass pos (Ident ident) expr) : rest) qcode = do
                         -- printMesQ $ "NOT RAW: " ++ (show val)
                         local (Map.insert ident newLoc) (genQStmt rest updCode)
 
-            
+genQStmt ((Empty _) : rest) qcode = genQStmt rest qcode
+
+genQStmt ((VRet _) : rest) qcode = genQStmt rest (qcode ++ [QVRet])
 
 
 -- fromInteger intVal

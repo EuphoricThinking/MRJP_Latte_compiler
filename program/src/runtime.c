@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // gcc runtime.c -c -o ../lib/runtime.o
 
@@ -35,4 +36,16 @@ char* readString() {
     line[read - 1] = '\0';
 
     return line;
+}
+
+char* concatenateStrings(char* s1, char* s2) {
+    size_t l1 = strlen(s1);
+    size_t l2 = strlen(s2);
+
+    char* result = malloc(sizeof(char)*(l1 + l2 + 1));
+
+    memcpy(result, s1, l1);
+    memcpy(result + l1, s2, l2 + 1);
+
+    return result;
 }

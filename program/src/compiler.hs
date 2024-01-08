@@ -767,7 +767,12 @@ genStmtsAsm ((QRet res) : rest) = do
 
     genStmtsAsm rest
 
+genStmtsAsm (QVRet : rest) = do
+    endLabel <- createEndRetLabel
+    tell $ [AJmp endLabel]
+    tell $ [ASpace]
 
+    genStmtsAsm rest
 
 genStmtsAsm [] = do
     endLabel <- createEndRetLabel
