@@ -335,11 +335,15 @@ subLocals 0 _ = printMesA "here" >> return ()
 -- TODO fix it -> all params are saved in memory
 subLocals numLoc (FuncData name retType args locNum body numInts strVars) = do 
     printMesA $ "should not BE" ++ (show numLoc)
-    let localsSize = numInts*intBytes --TODO add rest
+    let localsSize = numInts*intBytes + (length strVars)*strPointerBytes--TODO add rest
     -- let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
     -- let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
     let paramsSizes = allParamsTypeSizes args 0
     let sumLocalsAndParamsSizes = paramsSizes + localsSize
+
+    printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
+    printMesA $ "sum params: " ++ (show paramsSizes)
+    printMesA $ "sum locals: " ++ (show localsSize)
 
     let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
     updateRSP stackUpdate

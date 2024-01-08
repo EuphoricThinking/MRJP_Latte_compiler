@@ -204,7 +204,7 @@ increaseNumLocTypesCur exprVal = do
         Just curBody -> do
             case exprVal of
                 (IntQVal _) -> do
-                    updateLocalNumCur
+                    -- updateLocalNumCur
 
                     let updatedNumInts = createIncreaseNumInts 1 fname curBody
                     put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
@@ -212,7 +212,7 @@ increaseNumLocTypesCur exprVal = do
                 (LocQVal tmpName retType) -> do
                     case retType of
                         IntQ -> do 
-                            updateLocalNumCur
+                            -- updateLocalNumCur
 
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
@@ -220,7 +220,7 @@ increaseNumLocTypesCur exprVal = do
                 (ParamQVal tmpName retType) -> do
                     case retType of
                         IntQ -> do 
-                            updateLocalNumCur
+                            -- updateLocalNumCur
 
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
@@ -248,7 +248,7 @@ evalDecl _ [] qcode = do
     return (curEnv, qcode)
 
 evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
-    -- updateLocalNumCur
+    updateLocalNumCur
     (val, updcode, _) <- genQExpr expr JustLocal --qcode --LOOKOUT
     increaseNumLocTypesCur val
 
