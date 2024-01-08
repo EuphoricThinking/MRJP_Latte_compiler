@@ -341,9 +341,9 @@ subLocals numLoc (FuncData name retType args locNum body numInts strVars) = do
     let paramsSizes = allParamsTypeSizes args 0
     let sumLocalsAndParamsSizes = paramsSizes + localsSize
 
-    printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
-    printMesA $ "sum params: " ++ (show paramsSizes)
-    printMesA $ "sum locals: " ++ (show localsSize)
+    -- printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
+    -- printMesA $ "sum params: " ++ (show paramsSizes)
+    -- printMesA $ "sum locals: " ++ (show localsSize)
 
     let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
     updateRSP stackUpdate
