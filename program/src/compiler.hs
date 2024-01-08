@@ -528,9 +528,12 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs)= do
     genParams rest regs eregs
 
 assignResToRegister var@(QLoc varTmpId varType) =
-    case varType of
-        IntQ -> (var, (Register AEAX))
-        StringQ -> (var, (Register ARAX))
+    -- case varType of
+    --     IntQ -> (var, (Register AEAX))
+    --     StringQ -> (var, (Register ARAX))
+    case is32bit varType of
+        True -> (var, (Register AEAX))
+        False -> (var, (Register ARAX))
 
 increaseStrLblCounterByOne curStrLblCnt = do
     curState <- get
@@ -606,6 +609,20 @@ is32bit valType =
     case valType of
         IntQ -> True
         _ -> False
+
+-- TODO extension if others on stack, a simplified version
+--numParamsStack numArgs = numArgs - numRegisterParams
+clearStackParamsAndAlignment numArgs toDealloc = do
+    let leftOnStack = numArgs - numRegisterParams
+    if leftOnStack > 0
+    then do
+        let alignedAndParams = stackParamSize*leftOnStack + toDealloc
+        updateRSP (-alignedAndParams)
+
+        tell $ [ADealloc alignedAndParams]
+    else
+        dealloc toDealloc
+
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -811,6 +828,7 @@ genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPo
 --         "printInt" -> do return ()
 
 genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
+    -- after params generation
     valSubtracted <- alignStack
 
     case ident of
@@ -847,6 +865,20 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             dealloc valSubtracted
 
             genStmtsAsm rest
+
+        _ -> do
+            tell $ [ACall ident]
+            -- dealloc valSubtracted -- result in eax, at this moment - without biger args
+            -- remove params from stack and alignment
+            clearStackParamsAndAlignment numArgs valSubtracted
+
+            case varType of
+                VoidQ -> genStmtsAsm rest
+                _ -> do
+                    let valStorage = assignResToRegister qvar
+
+                    local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
+
     --genStmtsAsm rest
 
     
