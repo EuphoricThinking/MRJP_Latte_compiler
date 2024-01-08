@@ -197,13 +197,26 @@ updateStringVars strVal fname curBody = do
 
     put curState {defFunc = Map.insert fname updatedStringList (defFunc curState)} 
 
+    -- return updatedStringList
+
 createIncreasedStrVarsNum fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) ((getFuncNumStrVars fbody) + 1)
 
 updateStringVarsNum fname curBody = do
     curState <- get
+    -- curFName <- gets curFuncName
+    -- curBody
     let updatedStringVarsNum = createIncreasedStrVarsNum fname curBody
 
     put curState {defFunc = Map.insert fname updatedStringVarsNum (defFunc curState)} 
+
+    return updatedStringVarsNum
+
+updBothStrNumAndList strVal fname fbody = do
+    curState <- get
+
+    let newBody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) ((getFuncNumStrVars fbody) + 1)
+
+    put curState {defFunc = Map.insert fname newBody (defFunc curState)}
 
 -- TODO REMEMBER WHEN TO UPDATE!
 increaseNumLocTypesCur exprVal = do
@@ -230,6 +243,8 @@ increaseNumLocTypesCur exprVal = do
 
                         StringQ -> do
                             updateStringVarsNum fname curBody
+                            printMesQ $ "upd " ++ (show t)
+                            printMesQ $ (show $ getFuncNumStrVars curBody)
                             --return () --do
                             --printMesQ $ "STR " ++ (show t)
 
@@ -243,12 +258,17 @@ increaseNumLocTypesCur exprVal = do
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
-                (StrQVal strVal) -> do
-                    -- --printMesQ $ "LALAL " ++ (show t)
+                r@(StrQVal strVal) -> do
+                    -- printMesQ $ "upd " ++ (show r)
+                    -- printMesQ $ (show $ getFuncNumStrVars curBody)
                     -- let updatedStringList = addToStringVars strVal fname curBody
                     -- put curState {defFunc = Map.insert fname updatedStringList (defFunc curState)}
-                    updateStringVarsNum fname curBody
-                    updateStringVars strVal fname curBody
+                    -- updateStringVarsNum fname curBody
+                    -- updateStringVars strVal fname curBody
+                    -- let newBody = (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) ((getFuncNumStrVars fbody) + 1)
+
+                    -- put curState {defFunc = Map.insert fname newBody (defFunc curState)}
+                    updBothStrNumAndList strVal fname curBody
 
 updateLocalNumCur = do
     --update locals counter
@@ -304,16 +324,31 @@ isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
 paramsConcatCode [] qcode = return qcode
 paramsConcatCode ((_, paramCode, _) : rest) qcode = paramsConcatCode rest (qcode ++ paramCode)
 
+-- isStringVarVal (StrQVal _) = True
+-- isStringVarVal (StringQ) = True
+-- isStringVarVal (LocQVal _ StringQ) = True
+-- isStringVarVal (ParamQVal _ StringQ) = True
+-- isStringVarVal _ = False -- case of
+
 addParamsFromList [] qcode maxDepth = return (qcode, maxDepth)
 addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = do
     case paramVal of
-        (StrQVal s) -> do
+        e@(StrQVal s) -> do
             curFName <- gets curFuncName
             cbody <- gets (Map.lookup curFName . defFunc)
             case cbody of
                 Nothing -> throwError $ "param creation for " ++ s ++ ": cur func not found"
                 Just body -> do
-                    updateStringVars s curFName body
+                    -- updateStringVars s curFName body
+                    -- updateStringVarsNum curFName body
+                    -- printMesQ $ "upd param " ++ (show e)
+                    -- printMesQ $ (show $ getFuncNumStrVars body)
+                    -- let newBody = 
+                    -- let newBody = (getFuncRet body) (getFuncArgs body) (getFuncNumLoc body) (getFuncBody body) (getFuncBodyIntsNum body) (strVal : (getFuncStringList body)) ((getFuncNumStrVars body) + 1)
+
+                    -- put curState {defFunc = Map.insert fname newBody (defFunc curState)}
+                    updBothStrNumAndList s curFName body
+
                     addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
 
         _ -> addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)

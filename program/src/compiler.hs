@@ -341,9 +341,11 @@ subLocals numLoc (FuncData name retType args locNum body numInts strVars strVars
     let paramsSizes = allParamsTypeSizes args 0
     let sumLocalsAndParamsSizes = paramsSizes + localsSize
 
-    -- printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
-    -- printMesA $ "sum params: " ++ (show paramsSizes)
-    -- printMesA $ "sum locals: " ++ (show localsSize)
+    printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
+    printMesA $ "sum params: " ++ (show paramsSizes)
+    printMesA $ "sum locals: " ++ (show localsSize)
+    printMesA $ "numStrs: " ++ (show strVarsNum)
+    printMesA $ "numInts: " ++ (show numInts)
 
     let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
     updateRSP stackUpdate
@@ -528,6 +530,7 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs)= do
 assignResToRegister var@(QLoc varTmpId varType) =
     case varType of
         IntQ -> (var, (Register AEAX))
+        StringQ -> (var, (Register ARAX))
 
 increaseStrLblCounterByOne curStrLblCnt = do
     curState <- get
@@ -709,6 +712,10 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                             newRBPOffset <- allocVar storage intBytes -- allocInt storage
                             local (Map.insert name (varFromAssigned, newRBPOffset)) (genStmtsAsm rest)
 
+                        StringQ -> do
+                            newRBPOffset <- allocVar storage strPointerBytes
+                            local (Map.insert name (varFromAssigned, newRBPOffset)) (genStmtsAsm rest)
+
         (StrQVal s) -> do
             strData <- asks (Map.lookup s)
             case strData of
@@ -767,6 +774,13 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
 
             genStmtsAsm rest
 
+        "readString" -> do
+            tell $ [ACall "readString"]
+            dealloc valSubtracted
+
+            let valStorage = assignResToRegister qvar
+
+            local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
     --genStmtsAsm rest
 
     
