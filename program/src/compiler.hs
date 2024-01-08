@@ -652,14 +652,14 @@ movMemoryVals memToL memFromR valType = do
     let rightAddr = createMemAddr memFromR isLoc32bit
     let leftAddr = createMemAddr memToL isLoc32bit
 
-    if isOffset memFromR
+    if ((isOffset memFromR) && (isOffset memToL))
     then do
         r11_sized <- moveTempToR11 rightAddr isLoc32bit
         tell $ [AMov leftAddr (show r11_sized)]
     else do
         tell $ [AMov leftAddr rightAddr]
 
-        
+
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
