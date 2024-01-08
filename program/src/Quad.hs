@@ -154,15 +154,23 @@ getArgData (Ar _ (Int _) (Ident ident)) = ArgData ident IntQ
 getArgData (Ar _ (Bool _) (Ident ident)) = ArgData ident BoolQ
 getArgData (Ar _ (Str _) (Ident ident)) = ArgData ident StringQ
 
-saveArgsToEnv [] = do
-    env <- ask
-    return env
+updArgsNum numInts numStrs valType =
+    case valType of
+        IntQ -> ((numInts + 1), numStrs)
+        StringQ -> (numInts, (numStrs + 1))
 
-saveArgsToEnv ((Ar _ argType (Ident ident)) : args) = do
+saveArgsToEnv [] numInts numStrs = do
+    env <- ask
+    return (env, numInts, numStrs)
+
+saveArgsToEnv ((Ar _ argType (Ident ident)) : args) numInts numStrs = do
     -- insert new label to countLabels
     -- insert to storeQ
     -- alloc
-    let val = (LocQVal ident (getOrigQType argType)) --(ParamQVal ident argType)
+    let valType = (getOrigQType argType)
+    let val = (LocQVal ident valType) --(ParamQVal ident argType)
+    let (updInts, updStrs) = updArgsNum numInts numStrs valType
+
     countIdent <- gets (Map.lookup ident . countLabels)
     case countIdent of
         Nothing -> do
@@ -170,7 +178,7 @@ saveArgsToEnv ((Ar _ argType (Ident ident)) : args) = do
             newLoc <- alloc
             insertToStoreNewIdentVal ident val newLoc
 
-            local (Map.insert ident newLoc) (saveArgsToEnv args)
+            local (Map.insert ident newLoc) (saveArgsToEnv args updInts updStrs)
 
         Just curNumId -> do
             increaseLabelCounter ident
@@ -178,7 +186,7 @@ saveArgsToEnv ((Ar _ argType (Ident ident)) : args) = do
             newLoc <- alloc
             insertToStoreNewIdentVal newName val newLoc
 
-            local (Map.insert ident newLoc) (saveArgsToEnv args)
+            local (Map.insert ident newLoc) (saveArgsToEnv args updInts updStrs)
 
 
 
@@ -188,16 +196,19 @@ insOneByOne [] = do
     return cur_state
 
 insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
-    curState <- get
-    let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0 [] 0
-    insertToStoreNewFunc ident newFuncData
-    updateCurFuncName ident
+    -- curState <- get
 
     -- curState <- get
     -- curFName <- gets curFuncName
     --print (show curFName
     env <- ask
-    envWithParams <- local (const env) (saveArgsToEnv args)
+    (envWithParams, numInts, numStrs) <- local (const env) (saveArgsToEnv args 0 0)
+
+    -- let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0 [] 0
+    let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) (numInts + numStrs) [] numInts [] numStrs
+
+    insertToStoreNewFunc ident newFuncData
+    updateCurFuncName ident
 
     funcBody <- local (const envWithParams) (genQStmt stmts [])
     -- PERFORM in local env (probably)
