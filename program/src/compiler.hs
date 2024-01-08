@@ -593,6 +593,9 @@ prepareDataSect funcs = do
 
     return updEnv
 
+clearCurFuncParams = do
+    curState <- get
+    put curState {lastAddrRBP = 0, curRSP = 0}
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -639,6 +642,8 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
 
     local (const curEnv) (genStmtsAsm body)
 
+    clearCurFuncParams
+    
     st <- get
     printMesA "curs"
     printMesA st

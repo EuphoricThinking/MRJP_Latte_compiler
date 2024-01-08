@@ -219,6 +219,7 @@ updBothStrNumAndList strVal fname fbody = do
     put curState {defFunc = Map.insert fname newBody (defFunc curState)}
 
 -- TODO REMEMBER WHEN TO UPDATE!
+-- check other possibilities of updating strings
 increaseNumLocTypesCur exprVal = do
     curState <- get
     fname <- gets curFuncName
