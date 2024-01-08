@@ -439,11 +439,17 @@ moveFromRegisters [] _ _ = do
     curEnv <- ask
     return curEnv
 
-moveFromRegisters ((ArgData ident valType) : args) (reg : regs) (ereg : eregs)= do
+moveFromRegisters ((ArgData ident valType) : args) (reg : regs) (ereg : eregs) = do
+    let var = (QLoc ident valType)
+
     case valType of
         IntQ -> do
-            let var = (QLoc ident valType)
             offsetRBP <- allocVar ereg intBytes -- allocInt ereg
+
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs)
+
+        StringQ -> do
+            offsetRBP <- allocVar reg strPointerBytes
 
             local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs)
 

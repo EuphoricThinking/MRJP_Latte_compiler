@@ -154,6 +154,34 @@ getArgData (Ar _ (Int _) (Ident ident)) = ArgData ident IntQ
 getArgData (Ar _ (Bool _) (Ident ident)) = ArgData ident BoolQ
 getArgData (Ar _ (Str _) (Ident ident)) = ArgData ident StringQ
 
+saveArgsToEnv [] = do
+    env <- ask
+    return env
+
+saveArgsToEnv ((Ar _ argType (Ident ident)) : args) = do
+    -- insert new label to countLabels
+    -- insert to storeQ
+    -- alloc
+    let val = (LocQVal ident (getOrigQType argType)) --(ParamQVal ident argType)
+    countIdent <- gets (Map.lookup ident . countLabels)
+    case countIdent of
+        Nothing -> do
+            insertNewLabelToCounter ident
+            newLoc <- alloc
+            insertToStoreNewIdentVal ident val newLoc
+
+            local (Map.insert ident newLoc) (saveArgsToEnv args)
+
+        Just curNumId -> do
+            increaseLabelCounter ident
+            let newName = ident ++ "_" ++ (show curNumId)
+            newLoc <- alloc
+            insertToStoreNewIdentVal newName val newLoc
+
+            local (Map.insert ident newLoc) (saveArgsToEnv args)
+
+
+
 insOneByOne :: [TopDef] -> QuadMonad QStore
 insOneByOne [] = do
     cur_state <- get
@@ -167,13 +195,15 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
     -- curState <- get
     -- curFName <- gets curFuncName
-    --print (show curFName)
+    --print (show curFName
+    env <- ask
+    envWithParams <- local (const env) (saveArgsToEnv args)
 
-    funcBody <- genQStmt stmts []
+    funcBody <- local (const envWithParams) (genQStmt stmts [])
     -- PERFORM in local env (probably)
-    curEnv <- ask
-    -- newFullFunc <- updateCurFuncBody funcBody
-    newFullFunc <- local (const curEnv) (updateCurFuncBody funcBody)
+    --curEnv <- ask
+    newFullFunc <- updateCurFuncBody funcBody
+    --newFullFunc <- local (const curEnv) (updateCurFuncBody funcBody)
 
     tell $ [QFunc newFullFunc]
 
@@ -538,7 +568,8 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
                 newTmpName <- createTempVarName ident -- move decl depending on param
                 callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
 
-genQExpr (EVar pos (Ident ident)) isParam = do
+genQExpr v@(EVar pos (Ident ident)) isParam = do
+    printMesQ $ "quad " ++ (show v) ++ (show isParam)
     curLoc <- asks (Map.lookup ident)
     case curLoc of
         Nothing -> throwError $ ident ++ " var not found"
