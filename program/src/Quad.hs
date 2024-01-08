@@ -39,10 +39,12 @@ type SizeLocals = Int
 type RetType = ValType --Val
 type Body = QuadCode
 type NumIntTypes = Int
+type NumStrVars = Int
+
 data ArgData = ArgData String ValType deriving (Show)
 type Args = [ArgData] 
 
-data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes [String] deriving (Show)
+data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes [String] NumStrVars deriving (Show)
 
 data QVar = QLoc String ValType | QArg String ValType | NoMeaning deriving (Show)
 
@@ -107,12 +109,13 @@ increaseLabelCounter ident = do
         Nothing -> throwError $ ident ++ " cannot increase counter"
         Just countIdent -> put curState {countLabels = Map.insert ident (countIdent + 1) (countLabels curState)}
 
-getFuncRet (FuncData _ rett _ _ _ _ _) = rett
-getFuncArgs (FuncData _ _ args _ _ _ _) = args
-getFuncNumLoc (FuncData _ _ _ numloc _ _ _) = numloc
-getFuncBody (FuncData _ _ _ _ body _ _) = body
-getFuncBodyIntsNum (FuncData _ _ _ _ _ numInts _) = numInts
-getFuncStringList (FuncData _ _ _ _ _ _ strs) = strs
+getFuncRet (FuncData _ rett _ _ _ _ _ _) = rett
+getFuncArgs (FuncData _ _ args _ _ _ _ _) = args
+getFuncNumLoc (FuncData _ _ _ numloc _ _ _ _) = numloc
+getFuncBody (FuncData _ _ _ _ body _ _ _) = body
+getFuncBodyIntsNum (FuncData _ _ _ _ _ numInts _ _) = numInts
+getFuncStringList (FuncData _ _ _ _ _ _ strs _) = strs
+getFuncNumStrVars (FuncData _ _ _ _ _ _ _ numStrs) = numStrs
 
 -- return Label
 -- createQVal (Int _) expr qcode= do
@@ -140,7 +143,7 @@ updateCurFuncBody body = do
         Nothing -> throwError $ curFName ++ " cur not found"
         Just curFuncBody ->
             let 
-                newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body (getFuncBodyIntsNum curFuncBody) (getFuncStringList curFuncBody)
+                newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body (getFuncBodyIntsNum curFuncBody) (getFuncStringList curFuncBody) (getFuncNumStrVars curFuncBody)
                 -- newBody = createNewBody (getFuncNumLoc curFuncBody) curFName curFuncBody
             in
                 put curState {defFunc = Map.insert curFName newBody (defFunc curState)} >> return newBody
@@ -156,7 +159,7 @@ insOneByOne [] = do
 
 insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     curState <- get
-    let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0 []
+    let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0 [] 0
     insertToStoreNewFunc ident newFuncData
     updateCurFuncName ident
 
@@ -182,17 +185,25 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
 -- evalDecl :: Type' -> [Item'] -> QuadMonad Env
 
-createNewBody (Int numLoc) fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) numLoc (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody)
+createNewBody (Int numLoc) fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) numLoc (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) (getFuncNumStrVars fbody)
 
-createIncreaseNumInts numInts fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) ((getFuncBodyIntsNum fbody) + numInts) (getFuncStringList fbody)
+createIncreaseNumInts numInts fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) ((getFuncBodyIntsNum fbody) + numInts) (getFuncStringList fbody) (getFuncNumStrVars fbody)
 
-addToStringVars strVal fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody))
+addToStringVars strVal fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) (getFuncNumStrVars fbody)
 
 updateStringVars strVal fname curBody = do
     curState <- get
     let updatedStringList = addToStringVars strVal fname curBody
 
     put curState {defFunc = Map.insert fname updatedStringList (defFunc curState)} 
+
+createIncreasedStrVarsNum fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) ((getFuncNumStrVars fbody) + 1)
+
+updateStringVarsNum fname curBody = do
+    curState <- get
+    let updatedStringVarsNum = createIncreasedStrVarsNum fname curBody
+
+    put curState {defFunc = Map.insert fname updatedStringVarsNum (defFunc curState)} 
 
 -- TODO REMEMBER WHEN TO UPDATE!
 increaseNumLocTypesCur exprVal = do
@@ -209,13 +220,20 @@ increaseNumLocTypesCur exprVal = do
                     let updatedNumInts = createIncreaseNumInts 1 fname curBody
                     put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
-                (LocQVal tmpName retType) -> do
+                t@(LocQVal tmpName retType) -> do
                     case retType of
                         IntQ -> do 
                             -- updateLocalNumCur
 
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
+
+                        StringQ -> do
+                            updateStringVarsNum fname curBody
+                            --return () --do
+                            --printMesQ $ "STR " ++ (show t)
+
+
 
                 (ParamQVal tmpName retType) -> do
                     case retType of
@@ -229,6 +247,7 @@ increaseNumLocTypesCur exprVal = do
                     -- --printMesQ $ "LALAL " ++ (show t)
                     -- let updatedStringList = addToStringVars strVal fname curBody
                     -- put curState {defFunc = Map.insert fname updatedStringList (defFunc curState)}
+                    updateStringVarsNum fname curBody
                     updateStringVars strVal fname curBody
 
 updateLocalNumCur = do
@@ -369,7 +388,8 @@ getSpecialRetType fname =
     case fname of
         "printInt" -> VoidQ
         "readInt" -> IntQ
-        "printString" -> StringQ
+        "printString" -> VoidQ
+        "readString" -> StringQ
 
 getValType val =
     case val of

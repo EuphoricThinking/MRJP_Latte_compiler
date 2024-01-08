@@ -333,9 +333,9 @@ allParamsTypeSizes ((ArgData ident valType) : args) sumParams =
 
 subLocals 0 _ = printMesA "here" >> return ()
 -- TODO fix it -> all params are saved in memory
-subLocals numLoc (FuncData name retType args locNum body numInts strVars) = do 
+subLocals numLoc (FuncData name retType args locNum body numInts strVars strVarsNum) = do 
     printMesA $ "should not BE" ++ (show numLoc)
-    let localsSize = numInts*intBytes + (length strVars)*strPointerBytes--TODO add rest
+    let localsSize = numInts*intBytes + strVarsNum*strPointerBytes--TODO add rest
     -- let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
     -- let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
     let paramsSizes = allParamsTypeSizes args 0
@@ -379,7 +379,7 @@ getValToMov (IntQVal val) = val
 
 printMesA mes = lift $ lift $ lift $ lift $ print mes
 
-getNumArgs (FuncData _ _ args _ _ _ _) = length args
+getNumArgs (FuncData _ _ args _ _ _ _ _) = length args
 
 createEndRetLabel = do
     curFName <- gets curFuncNameAsm
@@ -572,7 +572,7 @@ iterOverAllFuncs [] = do
     env <- ask
     return env
 
-iterOverAllFuncs ((QFunc finfo@(FuncData name retType args locNum body numInts strVars)) : rest) = do
+iterOverAllFuncs ((QFunc finfo@(FuncData name retType args locNum body numInts strVars strVarsNum)) : rest) = do
     let args = getFuncStringList finfo
 
     env <- saveStrLiteralsInDataSec args
@@ -618,7 +618,7 @@ runGenAsm q = do--return BoolT
 genFuncsAsm :: QuadCode -> AsmMonad ()
 genFuncsAsm [] = return ()
 
-genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVars)) : rest) = do
+genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVars strVarsNum)) : rest) = do
     -- env <- ask
     -- strEnv <- local (const env) (createStrLiteralLabels strVars)
 
