@@ -167,28 +167,33 @@ saveArgsToEnv ((Ar _ argType (Ident ident)) : args) numInts numStrs = do
     -- insert new label to countLabels
     -- insert to storeQ
     -- alloc
+    -- let ident = fname ++ "_"
     let valType = (getOrigQType argType)
     let val = (LocQVal ident valType) --(ParamQVal ident argType)
     let (updInts, updStrs) = updArgsNum numInts numStrs valType
 
-    countIdent <- gets (Map.lookup ident . countLabels)
-    case countIdent of
-        Nothing -> do
-            insertNewLabelToCounter ident
-            newLoc <- alloc
-            insertToStoreNewIdentVal ident val newLoc
+    -- countIdent <- gets (Map.lookup ident . countLabels)
+    -- case countIdent of
+    --     Nothing -> do
+    insertNewLabelToCounter ident
+    newLoc <- alloc
+    insertToStoreNewIdentVal ident val newLoc
 
-            local (Map.insert ident newLoc) (saveArgsToEnv args updInts updStrs)
+    local (Map.insert ident newLoc) (saveArgsToEnv args updInts updStrs)
 
-        Just curNumId -> do
-            increaseLabelCounter ident
-            let newName = ident ++ "_" ++ (show curNumId)
-            newLoc <- alloc
-            insertToStoreNewIdentVal newName val newLoc
+        -- Just curNumId -> do
+        --     increaseLabelCounter ident
+        --     let newName = ident ++ "_" ++ (show curNumId)
+        --     newLoc <- alloc
+        --     insertToStoreNewIdentVal newName val newLoc
 
-            local (Map.insert ident newLoc) (saveArgsToEnv args updInts updStrs)
+        --     local (Map.insert ident newLoc) (saveArgsToEnv args updInts updStrs)
 
-
+clearStoreQNewFunc :: QuadMonad ()
+clearStoreQNewFunc = do
+    curState <- get
+    put curState {countLabels = Map.empty}
+    -- eventually add labels to args in order to preserve order
 
 insOneByOne :: [TopDef] -> QuadMonad QStore
 insOneByOne [] = do
