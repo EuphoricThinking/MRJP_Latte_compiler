@@ -316,6 +316,7 @@ evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
 evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
     case declType of
         (Int _) -> evalDecl declType ((Init posIn (Ident ident) (ELitInt posIn 0)) : rest) qcode
+        (Str _) -> evalDecl declType ((Init posIn (Ident ident) (EString posIn "")) : rest) qcode
 
 specialFuncsList = ["printInt", "printString", "error", "readInt", "readString"]
 isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
@@ -426,6 +427,7 @@ getSpecialRetType fname =
         "readInt" -> IntQ
         "printString" -> VoidQ
         "readString" -> StringQ
+        "error" -> VoidQ
 
 getValType val =
     case val of

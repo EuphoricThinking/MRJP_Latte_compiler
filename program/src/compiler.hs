@@ -643,7 +643,7 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     local (const curEnv) (genStmtsAsm body)
 
     clearCurFuncParams
-    
+
     st <- get
     printMesA "curs"
     printMesA st
@@ -786,6 +786,12 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             let valStorage = assignResToRegister qvar
 
             local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
+
+        "error" -> do
+            tell $ [ACall "error"]
+            dealloc valSubtracted
+
+            genStmtsAsm rest
     --genStmtsAsm rest
 
     
