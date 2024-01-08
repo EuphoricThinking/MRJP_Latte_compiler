@@ -457,7 +457,21 @@ genQStmt ((BStmt pos (Blk posB stmts)) : rest) qcode = do
 genQStmt ((Ret pos expr) : rest) qcode = do
     -- add inf if constant to avoid mov rax repetition
     (retVal, codeExpr, _) <- genQExpr expr JustLocal--qcode
-    genQStmt rest (qcode ++ codeExpr ++ [QRet retVal]) -- mem addr, const, register
+
+    if isRawString retVal
+    then do
+        cfname <- gets curFuncName
+        cfbody <- gets (Map.lookup cfname . defFunc)
+        case cfbody of
+            Nothing -> throwError $ "returned string not found: " ++ (show retVal)
+            Just body -> do
+                -- updBothStrNumAndList (extractString val) cfname body
+                updateStringVars (extractString retVal) cfname body
+
+                genQStmt rest (qcode ++ codeExpr ++ [QRet retVal])
+
+    else
+        genQStmt rest (qcode ++ codeExpr ++ [QRet retVal]) -- mem addr, const, register
 
 genQStmt ((Decl pos vartype items) : rest) qcode = do
     (updatedEnv, updCode) <- evalDecl vartype items qcode

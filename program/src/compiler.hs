@@ -334,7 +334,8 @@ allParamsTypeSizes ((ArgData ident valType) : args) sumParams =
 subLocals 0 _ = printMesA "here" >> return ()
 -- TODO fix it -> all params are saved in memory
 subLocals numLoc (FuncData name retType args locNum body numInts strVars strVarsNum) = do 
-    printMesA $ "should not BE" ++ (show numLoc)
+    st <- get
+    printMesA $ "should not BE "  ++ (show numLoc) ++ " " ++ (curFuncNameAsm st)
     let localsSize = numInts*intBytes + strVarsNum*strPointerBytes--TODO add rest
     -- let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
     -- let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
@@ -662,6 +663,13 @@ movMemoryVals memToL memFromR valType = do
 getQVarType (QLoc _ valType) = valType
 getQVarType (QArg _ valType) = valType
 
+moveStringToMem memToL fullStr = do
+    fndLbl <- asks (Map.lookup fullStr)
+    case fndLbl of
+        Nothing -> throwError $ "label for string " ++ fullStr ++ " not found"
+        Just (_, lbl) -> do
+            movMemoryVals memToL lbl StringQ
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
@@ -736,6 +744,9 @@ genStmtsAsm ((QRet res) : rest) = do
                         movMemoryVals (Register AEAX) memStorageVar valType
                     else
                         movMemoryVals (Register ARAX) memStorageVar valType
+
+        (StrQVal s) -> do
+            moveStringToMem (Register ARAX) s
 
     endLabel <- createEndRetLabel
     tell $ [AJmp endLabel]
