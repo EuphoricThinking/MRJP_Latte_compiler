@@ -492,7 +492,8 @@ genParams qcode [] _ = do
     genStmtsAsm qcallcode
 
 
-genParams ((QParam val) : rest) (reg : regs) (ereg : eregs)= do
+genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs)= do
+    printMesA qp
     case val of
         (IntQVal v) -> do
             tell $ [AMov (show ereg) (show v)]
@@ -507,7 +508,17 @@ genParams ((QParam val) : rest) (reg : regs) (ereg : eregs)= do
                         (IntQ) -> do
                             tell $ [AMov (show ereg) (createAddrIntRBP offset)]
 
+                        StringQ -> do
+                            tell $ [AMov (show reg) (createAddrPtrRBP offset)]
+
+        (StrQVal s) -> do
+            findLbl <- asks (Map.lookup s)
+            case findLbl of
+                Nothing -> throwError $ "string literal not found in data section (or env error): " ++ s
+                Just (_, lbl) -> do
+                    tell $ [AMov (show reg) (show lbl)]
                     --gen
+
     genParams rest regs eregs
 
 assignResToRegister var@(QLoc varTmpId varType) =
@@ -744,10 +755,13 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
 
             let valStorage = assignResToRegister qvar
 
-            printMesA "REST"
-            printMesA rest
-
             local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
+
+        "printString" -> do
+            tell $ [ACall "printString"]
+            dealloc valSubtracted
+
+            genStmtsAsm rest
 
     --genStmtsAsm rest
 

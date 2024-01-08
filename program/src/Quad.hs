@@ -219,7 +219,8 @@ increaseNumLocTypesCur exprVal = do
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
-                (StrQVal strVal) -> do
+                t@(StrQVal strVal) -> do
+                    printMesQ $ "LALAL " ++ (show t)
                     let updatedStringList = addToStringVars strVal fname curBody
                     put curState {defFunc = Map.insert fname updatedStringList (defFunc curState)}
 
@@ -278,7 +279,9 @@ paramsConcatCode [] qcode = return qcode
 paramsConcatCode ((_, paramCode, _) : rest) qcode = paramsConcatCode rest (qcode ++ paramCode)
 
 addParamsFromList [] qcode maxDepth = return (qcode, maxDepth)
-addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
+addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = 
+    
+    addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
 
 genParamCodeForExprList exprList isParam = do
     let genExpParams exp = genQExpr exp isParam
@@ -350,12 +353,14 @@ getSpecialRetType fname =
     case fname of
         "printInt" -> VoidQ
         "readInt" -> IntQ
+        "printString" -> StringQ
 
 getValType val =
     case val of
         (IntQVal _) -> IntQ
         (LocQVal _ vtype) -> vtype
         (ParamQVal _ vtype) -> vtype
+        (StrQVal _) -> StringQ
 
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
