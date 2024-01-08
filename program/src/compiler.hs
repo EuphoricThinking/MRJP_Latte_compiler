@@ -659,7 +659,8 @@ movMemoryVals memToL memFromR valType = do
     else do
         tell $ [AMov leftAddr rightAddr]
 
-
+getQVarType (QLoc _ valType) = valType
+getQVarType (QArg _ valType) = valType
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -724,19 +725,23 @@ genStmtsAsm ((QRet res) : rest) = do
     case res of
         (IntQVal numVal) -> do
             tell $ [AMov (show AEAX) (show numVal)] -- zostaw, później skoncz do ret
-            endLabel <- createEndRetLabel
-            tell $ [AJmp endLabel]
-            tell $ [ASpace]
-
-            genStmtsAsm rest
 
         (LocQVal ident valType) -> do
-            fndId <- asks (Map.lookup fndId)
+            fndId <- asks (Map.lookup ident)
             case fndId of
                 Nothing -> throwError $ "ret: " ++ ident ++ " var not found"
-                Just (qvar, memStorage) ->
+                Just (qvar, memStorageVar) -> do
                     if is32bit valType
-                    then do
+                    then
+                        movMemoryVals (Register AEAX) memStorageVar valType
+                    else
+                        movMemoryVals (Register ARAX) memStorageVar valType
+
+    endLabel <- createEndRetLabel
+    tell $ [AJmp endLabel]
+    tell $ [ASpace]
+
+    genStmtsAsm rest
 
 
 
