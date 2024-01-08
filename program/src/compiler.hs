@@ -326,7 +326,7 @@ sumParamsSizesPastRegisters args 0 = sumParamsSizes args 0
 sumParamsSizesPastRegisters (a : args) numRegs = sumParamsSizesPastRegisters args (numRegs - 1)
 
 allParamsTypeSizes [] sumParams = sumParams
-allParamsTypeSizes ((ArgData ident valType) : args) sumParams =
+allParamsTypeSizes (a@(ArgData ident valType) : args) sumParams = 
     case valType of
         IntQ -> allParamsTypeSizes args (sumParams + intBytes)
         StringQ -> allParamsTypeSizes args (sumParams + strPointerBytes)
@@ -341,6 +341,8 @@ subLocals numLoc (FuncData name retType args locNum body numInts strVars strVars
     -- let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
     let paramsSizes = allParamsTypeSizes args 0
     let sumLocalsAndParamsSizes = paramsSizes + localsSize
+
+    printMesA $ "PARAMS " ++ (show args)
 
     printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
     printMesA $ "sum params: " ++ (show paramsSizes)
@@ -709,6 +711,8 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
 
     tell $ [ALabel name]
     tell $ [AProlog]
+
+    printMesA $ "NAME IN |" ++ name ++ "|"
 
     -- get size of params, subtract from the stack (probably iterate once again)
     -- clear store before function leave
