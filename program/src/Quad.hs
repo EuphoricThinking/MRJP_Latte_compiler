@@ -536,25 +536,31 @@ genQStmt ((Ass pos (Ident ident) expr) : rest) qcode = do
         Just loc -> do
             (val, exprCode, _) <- genQExpr expr JustLocal
 
-            let updCode = qcode ++ exprCode ++ [QAss (QLoc ident (getValType val)) val]
-            newLoc <- alloc
-            insertToStoreNewIdentVal ident val newLoc
+            curLabelVal <- gets (Map.lookup loc . storeQ)
 
-            if isRawString val
-            then do
-                -- printMesQ $ "RAW " ++ (show val)
-                cfname <- gets curFuncName
-                cfbody <- gets (Map.lookup cfname . defFunc)
-                case cfbody of
-                    Nothing -> throwError $ "assignment (re) failed for var: " ++ ident ++ " and val: " ++ (show val)
-                    Just body -> do
-                        updBothStrNumAndList (extractString val) cfname body
+            case curLabelVal of
+                Nothing -> throwError $ ident ++ "unassigned value"
+                Just (curLabel, oldVal) -> do
+                    let updCode = qcode ++ exprCode ++ [QAss (QLoc curLabel (getValType val)) val]
+                    newLoc <- alloc
+                    -- insertToStoreNewIdentVal ident val newLoc
+                    insertToStoreNewIdentVal curLabel val newLoc
 
+                    if isRawString val
+                    then do
+                        -- printMesQ $ "RAW " ++ (show val)
+                        cfname <- gets curFuncName
+                        cfbody <- gets (Map.lookup cfname . defFunc)
+                        case cfbody of
+                            Nothing -> throwError $ "assignment (re) failed for var: " ++ ident ++ " and val: " ++ (show val)
+                            Just body -> do
+                                updBothStrNumAndList (extractString val) cfname body
+
+                                local (Map.insert ident newLoc) (genQStmt rest updCode)
+
+                    else do
+                        -- printMesQ $ "NOT RAW: " ++ (show val)
                         local (Map.insert ident newLoc) (genQStmt rest updCode)
-
-            else do
-                -- printMesQ $ "NOT RAW: " ++ (show val)
-                local (Map.insert ident newLoc) (genQStmt rest updCode)
 
             
 
