@@ -688,8 +688,8 @@ genStmtsAsm [] = do
 --genStmtsAsm [] = return () -- NIE, zamień miejscmi, w QRET zrób GOTO ret, tutaj dodaj epilog itp.
 
 genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
-    curRBP <- gets lastAddrRBP
     
+    curRBP <- gets lastAddrRBP
 
     case val of
         (IntQVal v) -> do

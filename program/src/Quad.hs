@@ -285,7 +285,7 @@ updateLocalNumCur = do
 evalDecl :: Type -> [Item] -> QuadCode -> QuadMonad (Env, QuadCode)
 evalDecl _ [] qcode = do
     curEnv <- ask
-    return (curEnv, qcode)
+    return (curEnv, qcode)  -- TODO add depth
 
 evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
     updateLocalNumCur
@@ -458,6 +458,23 @@ genQStmt ((Decl pos vartype items) : rest) qcode = do
 genQStmt ((SExp pos expr) : rest) qcode = do
     (val, updCode, _) <- genQExpr expr JustLocal --qcode
     genQStmt rest (qcode ++ updCode)
+
+genQStmt ((Ass pos (Ident ident) expr) : rest) qcode = do
+    varVal <- asks (Map.lookup ident)
+
+    case varVal of
+        Nothing -> throwError $ ident ++ " unknown variable"
+        Just loc -> do
+            (val, exprCode, _) <- genQExpr expr JustLocal
+
+            let updCode = qcode ++ exprCode ++ [QAss (QLoc ident (getValType val)) val]
+            newLoc <- alloc
+            insertToStoreNewIdentVal ident val newLoc
+
+            local (Map.insert ident newLoc) (genQStmt rest updCode)
+
+            
+
 
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
