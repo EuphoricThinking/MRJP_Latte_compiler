@@ -60,6 +60,8 @@ data Quad = QLabel String --FuncData
     | QCall QVar String Int
     | QDecl QVar Val
     | QVRet
+    | QAdd QVar Val Val
+    | QConcat QVar Val Val
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -68,6 +70,7 @@ type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode 
 
 tmpInfix = "_tmp_"
 printInt = "printInt"
+exprInfix = "_expr_"
 
 -- genQuadcode :: Program -> Quadcode
 genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
@@ -611,6 +614,26 @@ genQExpr v@(EVar pos (Ident ident)) isParam = do
                         Param fname -> do
                             let paramVal = ParamQVal curName (getValType val)
                             return (paramVal, [], 0)
+
+genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
+    (val1, code1, depth1) <- genQExpr expr1 isParam
+    (val2, code2, depth2) <- genQExpr expr2 isParam
+
+    curFName <- gets curFuncName
+    resTmpName <- createTempVarName curFName
+
+    case getValType val1 of
+        IntQ -> do
+            let locVar = QLoc resTmpName IntQ
+            let newCode = code1 ++ code2 ++ [QAdd locVar val1 val2]
+
+            return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
+
+        StringQ -> do
+            let concVar = QLoc resTmpName StringQ
+            let newCode = code1 ++ code2 ++ [QConcat concVar val1 val2]
+
+            return ((LocQVal resTmpName StringQ), newCode, (max depth1 depth2) + 1)
 
 
 
