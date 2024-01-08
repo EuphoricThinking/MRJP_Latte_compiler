@@ -71,6 +71,7 @@ type QuadMonad a = ReaderT Env (StateT QStore (ExceptT String (WriterT QuadCode 
 tmpInfix = "_tmp_"
 printInt = "printInt"
 exprInfix = "_expr_"
+concatStr = "concatenateStrings"
 
 -- genQuadcode :: Program -> Quadcode
 genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
@@ -373,7 +374,7 @@ evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
         (Int _) -> evalDecl declType ((Init posIn (Ident ident) (ELitInt posIn 0)) : rest) qcode
         (Str _) -> evalDecl declType ((Init posIn (Ident ident) (EString posIn "")) : rest) qcode
 
-specialFuncsList = ["printInt", "printString", "error", "readInt", "readString"]
+specialFuncsList = ["printInt", "printString", "error", "readInt", "readString", "concatenateStrings"]
 isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
 
 -- generateParams (e:exprs) qcode = do
@@ -632,6 +633,8 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
         StringQ -> do
             let concVar = QLoc resTmpName StringQ
             let newCode = code1 ++ code2 ++ [QConcat concVar val1 val2]
+
+            addToSpecialUncond concatStr
 
             return ((LocQVal resTmpName StringQ), newCode, (max depth1 depth2) + 1)
 
