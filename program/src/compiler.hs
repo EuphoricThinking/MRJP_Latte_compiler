@@ -639,6 +639,13 @@ findAddr (LocQVal ident _) = do
     case idData of
         Nothing -> throwError $ ident " var not found for address determination"
         Just (_, memStorage) -> return memStorage
+
+
+getAddrOrLiteral val =
+    case val of
+        (IntQVal v) -> show val
+        (LocQVal _ _) -> do
+            valAddr <-
 -- TODO extension if others on stack, a simplified version
 --numParamsStack numArgs = numArgs - numRegisterParams
 clearStackParamsAndAlignment numArgs toDealloc = do
@@ -1006,4 +1013,7 @@ genStmtsAsm ((QAdd qvar@(QLoc ident valType) val1 val2) : rest) = do
         val1Addr <- findAddr val1
         tell $ [AMov resAddr val1Addr]
 
-        
+    -- if val1 is offset type: mov to r11d, next to allocInt, then add them
+    -- if val2 is offset type
+
+
