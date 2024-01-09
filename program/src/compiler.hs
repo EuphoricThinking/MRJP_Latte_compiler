@@ -430,6 +430,15 @@ allocVar v memSize = do
 
     return storageOffset
 
+getNewOffsetUpdRBP memSize = do
+    curRBP <- gets lastAddrRBP
+    let newRBPOffset = curRBP - memSize
+    curState <- get
+    put curState {lastAddrRBP = newRBPOffset}
+
+    return (OffsetRBP newRBPOffset)
+
+
 
 
 --moveParamsToLocal fname fbody = do
@@ -620,6 +629,16 @@ is32bit valType =
         IntQ -> True
         _ -> False
 
+isIntLiteral (IntQVal _) = True
+isIntLiteral _ = False
+
+extractIntVal (IntQVal v) = v
+
+findAddr (LocQVal ident _) = do
+    idData <- asks (Map.lookup ident)
+    case idData of
+        Nothing -> throwError $ ident " var not found for address determination"
+        Just (_, memStorage) -> return memStorage
 -- TODO extension if others on stack, a simplified version
 --numParamsStack numArgs = numArgs - numRegisterParams
 clearStackParamsAndAlignment numArgs toDealloc = do
@@ -678,6 +697,8 @@ moveStringToMem memToL fullStr = do
         Nothing -> throwError $ "label for string " ++ fullStr ++ " not found"
         Just (_, lbl) -> do
             movMemoryVals memToL lbl StringQ
+
+-- findMemAddr val = do
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -971,3 +992,18 @@ genStmtsAsm ((QConcat qvar val1 val2) : rest) =
         newCode = (QParam val1) : (QParam val2) : (QCall qvar concatStr 2) : rest
     in
         genStmtsAsm newCode
+
+genStmtsAsm ((QAdd qvar@(QLoc ident valType) val1 val2) : rest) = do
+    -- qvar = val1 + val2
+    -- copy val1 to qvar - without register usage, as in lea
+    qvarOffset <- getNewOffsetUpdRBP intBytes
+    let resAddr = createAddrIntRBP qvarOffset
+    
+    if isIntLiteral val1
+    then
+        tell $ [AMov resAddr (extractIntVal val1)]
+    else do
+        val1Addr <- findAddr val1
+        tell $ [AMov resAddr val1Addr]
+
+        
