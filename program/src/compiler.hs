@@ -77,7 +77,7 @@ data Asm = AGlobl
     | ANeg String
     | AImul String String
     | ASar String String
-    | AIdiv String String
+    | AIdiv String
     | ACdq
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
@@ -115,7 +115,7 @@ instance Show Asm where
     show (ANeg mem) = "\tneg " ++ mem
     show (AImul v1 v2) = "\timul " ++ v1 ++ ", " ++ v2
     show (ASar v1 v2) = "\tsar " ++ v1 ++ ", " ++ v2
-    show (AIdiv v1 v2) = "\tidiv " ++ v1 ++ ", " ++ v2
+    show (AIdiv v1) = "\tidiv " ++ v1
     show ACdq = "\tcdq"
 
 
@@ -1231,12 +1231,11 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
 
         --     local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
     else do
-        tell $ [ACdq] -- sign exetnd edx:eax
-
         if isIntLiteral val1 && isIntLiteral val2
         then do
             tell $ [AMov (show AEAX) (show val1)]
-            tell $ [AIdiv (show AEAX) (show val2)]
+            tell $ [ACdq] -- sign exetnd edx:eax
+            tell $ [AIdiv (show val2)]
 
             resAddr <- allocInt AEAX
 
@@ -1245,18 +1244,28 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
             addr2 <- findAddr val2
 
             tell $ [AMov (show AEAX) (show val1)]
-            tell $ [AIdiv (show AEAX) (createAddrIntRBP addr2)] 
+            tell $ [ACdq] -- sign exetnd edx:eax
+            tell $ [AIdiv (createAddrIntRBP addr2)] 
             
             resAddr <- allocInt AEAX
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+        else if isIntLiteral val2 then do
+            addr1 <- findAddr val1
+            tell $ [AMov (show AEAX) (createAddrIntRBP addr1)]
+            tell $ [ACdq] -- sign exetnd edx:eax
+            tell $ [AIdiv (show $ extractIntVal val2)] 
+            
+            resAddr <- allocInt AEAX
 
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else do
             addr1 <- findAddr val1
             addr2 <- findAddr val2
 
             tell $ [AMov (show AEAX) (createAddrIntRBP addr1)]
-            tell $ [AIdiv (show AEAX) (createAddrIntRBP addr2)] 
+            tell $ [ACdq] -- sign exetnd edx:eax
+            tell $ [AIdiv (createAddrIntRBP addr2)] 
 
             resAddr <- allocInt AEAX
 
