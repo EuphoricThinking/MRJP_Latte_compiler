@@ -21,6 +21,9 @@ import System.FilePath
 import System.Process
 import System.Directory
 
+import Data.Word
+import Data.Bits
+
 data AsmRegister = ARAX
     | AEAX
     | ARBP
@@ -73,6 +76,7 @@ data Asm = AGlobl
     | ASub String String
     | ANeg String
     | AImul String String
+    | ASar String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -108,6 +112,7 @@ instance Show Asm where
     show (ASub v1 v2) = "\tsub " ++ v1 ++ ", " ++ v2
     show (ANeg mem) = "\tneg " ++ mem
     show (AImul v1 v2) = "\timul " ++ v1 ++ ", " ++ v2
+    show (ASar v1 v2) = "\tsar " ++ v1 ++ ", " ++ v2
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -717,6 +722,11 @@ moveTempToR11 memStorageAddr isLoc32bit =
             tell $ [AMov (show AR11) memStorageAddr]
             return AR11
 
+movVarToR11 varLoc isLoc32bit = do
+    addr <- findAddr varLoc
+    return moveTempToR11 addr isLoc32bit
+
+
 movMemoryVals memToL memFromR valType = do
     printMesA $ "memvals to: " ++ (show memToL) ++ " from: " ++ (show memFromR)
     let isLoc32bit = is32bit valType
@@ -784,6 +794,14 @@ imulOneVarOneInt intVal varVal = do
     resAddr <- allocInt AR11D
 
     return resAddr
+
+isPowerOfTwo val =
+    case val of
+        (IntQVal v) -> (v /= 0) && ((x & (x - 1)) == 0)
+        otherwise -> False
+
+findPowerOfTwo 1 pow = pow
+findPowerOfTwo num pow = findPowerOfTwo (num `shiftR` 1) (pow + 1)
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -1183,6 +1201,33 @@ genStmtsAsm ((QMul qvar@(QLoc ident valType) val1 val2) : rest) = do
 
         local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
+genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
+    if isPowerOfTwo val2
+    then do
+        if isIntLiteral val1 && isIntLiteral val2
+        then do
+            resAddr <- allocInt val1
+            let powerTwo = findPowerOfTwo (extractIntVal val2) 0
+            tell $ [ASar (createAddrIntRBP resAddr) (show $ extractIntVal val2)]
+        
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)al
+        else if isIntLiteral val2 then do
+            r11d <- movVarToR11 val1 (is32bit val1)
+            tell $ [ASar (show AR11D) (show $ extractIntVal val2)]
+            resAddr <- allocInt AR11D
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+        else do -- both vars
+            r11d <- movVarToR11 val1 (is32bit val1)
+            tell $ [ASar (show AR11D) (show val2)]
+            resAddr <- allocInt AR11D
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+    else do
+        if isIntLiteral val1 && isIntLiteral val2
+        then do
+            tell
     -- qvarOffset <- getNewOffsetUpdRBP intBytes
     -- let resAddr = createAddrIntRBP qvarOffset
     

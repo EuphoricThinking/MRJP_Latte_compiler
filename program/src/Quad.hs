@@ -65,6 +65,8 @@ data Quad = QLabel String --FuncData
     | QSub QVar Val Val
     | QNeg QVar Val
     | QMul QVar Val Val
+    | QDiv QVar Val Val
+    | QMod QVar Val Val
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -721,9 +723,24 @@ genQExpr (EMul pos expr1 mulOperand expr2) isParam = do
     resTmpName <- createTempVarNameCurFuncExprs
 
     let locVar = QLoc resTmpName IntQ
-    let newCode = code1 ++ code2 ++ [QMul locVar val1 val2]
 
-    return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
+    case mulOperand of
+        (Times _) -> do
+            let newCode = code1 ++ code2 ++ [QMul locVar val1 val2]
+
+            return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
+
+        (Div _) -> do
+            let newCode = code1 ++ code2 ++ [QDiv locVar val1 val2]
+
+            return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
+
+        (Mod _) -> do
+            let newCode = code1 ++ code2 ++ [QMod locVar val1 val2]
+
+            return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
+
+
 
 
 
