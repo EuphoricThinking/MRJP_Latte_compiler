@@ -72,6 +72,7 @@ data Asm = AGlobl
     | AAdd String String
     | ASub String String
     | ANeg String
+    | AImul String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -106,6 +107,7 @@ instance Show Asm where
     show (AAdd v1 v2) = "\tadd " ++ v1 ++ ", " ++ v2
     show (ASub v1 v2) = "\tsub " ++ v1 ++ ", " ++ v2
     show (ANeg mem) = "\tneg " ++ mem
+    show (AImul v1 v2) = "\timul " ++ v1 ++ ", " ++ v2
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -774,6 +776,15 @@ addOrSubTwoVars val1 val2 isAddition = do
 
     return newValAddr
 
+imulOneVarOneInt intVal varVal = do
+    addr2 <- findAddr varVal
+    tell $ [AMov (show AR11D) (createAddrIntRBP addr2)]
+    tell $ [AImul (show AR11D) (show $ extractIntVal intVal)]
+
+    resAddr <- allocInt AR11D
+
+    return resAddr
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
@@ -1139,6 +1150,34 @@ genStmtsAsm ((QNeg qvar@(QLoc ident valType) val) : rest) = do
         valAddr <- findAddr val
         tell $ [AMov (show AR11D) (createAddrIntRBP valAddr)]
         tell $ [ANeg (show AR11D)]
+
+        resAddr <- allocInt AR11D
+
+        local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+genStmtsAsm ((QMul qvar@(QLoc ident valType) val1 val2) : rest) = do
+    if (isIntLiteral val1) && (isIntLiteral val2)
+    then do
+        tell $ [AMov (show AR11D) (show $ extractIntVal val1)]
+        tell $ [AImul (show AR11D) (show $ extractIntVal val2)]
+
+        newValOffset <- allocInt AR11D
+
+        local (Map.insert ident (qvar, newValOffset)) (genStmtsAsm rest)
+    else if isIntLiteral val1 then do
+        resAddr <- imulOneVarOneInt val1 val2
+
+        local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+    else if isIntLiteral val2 then do
+        resAddr <- imulOneVarOneInt val2 val1
+
+        local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+    else do -- both are variables
+        addr1 <- findAddr val1
+        addr2 <- findAddr val2
+
+        tell $ [AMov (show AR11D) (createAddrIntRBP addr1)]
+        tell $ [AImul (show AR11D) (createAddrIntRBP addr2)]
 
         resAddr <- allocInt AR11D
 
