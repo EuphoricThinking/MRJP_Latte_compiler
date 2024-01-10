@@ -404,6 +404,7 @@ allocInt v = do
     let storageOffset = OffsetRBP newRBPOffset
     -- gen command
     -- if register, mem location, constant
+    printMesA $ "ALLOC " ++ (show v)
     tell $ [AMov (createAddrIntRBP storageOffset) (show v)]
 
     return storageOffset
@@ -424,6 +425,7 @@ allocVar v memSize = do
     put curState {lastAddrRBP = newRBPOffset}
 
     let storageOffset = OffsetRBP newRBPOffset
+    printMesA $ "ALLOC_VAR " ++ (show v)
     -- gen command
     -- if register, mem location, constant
     if memSize == intBytes
@@ -433,6 +435,24 @@ allocVar v memSize = do
         tell $ [AMov (createAddrPtrRBP storageOffset) (show v)]
 
     return storageOffset
+
+getMemSize valType = 
+    case valType of
+        IntQ -> intBytes
+        StringQ -> strPointerBytes
+
+allocVarCopyFromMem memToBeCopied valType = do
+    curRBP <- gets lastAddrRBP
+    let newRBPOffset = curRBP - (getMemSize valType)
+    curState <- get
+    put curState {lastAddrRBP = newRBPOffset}
+
+    let storageOffset = OffsetRBP newRBPOffset
+
+    movMemoryVals storageOffset memToBeCopied valType
+
+    return storageOffset
+        
 
 getNewOffsetUpdRBP memSize = do
     curRBP <- gets lastAddrRBP
@@ -511,6 +531,7 @@ pushParams ((QParam val) : rest) = do
 
     pushParams rest
 
+-- genStmt -> genParams
 genParams qcall@((QCall qvar ident numArgs) : rest) _ _ = genStmtsAsm qcall
 genParams [] _ _ = genStmtsAsm []
 genParams qcode [] _ = do
@@ -533,6 +554,7 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs)= do
             case varData of
                 Nothing -> throwError $ "No env data for " ++ ident
                 Just (var, offset) -> do
+                    printMesA $ "param loc " ++ (show offset)
                     case valType of
                         (IntQ) -> do
                             tell $ [AMov (show ereg) (createAddrIntRBP offset)]
@@ -690,6 +712,7 @@ moveTempToR11 memStorageAddr isLoc32bit =
             return AR11
 
 movMemoryVals memToL memFromR valType = do
+    printMesA $ "memvals to: " ++ (show memToL) ++ " from: " ++ (show memFromR)
     let isLoc32bit = is32bit valType
     let rightAddr = createMemAddr memFromR isLoc32bit
     let leftAddr = createMemAddr memToL isLoc32bit
@@ -861,6 +884,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                     case valStorage of
                         Nothing -> throwError $ ident ++ " var to be assigned not in env"
                         Just (varFromAssigned, storageR) -> do
+                            printMesA $ "ASSIGN loc " ++ ident ++ " " ++ (show id)
                             -- all variables are stored in the memory at this moment, but this is for further extensions
                             -- TODO mov to another procedure, add more options
                             if isOffset storageR
@@ -908,14 +932,19 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
             case valStorage of
                 Nothing -> throwError $ ident ++ " var not in env"
                 Just (varFromAssigned, storage) -> do
-                    case valType of
-                        IntQ -> do
-                            newRBPOffset <- allocVar storage intBytes -- allocInt storage
-                            local (Map.insert name (varFromAssigned, newRBPOffset)) (genStmtsAsm rest)
+                    newOffset <- allocVarCopyFromMem storage valType
 
-                        StringQ -> do
-                            newRBPOffset <- allocVar storage strPointerBytes
-                            local (Map.insert name (varFromAssigned, newRBPOffset)) (genStmtsAsm rest)
+                    local (Map.insert name (varFromAssigned, newOffset)) (genStmtsAsm rest)
+                    -- case valType of
+                    --     IntQ -> do
+                    --         printMesA $ "DECL loc " ++ (show valStorage)
+                    --         newRBPOffset <- 
+                    --         -- newRBPOffset <- allocVar storage intBytes -- allocInt storage
+                    --         local (Map.insert name (varFromAssigned, newRBPOffset)) (genStmtsAsm rest)
+
+                    --     StringQ -> do
+                    --         newRBPOffset <- allocVar storage strPointerBytes
+                    --         local (Map.insert name (varFromAssigned, newRBPOffset)) (genStmtsAsm rest)
 
         (StrQVal s) -> do
             strData <- asks (Map.lookup s)
