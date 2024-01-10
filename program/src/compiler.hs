@@ -77,6 +77,8 @@ data Asm = AGlobl
     | ANeg String
     | AImul String String
     | ASar String String
+    | AIdiv String String
+    | ACdq
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -113,6 +115,9 @@ instance Show Asm where
     show (ANeg mem) = "\tneg " ++ mem
     show (AImul v1 v2) = "\timul " ++ v1 ++ ", " ++ v2
     show (ASar v1 v2) = "\tsar " ++ v1 ++ ", " ++ v2
+    show (AIdiv v1 v2) = "\tidiv " ++ v1 ++ ", " ++ v2
+    show ACdq = "\tcdq"
+
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -724,7 +729,7 @@ moveTempToR11 memStorageAddr isLoc32bit =
 
 movVarToR11 varLoc isLoc32bit = do
     addr <- findAddr varLoc
-    return moveTempToR11 addr isLoc32bit
+    moveTempToR11 (show addr) isLoc32bit
 
 
 movMemoryVals memToL memFromR valType = do
@@ -797,7 +802,7 @@ imulOneVarOneInt intVal varVal = do
 
 isPowerOfTwo val =
     case val of
-        (IntQVal v) -> (v /= 0) && ((x & (x - 1)) == 0)
+        (IntQVal v) -> (v /= 0) && ((v .&. (v - 1)) == 0)
         otherwise -> False
 
 findPowerOfTwo 1 pow = pow
@@ -1202,32 +1207,62 @@ genStmtsAsm ((QMul qvar@(QLoc ident valType) val1 val2) : rest) = do
         local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
 genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
-    if isPowerOfTwo val2
+    if isPowerOfTwo val2 && isIntLiteral val2
     then do
-        if isIntLiteral val1 && isIntLiteral val2
+        let power = findPowerOfTwo (extractIntVal val2) 0
+        if isIntLiteral val1 -- then both are && isIntLiteral val2
         then do
             resAddr <- allocInt val1
             let powerTwo = findPowerOfTwo (extractIntVal val2) 0
-            tell $ [ASar (createAddrIntRBP resAddr) (show $ extractIntVal val2)]
+            tell $ [ASar (createAddrIntRBP resAddr) (show power)]--(show $ extractIntVal val2)]
         
-            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)al
-        else if isIntLiteral val2 then do
-            r11d <- movVarToR11 val1 (is32bit val1)
-            tell $ [ASar (show AR11D) (show $ extractIntVal val2)]
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+        else do -- only val2 is intLIteral
+            r11d <- movVarToR11 val1 (is32bit $ getValType val1)
+            tell $ [ASar (show r11d) (show power)] --(show $ extractIntVal val2)]
             resAddr <- allocInt AR11D
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
-        else do -- both vars
-            r11d <- movVarToR11 val1 (is32bit val1)
-            tell $ [ASar (show AR11D) (show val2)]
-            resAddr <- allocInt AR11D
+        -- else do -- both vars
+        --     r11d <- movVarToR11 val1 (is32bit val1)
+        --     tell $ [ASar (show AR11D) (show val2)]
+        --     resAddr <- allocInt AR11D
 
-            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+        --     local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
     else do
+        tell $ [ACdq] -- sign exetnd edx:eax
+
         if isIntLiteral val1 && isIntLiteral val2
         then do
-            tell
+            tell $ [AMov (show AEAX) (show val1)]
+            tell $ [AIdiv (show AEAX) (show val2)]
+
+            resAddr <- allocInt AEAX
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+        else if isIntLiteral val1 then do
+            addr2 <- findAddr val2
+
+            tell $ [AMov (show AEAX) (show val1)]
+            tell $ [AIdiv (show AEAX) (createAddrIntRBP addr2)] 
+            
+            resAddr <- allocInt AEAX
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+        else do
+            addr1 <- findAddr val1
+            addr2 <- findAddr val2
+
+            tell $ [AMov (show AEAX) (createAddrIntRBP addr1)]
+            tell $ [AIdiv (show AEAX) (createAddrIntRBP addr2)] 
+
+            resAddr <- allocInt AEAX
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+
     -- qvarOffset <- getNewOffsetUpdRBP intBytes
     -- let resAddr = createAddrIntRBP qvarOffset
     
