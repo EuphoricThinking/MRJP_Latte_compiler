@@ -245,6 +245,16 @@ createIncreaseNumInts numInts fname fbody = FuncData fname (getFuncRet fbody) (g
 
 addToStringVars strVal fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) (getFuncNumStrVars fbody)
 
+increaseNumInts = do
+    curState <- get
+    fname <- gets curFuncName
+    fbody <- gets (Map.lookup fname . defFunc)
+    case fbody of
+        Nothing -> throwError $ fname ++ " curfunc not found"
+        Just curBody -> do
+            let updatedNumInts = createIncreaseNumInts 1 fname curBody
+            put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
+
 updateStringVars strVal fname curBody = do
     curState <- get
     let updatedStringList = addToStringVars strVal fname curBody
@@ -640,6 +650,8 @@ genQExpr v@(EVar pos (Ident ident)) isParam = do
 genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
     (val1, code1, depth1) <- genQExpr expr1 isParam
     (val2, code2, depth2) <- genQExpr expr2 isParam
+
+    increaseNumInts
 
     curFName <- gets curFuncName
     resTmpName <- createTempVarName curFName
