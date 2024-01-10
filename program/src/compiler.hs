@@ -68,6 +68,8 @@ data Asm = AGlobl
     | SecStr String
     | SecData
     | StrLabel String String
+    | ALea String String String
+    | AAdd String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -98,6 +100,8 @@ instance Show Asm where
     show (SecStr s) = "\tdb " ++ (show s) ++ ", 0" -- in order to preserve ""
     show SecData = "section .data"
     show (StrLabel lbl valStr) = "\t" ++ lbl ++ ": db " ++ (show valStr) ++ ", 0"
+    show (ALea r addr1 addr2) = "\tlea " ++ r ++ ", [" ++ addr1 ++ " + " ++ addr2 ++ "]"
+    show (AAdd v1 v2) = "\tadd " ++ v1 ++ ", " ++ v2
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -634,18 +638,20 @@ isIntLiteral _ = False
 
 extractIntVal (IntQVal v) = v
 
+extractLocQvarId (LocQVal id _) = id
+
 findAddr (LocQVal ident _) = do
     idData <- asks (Map.lookup ident)
     case idData of
-        Nothing -> throwError $ ident " var not found for address determination"
+        Nothing -> throwError $ ident ++ " var not found for address determination"
         Just (_, memStorage) -> return memStorage
 
 
-getAddrOrLiteral val =
-    case val of
-        (IntQVal v) -> show val
-        (LocQVal _ _) -> do
-            valAddr <-
+-- getAddrOrLiteral val =
+--     case val of
+--         (IntQVal v) -> show val
+--         (LocQVal _ _) -> do
+--             valAddr <-
 -- TODO extension if others on stack, a simplified version
 --numParamsStack numArgs = numArgs - numRegisterParams
 clearStackParamsAndAlignment numArgs toDealloc = do
@@ -704,6 +710,12 @@ moveStringToMem memToL fullStr = do
         Nothing -> throwError $ "label for string " ++ fullStr ++ " not found"
         Just (_, lbl) -> do
             movMemoryVals memToL lbl StringQ
+
+getTupleLeftIntLiteral val1 val2 = 
+    -- when it is known that at least one is intLiteral
+    case val1 of
+        (IntQVal _) -> (val1, val2)
+        _ -> (val2, val1)
 
 -- findMemAddr val = do
 
@@ -1001,19 +1013,53 @@ genStmtsAsm ((QConcat qvar val1 val2) : rest) =
         genStmtsAsm newCode
 
 genStmtsAsm ((QAdd qvar@(QLoc ident valType) val1 val2) : rest) = do
+    -- printMesA $ "1) " ++ (show val1)
+    -- printMesA $ "2) " ++ (show val2)
+    -- genStmtsAsm rest
     -- qvar = val1 + val2
     -- copy val1 to qvar - without register usage, as in lea
-    qvarOffset <- getNewOffsetUpdRBP intBytes
-    let resAddr = createAddrIntRBP qvarOffset
+    if (isIntLiteral val1) && (isIntLiteral val2)
+    then do
+        newValOffset <- allocInt $ extractIntVal val1
+        tell $ [AAdd (createAddrIntRBP newValOffset) (show $ extractIntVal val2)]
+
+        local (Map.insert ident (qvar, newValOffset)) (genStmtsAsm rest)
+    else if (isIntLiteral val1) || (isIntLiteral val2)
+    then do
+        -- printMesA $ "MIX " ++ val1 ++ val2
+        let (valInt, valVar) = getTupleLeftIntLiteral val1 val2
+        -- addition commutativity
+        newValOffset <- allocInt $ extractIntVal valInt
+        addrVar <- findAddr valVar
+        tell $ [AMov (show AR11D) (createAddrIntRBP addrVar)]
+        tell $ [AAdd (createAddrIntRBP newValOffset) (show AR11D)]
+
+        local (Map.insert ident (qvar, newValOffset)) (genStmtsAsm rest)
+    else do -- both are variables
+        addrVar1 <- findAddr val1
+        addrVar2 <- findAddr val2
+
+        tell $ [AMov (show AR11D) (createAddrIntRBP addrVar1)]
+        tell $ [AAdd (show AR11D) (createAddrIntRBP addrVar2)]
+
+        newValAddr <- allocInt AR11D
+
+        local (Map.insert ident (qvar, newValAddr)) (genStmtsAsm rest)
+
+
+    -- qvarOffset <- getNewOffsetUpdRBP intBytes
+    -- let resAddr = createAddrIntRBP qvarOffset
     
-    if isIntLiteral val1
-    then
-        tell $ [AMov resAddr (extractIntVal val1)]
-    else do
-        val1Addr <- findAddr val1
-        tell $ [AMov resAddr val1Addr]
+    -- if isIntLiteral val1
+    -- then
+    --     tell $ [AMov resAddr (extractIntVal val1)]
+    -- else do
+    --     val1Addr <- findAddr val1
+    --     tell $ [AMov resAddr val1Addr]
 
     -- if val1 is offset type: mov to r11d, next to allocInt, then add them
     -- if val2 is offset type
+    -- if isIntLiteral val1
+    -- then
 
 
