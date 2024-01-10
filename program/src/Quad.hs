@@ -62,6 +62,8 @@ data Quad = QLabel String --FuncData
     | QVRet
     | QAdd QVar Val Val
     | QConcat QVar Val Val
+    | QSub QVar Val Val
+    | QNeg QVar Val
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -528,6 +530,12 @@ cntIsRawString _ = 0
 
 extractString (StrQVal s) = s
 
+createTempVarNameCurFuncExprs = do
+    curFName <- gets curFuncName
+    resTmpName <- createTempVarName curFName
+
+    return resTmpName
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -681,6 +689,27 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
                 return ((LocQVal resTmpName StringQ), newCode, (max depth1 depth2) + 1)
 
 
+genQExpr (EAdd pos expr1 (Minus posP) expr2) isParam = do
+    (val1, code1, depth1) <- genQExpr expr1 isParam
+    (val2, code2, depth2) <- genQExpr expr2 isParam
+
+    increaseNumInts
+
+    resTmpName <- createTempVarNameCurFuncExprs
+
+    let locVar = QLoc resTmpName IntQ
+    let newCode = code1 ++ code2 ++ [QSub locVar val1 val2]
+
+    return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
+
+genQExpr (Neg pos expr) isParam = do
+    (val, code, depth) <- genQExpr expr isParam
+
+    resTmpName <- createTempVarNameCurFuncExprs
+    let locVar = QLoc resTmpName IntQ
+    let newCode = code ++ [QNeg locVar val]
+
+    return ((LocQVal resTmpName IntQ), newCode, depth)
 
 
 

@@ -70,6 +70,8 @@ data Asm = AGlobl
     | StrLabel String String
     | ALea String String String
     | AAdd String String
+    | ASub String String
+    | ANeg String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -102,6 +104,8 @@ instance Show Asm where
     show (StrLabel lbl valStr) = "\t" ++ lbl ++ ": db " ++ (show valStr) ++ ", 0"
     show (ALea r addr1 addr2) = "\tlea " ++ r ++ ", [" ++ addr1 ++ " + " ++ addr2 ++ "]"
     show (AAdd v1 v2) = "\tadd " ++ v1 ++ ", " ++ v2
+    show (ASub v1 v2) = "\tsub " ++ v1 ++ ", " ++ v2
+    show (ANeg mem) = "\tneg " ++ mem
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -740,7 +744,35 @@ getTupleLeftIntLiteral val1 val2 =
         (IntQVal _) -> (val1, val2)
         _ -> (val2, val1)
 
+addOrSubOneIntOneVar valInt varVal isAddition = do
+    newValOffset <- allocInt $ extractIntVal valInt
+    addrVar <- findAddr varVal
+    tell $ [AMov (show AR11D) (createAddrIntRBP addrVar)]
+
+    if isAddition
+    then
+        tell $ [AAdd (createAddrIntRBP newValOffset) (show AR11D)]
+    else
+        tell $ [ASub (createAddrIntRBP newValOffset) (show AR11D)]
+
+    return newValOffset
+
 -- findMemAddr val = do
+addOrSubTwoVars val1 val2 isAddition = do
+    addrVar1 <- findAddr val1
+    addrVar2 <- findAddr val2
+
+    tell $ [AMov (show AR11D) (createAddrIntRBP addrVar1)]
+
+    if isAddition
+    then
+        tell $ [AAdd (show AR11D) (createAddrIntRBP addrVar2)]
+    else
+        tell $ [ASub (show AR11D) (createAddrIntRBP addrVar2)]
+
+    newValAddr <- allocInt AR11D
+
+    return newValAddr
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -1058,23 +1090,59 @@ genStmtsAsm ((QAdd qvar@(QLoc ident valType) val1 val2) : rest) = do
         -- printMesA $ "MIX " ++ val1 ++ val2
         let (valInt, valVar) = getTupleLeftIntLiteral val1 val2
         -- addition commutativity
-        newValOffset <- allocInt $ extractIntVal valInt
-        addrVar <- findAddr valVar
-        tell $ [AMov (show AR11D) (createAddrIntRBP addrVar)]
-        tell $ [AAdd (createAddrIntRBP newValOffset) (show AR11D)]
+        newValOffset <- addOrSubOneIntOneVar valInt valVar True
 
         local (Map.insert ident (qvar, newValOffset)) (genStmtsAsm rest)
     else do -- both are variables
-        addrVar1 <- findAddr val1
-        addrVar2 <- findAddr val2
-
-        tell $ [AMov (show AR11D) (createAddrIntRBP addrVar1)]
-        tell $ [AAdd (show AR11D) (createAddrIntRBP addrVar2)]
-
-        newValAddr <- allocInt AR11D
+        newValAddr <- addOrSubTwoVars val1 val2 True
 
         local (Map.insert ident (qvar, newValAddr)) (genStmtsAsm rest)
 
+
+genStmtsAsm ((QSub qvar@(QLoc ident valType) val1 val2) : rest) = do
+    printMesA $ "\t SUB " ++ (show qvar) ++ " " ++ (show val1) ++ " " ++ (show val2)
+    
+    if (isIntLiteral val1) && (isIntLiteral val2)
+    then do
+        newValOffset <- allocInt $ extractIntVal val1
+        tell $ [ASub (createAddrIntRBP newValOffset) (show $ extractIntVal val2)]
+
+        local (Map.insert ident (qvar, newValOffset)) (genStmtsAsm rest)
+    else if isIntLiteral val1
+    then do
+        newValOffset <- addOrSubOneIntOneVar val1 val2 False
+
+        local (Map.insert ident (qvar, newValOffset)) (genStmtsAsm rest)
+    else if isIntLiteral val2 
+    then do
+        addrVar1 <- findAddr val1
+        tell $ [AMov (show AR11D) (createAddrIntRBP addrVar1)]
+        tell $ [ASub (show AR11D) (show $ extractIntVal val2)]
+        
+        resAddr <- allocInt AR11D
+
+        local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+    else do
+        newValAddr <- addOrSubTwoVars val1 val2 False
+
+        local (Map.insert ident (qvar, newValAddr)) (genStmtsAsm rest)
+
+genStmtsAsm ((QNeg qvar@(QLoc ident valType) val) : rest) = do
+    if isIntLiteral val
+    then do
+        let intVal = extractIntVal val
+        printMesA $ "neg intval " ++ (show intVal) ++ " | " ++ (show val)
+        intAddr <- allocInt (-intVal)
+
+        local (Map.insert ident (qvar, intAddr)) (genStmtsAsm rest)
+    else do -- locVal
+        valAddr <- findAddr val
+        tell $ [AMov (show AR11D) (createAddrIntRBP valAddr)]
+        tell $ [ANeg (show AR11D)]
+
+        resAddr <- allocInt AR11D
+
+        local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
     -- qvarOffset <- getNewOffsetUpdRBP intBytes
     -- let resAddr = createAddrIntRBP qvarOffset

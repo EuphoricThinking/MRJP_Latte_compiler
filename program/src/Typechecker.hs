@@ -277,6 +277,7 @@ getBlockDepth (Just (IntT, d)) = d
 getBlockDepth (Just (StringT, d)) = d
 getBlockDepth (Just (BoolT, d)) = d
 getBlockDepth (Just (VoidT, d)) = d
+getBlockDepth (Just (FnDecl _ _ _, d)) = d
 
 getExprType (EVar pos (Ident name)) = do
     typeLoc <- asks (Map.lookup name)
@@ -445,6 +446,7 @@ checkDecl vartype ((NoInit posIn (Ident ident)) : rest) blockDepth = do
     case foundVar of
         Just loc  -> do
             valD <- gets (Map.lookup loc . store)
+            printMes $ "decl noinit " ++ (show valD) 
             if (getBlockDepth valD) == blockDepth
             then
                 throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
@@ -462,6 +464,7 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) blockDepth = do
     case foundVar of
         Just loc -> do
             valD <- gets (Map.lookup loc . store)
+            printMes $ "init " ++ (show valD) 
             if (getBlockDepth valD) == blockDepth
             then
                 throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
