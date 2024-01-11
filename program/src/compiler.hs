@@ -79,6 +79,7 @@ data Asm = AGlobl
     | ASar String String
     | AIdiv String
     | ACdq
+    | AAnd String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -117,6 +118,7 @@ instance Show Asm where
     show (ASar v1 v2) = "\tsar " ++ v1 ++ ", " ++ v2
     show (AIdiv v1) = "\tidiv " ++ v1
     show ACdq = "\tcdq"
+    show (AAnd v1 v2) = "\tand " ++ v1 ++ ", " ++ v2
 
 
 instance Show AsmRegister where
@@ -808,15 +810,19 @@ isPowerOfTwo val =
 findPowerOfTwo 1 pow = pow
 findPowerOfTwo num pow = findPowerOfTwo (num `shiftR` 1) (pow + 1) -- printMesA $ (show num) ++ " " ++ (show pow) >> 
 
-idivMovEAXR11D movArg1 movArg2 = do
+idivMovEAXR11D movArg1 movArg2 isModulo = do
     tell $ [AMov (show AEAX) movArg1]
     tell $ [ACdq] -- sign exetnd edx:eax
     tell $ [AMov (show AR11D) movArg2]
     tell $ [AIdiv (show AR11D)]
 
-    resAddr <- allocInt AEAX
-
-    return resAddr
+    if not isModulo
+    then do
+        resAddr <- allocInt AEAX
+        return resAddr
+    else do
+        resAddr <- allocInt AEDX
+        return resAddr
 
 showIntLiteral intLit = show $ extractIntVal intLit
 
@@ -1255,7 +1261,7 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
             -- tell $ [AIdiv (show AR11D)]
 
             -- resAddr <- allocInt AEAX
-            resAddr <- idivMovEAXR11D (showIntLiteral val1) (showIntLiteral val2)
+            resAddr <- idivMovEAXR11D (showIntLiteral val1) (showIntLiteral val2) False
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else if isIntLiteral val1 then do
@@ -1267,7 +1273,7 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
             -- tell $ [AIdiv (show AR11D)] 
             
             -- resAddr <- allocInt AEAX
-            resAddr <- idivMovEAXR11D (showIntLiteral val1) (createAddrIntRBP addr2)
+            resAddr <- idivMovEAXR11D (showIntLiteral val1) (createAddrIntRBP addr2) False
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else if isIntLiteral val2 then do
@@ -1278,7 +1284,7 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
             -- tell $ [AIdiv (show $ AR11D)] 
             
             -- resAddr <- allocInt AEAX
-            resAddr <- idivMovEAXR11D (createAddrIntRBP addr1) (showIntLiteral val2)
+            resAddr <- idivMovEAXR11D (createAddrIntRBP addr1) (showIntLiteral val2) False
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else do
@@ -1290,7 +1296,7 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
             -- tell $ [AIdiv (createAddrIntRBP addr2)] 
 
             -- resAddr <- allocInt AEAX
-            resAddr <- idivMovEAXR11D (createAddrIntRBP addr1) (createAddrIntRBP addr2)
+            resAddr <- idivMovEAXR11D (createAddrIntRBP addr1) (createAddrIntRBP addr2) False
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
@@ -1311,3 +1317,54 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
     -- then
 
 
+genStmtsAsm ((QMod qvar@(QLoc ident valType) val1 val2) : rest) = do
+    if isPowerOfTwo val2 && isIntLiteral val2
+    then do
+        -- let power = findPowerOfTwo (extractIntVal val2) 0
+        let andModuloLeft = (extractIntVal $ val2) - 1
+        if isIntLiteral val1 -- both are
+        then do
+            resAddr <- allocInt $ extractIntVal val1
+            
+            -- res = x & (pow - 1)
+            tell $ [AAnd (createAddrIntRBP resAddr) (show andModuloLeft)]
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+        else do
+            addr1 <- findAddr val1
+            tell $ [AMov (show AR11D) (createAddrIntRBP addr1)]
+            tell $ [AAnd (show AR11D) (show andModuloLeft)]
+
+            resAddr <- allocInt AR11D
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+    else do
+        if isIntLiteral val1 && isIntLiteral val2
+        then do
+            let int1 = extractIntVal val1
+            let int2 = extractIntVal val2
+            let modulus = int1 `rem` int2
+
+            resAddr <- allocInt modulus
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+        else if isIntLiteral val1 then do
+            addr2 <- findAddr val2
+            resAddr <- idivMovEAXR11D (showIntLiteral val1) (createAddrIntRBP addr2) True
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+        else if isIntLiteral val2 then do
+            addr1 <- findAddr val1
+
+            resAddr <- idivMovEAXR11D (createAddrIntRBP addr1) (showIntLiteral val2) True
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+        else do -- both are avars
+            addr1 <- findAddr val1
+            addr2 <- findAddr val2
+
+            resAddr <- idivMovEAXR11D (createAddrIntRBP addr1) (createAddrIntRBP addr2) True
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)

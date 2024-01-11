@@ -744,7 +744,3 @@ genQExpr (EMul pos expr1 mulOperand expr2) isParam = do
 
 
 
-
-
-
-
