@@ -727,9 +727,9 @@ moveTempToR11 memStorageAddr isLoc32bit =
             tell $ [AMov (show AR11) memStorageAddr]
             return AR11
 
-movVarToR11 varLoc isLoc32bit = do
-    addr <- findAddr varLoc
-    moveTempToR11 (show addr) isLoc32bit
+-- movVarToR11 varLoc isLoc32bit = do
+--     addr <- findAddr varLoc
+--     moveTempToR11 (show addr) isLoc32bit
 
 
 movMemoryVals memToL memFromR valType = do
@@ -806,7 +806,19 @@ isPowerOfTwo val =
         otherwise -> False
 
 findPowerOfTwo 1 pow = pow
-findPowerOfTwo num pow = findPowerOfTwo (num `shiftR` 1) (pow + 1)
+findPowerOfTwo num pow = findPowerOfTwo (num `shiftR` 1) (pow + 1) -- printMesA $ (show num) ++ " " ++ (show pow) >> 
+
+idivMovEAXR11D movArg1 movArg2 = do
+    tell $ [AMov (show AEAX) movArg1]
+    tell $ [ACdq] -- sign exetnd edx:eax
+    tell $ [AMov (show AR11D) movArg2]
+    tell $ [AIdiv (show AR11D)]
+
+    resAddr <- allocInt AEAX
+
+    return resAddr
+
+showIntLiteral intLit = show $ extractIntVal intLit
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -1210,16 +1222,20 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
     if isPowerOfTwo val2 && isIntLiteral val2
     then do
         let power = findPowerOfTwo (extractIntVal val2) 0
+        printMesA $ "POWER " ++ (show $ extractIntVal val2)
         if isIntLiteral val1 -- then both are && isIntLiteral val2
         then do
-            resAddr <- allocInt val1
-            let powerTwo = findPowerOfTwo (extractIntVal val2) 0
+            resAddr <- allocInt $ extractIntVal val1
+            -- let powerTwo = findPowerOfTwo (extractIntVal val2) 0
             tell $ [ASar (createAddrIntRBP resAddr) (show power)]--(show $ extractIntVal val2)]
         
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else do -- only val2 is intLIteral
-            r11d <- movVarToR11 val1 (is32bit $ getValType val1)
-            tell $ [ASar (show r11d) (show power)] --(show $ extractIntVal val2)]
+            -- addr1 <- findAddr val1 
+            -- r11d <- movVarToR11 val1 (is32bit $ getValType val1)
+            addr1 <- findAddr val1
+            tell $ [AMov (show AR11D) (createAddrIntRBP addr1)]
+            tell $ [ASar (show AR11D) (show power)] --(show $ extractIntVal val2)]
             resAddr <- allocInt AR11D
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
@@ -1233,41 +1249,48 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
     else do
         if isIntLiteral val1 && isIntLiteral val2
         then do
-            tell $ [AMov (show AEAX) (show val1)]
-            tell $ [ACdq] -- sign exetnd edx:eax
-            tell $ [AIdiv (show val2)]
+            -- tell $ [AMov (show AEAX) (show val1)]
+            -- tell $ [ACdq] -- sign exetnd edx:eax
+            -- tell $ [AMov (show AR11D) (show $ extractIntVal val2)]
+            -- tell $ [AIdiv (show AR11D)]
 
-            resAddr <- allocInt AEAX
+            -- resAddr <- allocInt AEAX
+            resAddr <- idivMovEAXR11D (showIntLiteral val1) (showIntLiteral val2)
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else if isIntLiteral val1 then do
             addr2 <- findAddr val2
 
-            tell $ [AMov (show AEAX) (show val1)]
-            tell $ [ACdq] -- sign exetnd edx:eax
-            tell $ [AIdiv (createAddrIntRBP addr2)] 
+            -- tell $ [AMov (show AEAX) (show val1)]
+            -- tell $ [ACdq] -- sign exetnd edx:eax
+            -- tell $ [AMov (show AR11D) (createAddrIntRBP addr2)]
+            -- tell $ [AIdiv (show AR11D)] 
             
-            resAddr <- allocInt AEAX
+            -- resAddr <- allocInt AEAX
+            resAddr <- idivMovEAXR11D (showIntLiteral val1) (createAddrIntRBP addr2)
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else if isIntLiteral val2 then do
             addr1 <- findAddr val1
-            tell $ [AMov (show AEAX) (createAddrIntRBP addr1)]
-            tell $ [ACdq] -- sign exetnd edx:eax
-            tell $ [AIdiv (show $ extractIntVal val2)] 
+            -- tell $ [AMov (show AEAX) (createAddrIntRBP addr1)]
+            -- tell $ [ACdq] -- sign exetnd edx:eax
+            -- tell $ [AMov (show AR11D) (show $ extractIntVal val2)]
+            -- tell $ [AIdiv (show $ AR11D)] 
             
-            resAddr <- allocInt AEAX
+            -- resAddr <- allocInt AEAX
+            resAddr <- idivMovEAXR11D (createAddrIntRBP addr1) (showIntLiteral val2)
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else do
             addr1 <- findAddr val1
             addr2 <- findAddr val2
 
-            tell $ [AMov (show AEAX) (createAddrIntRBP addr1)]
-            tell $ [ACdq] -- sign exetnd edx:eax
-            tell $ [AIdiv (createAddrIntRBP addr2)] 
+            -- tell $ [AMov (show AEAX) (createAddrIntRBP addr1)]
+            -- tell $ [ACdq] -- sign exetnd edx:eax
+            -- tell $ [AIdiv (createAddrIntRBP addr2)] 
 
-            resAddr <- allocInt AEAX
+            -- resAddr <- allocInt AEAX
+            resAddr <- idivMovEAXR11D (createAddrIntRBP addr1) (createAddrIntRBP addr2)
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
