@@ -68,6 +68,7 @@ data Quad = QLabel String --FuncData
     | QDiv QVar Val Val
     | QMod QVar Val Val
     | QDec QVar String
+    | QInc QVar String
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -540,6 +541,24 @@ createTempVarNameCurFuncExprs = do
 
     return resTmpName
 
+createDecIncQCode ident qcode rest isDecrement = do
+    newVarName <- createTempVarNameCurFuncExprs
+    let locVar = QLoc newVarName IntQ
+
+    varLoc <- asks (Map.lookup ident)
+    case varLoc of
+        Nothing -> throwError $ ident ++ " variable not declared"
+        Just loc -> do
+            varLabel <- gets (Map.lookup loc . storeQ)
+
+            case varLabel of
+                Nothing -> throwError ++ ident ++ " loc: " ++ (show loc) ++ " not found in storeQ"
+                Just (curLabel, varVal) ->
+                    if isDecrement then
+                        genQStmt rest (qcode ++ [QDec locVar ident])
+                    else
+                        genQStmt rest (qcode ++ [QInc locVar ident])
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -614,19 +633,9 @@ genQStmt ((Empty _) : rest) qcode = genQStmt rest qcode
 
 genQStmt ((VRet _) : rest) qcode = genQStmt rest (qcode ++ [QVRet])
 
-genQStmt ((Decr _ (Ident ident)) : rest) qcode = do
-    newVarName <- createTempVarNameCurFuncExprs
-    let locVar = QLoc newVarName IntQ
+genQStmt ((Decr _ (Ident ident)) : rest) qcode = createDecIncQCode ident qcode rest True
 
-    varLoc <- asks (Map.lookup ident)
-    case varLoc of
-        Nothing -> throwError $ ident ++ " variable not declared"
-        Just loc -> do
-            varLabel <- gets (Map.lookup loc . storeQ)
-            Nothing -> throwError ++ ident ++ " loc: " ++ (show loc) ++ " not found in storeQ"
-            Just (curLabel, varVal) -> --do
-
-            genQStmt rest (qcode ++ [QDec locVar ident])
+genQStmt ((Incr _ (Ident ident)) : rest) qcode = createDecIncQCode ident qcode rest False
 
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)

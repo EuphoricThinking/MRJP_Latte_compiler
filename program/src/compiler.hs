@@ -831,6 +831,13 @@ idivMovEAXR11D movArg1 movArg2 isModulo = do
 
 showIntLiteral intLit = show $ extractIntVal intLit
 
+findIdentAddr ident = do
+    idData <- asks (Map.lookup ident)
+    case idData of
+        Nothing -> throwError $ ident ++ " var not found for address determination"
+        Just (_, memStorage) -> return memStorage
+
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
@@ -1375,7 +1382,13 @@ genStmtsAsm ((QMod qvar@(QLoc ident valType) val1 val2) : rest) = do
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
 genStmtsAsm ((QDec qvar@(QLoc resName valType) ident) : rest) = do
-    varAddr <- findAddr ident
+    varAddr <- findIdentAddr ident
+    tell $ [ADec (createAddrIntRBP varAddr)]
+
+    genStmtsAsm rest
+
+genStmtsAsm ((QInc qvar@(QLoc resName valType) ident) : rest) = do
+    varAddr <- findIdentAddr ident
     tell $ [ADec (createAddrIntRBP varAddr)]
 
     genStmtsAsm rest
