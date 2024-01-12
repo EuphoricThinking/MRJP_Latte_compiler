@@ -124,7 +124,7 @@ instance Show Asm where
     show (AAnd v1 v2) = "\tand " ++ v1 ++ ", " ++ v2
     show (AInc s) = "\tinc " ++ s
     show (ADec s) = "\t dec " ++ s
-    show (AMov s1 s2) = "\tmovzx " ++ s1 ++ ", " ++ s2
+    show (AMovZX s1 s2) = "\tmovzx " ++ s1 ++ ", " ++ s2
 
 
 instance Show AsmRegister where
@@ -586,7 +586,7 @@ pushParams ((QParam val) : rest) = do
                             updateRSP pushWord
 
         (BoolQVal b) -> do
-            tell $ [AMovZX (show AR11) (createAddrBoolRBP offset)]
+            tell $ [AMovZX (show AR11) (showBool b)]
             tell $ [APush (show AR11)]
 
             updateRSP pushWord
@@ -766,7 +766,7 @@ createMemAddrRBPdword_qword (OffsetRBP offset) valType =
     case valType of
         IntQ -> "dword " ++ (createRelAddrRBP offset)
         StringQ -> "qword " ++ (createRelAddrRBP offset)
-        BoolQ -> "byte " ++ (createAddrBoolRBP offset)
+        BoolQ -> "byte " ++ (createRelAddrRBP offset)
 
 moveTempToR11 memStorageAddr valType = 
     case valType of
@@ -969,8 +969,8 @@ genStmtsAsm ((QRet res) : rest) = do
                     else if isString valType then do
                         movMemoryVals (Register ARAX) memStorageVar valType
                     else do
-                        case memStorage of
-                            OffsetRBP offset -> tell $ [AMovZX (show AEAX) (createAddrBoolRBP offset)]
+                        case memStorageVar of
+                            OffsetRBP offset -> tell $ [AMovZX (show AEAX) (createAddrBoolRBP memStorageVar)]
                             Register r -> tell $ [AMovZX (show AEAX) (show r)]
 
 
@@ -1052,7 +1052,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                                 then do
                                     tell $ [AMov (show AR11D) (createAddrIntRBP storageR)]
                                     tell $ [AMov (createAddrIntRBP memStorageL) (show AR11D)]
-                                else if isString valType
+                                else if isString valType then do
                                     tell $ [AMov (show AR11) (createAddrPtrRBP storageR)]
                                     tell $ [AMov (createAddrPtrRBP memStorageL) (show AR11)]
                                 else do
