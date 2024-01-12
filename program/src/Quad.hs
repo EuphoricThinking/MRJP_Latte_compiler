@@ -33,7 +33,7 @@ data QStore = QStore {
 
 data ValType = IntQ | StringQ | BoolQ | VoidQ deriving (Eq, Show)
 
-data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String
+data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool
              deriving (Eq, Show)
 
 type SizeLocals = Int
@@ -41,11 +41,12 @@ type RetType = ValType --Val
 type Body = QuadCode
 type NumIntTypes = Int
 type NumStrVars = Int
+type NumBools = Int
 
 data ArgData = ArgData String ValType deriving (Show)
 type Args = [ArgData] 
 
-data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes [String] NumStrVars deriving (Show)
+data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes [String] NumStrVars NumBools deriving (Show)
 
 data QVar = QLoc String ValType | QArg String ValType | NoMeaning deriving (Show)
 
@@ -124,13 +125,14 @@ increaseLabelCounter ident = do
         Nothing -> throwError $ ident ++ " cannot increase counter"
         Just countIdent -> put curState {countLabels = Map.insert ident (countIdent + 1) (countLabels curState)}
 
-getFuncRet (FuncData _ rett _ _ _ _ _ _) = rett
-getFuncArgs (FuncData _ _ args _ _ _ _ _) = args
-getFuncNumLoc (FuncData _ _ _ numloc _ _ _ _) = numloc
-getFuncBody (FuncData _ _ _ _ body _ _ _) = body
-getFuncBodyIntsNum (FuncData _ _ _ _ _ numInts _ _) = numInts
-getFuncStringList (FuncData _ _ _ _ _ _ strs _) = strs
-getFuncNumStrVars (FuncData _ _ _ _ _ _ _ numStrs) = numStrs
+getFuncRet (FuncData _ rett _ _ _ _ _ _ _) = rett
+getFuncArgs (FuncData _ _ args _ _ _ _ _ _) = args
+getFuncNumLoc (FuncData _ _ _ numloc _ _ _ _ _) = numloc
+getFuncBody (FuncData _ _ _ _ body _ _ _ _) = body
+getFuncBodyIntsNum (FuncData _ _ _ _ _ numInts _ _ _) = numInts
+getFuncStringList (FuncData _ _ _ _ _ _ strs _ _) = strs
+getFuncNumStrVars (FuncData _ _ _ _ _ _ _ numStrs _) = numStrs
+getFuncNumBools (FuncData _ _ _ _ _ _ _ _ numBools) = numBools
 
 -- return Label
 -- createQVal (Int _) expr qcode= do
@@ -158,7 +160,7 @@ updateCurFuncBody body = do
         Nothing -> throwError $ curFName ++ " cur not found"
         Just curFuncBody ->
             let 
-                newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body (getFuncBodyIntsNum curFuncBody) (getFuncStringList curFuncBody) (getFuncNumStrVars curFuncBody)
+                newBody = FuncData curFName (getFuncRet curFuncBody) (getFuncArgs curFuncBody) (getFuncNumLoc curFuncBody) body (getFuncBodyIntsNum curFuncBody) (getFuncStringList curFuncBody) (getFuncNumStrVars curFuncBody) (getFuncNumBools curFuncBody)
                 -- newBody = createNewBody (getFuncNumLoc curFuncBody) curFName curFuncBody
             in
                 put curState {defFunc = Map.insert curFName newBody (defFunc curState)} >> return newBody
@@ -167,23 +169,24 @@ getArgData (Ar _ (Int _) (Ident ident)) = ArgData ident IntQ
 getArgData (Ar _ (Bool _) (Ident ident)) = ArgData ident BoolQ
 getArgData (Ar _ (Str _) (Ident ident)) = ArgData ident StringQ
 
-updArgsNum numInts numStrs valType =
+updArgsNum numInts numStrs numBools valType =
     case valType of
-        IntQ -> ((numInts + 1), numStrs)
-        StringQ -> (numInts, (numStrs + 1))
+        IntQ -> ((numInts + 1), numStrs, numBools)
+        StringQ -> (numInts, (numStrs + 1), numBools)
+        BoolQ -> (numInts, numStrs, (numBools + 1))
 
-saveArgsToEnv [] numInts numStrs = do
+saveArgsToEnv [] numInts numStrs numBools = do
     env <- ask
-    return (env, numInts, numStrs)
+    return (env, numInts, numStrs, numBools)
 
-saveArgsToEnv ((Ar _ argType (Ident ident)) : args) numInts numStrs = do
+saveArgsToEnv ((Ar _ argType (Ident ident)) : args) numInts numStrs numBools = do
     -- insert new label to countLabels
     -- insert to storeQ
     -- alloc
     -- let ident = fname ++ "_"
     let valType = (getOrigQType argType)
     let val = (LocQVal ident valType) --(ParamQVal ident argType)
-    let (updInts, updStrs) = updArgsNum numInts numStrs valType
+    let (updInts, updStrs, updBools) = updArgsNum numInts numStrs numBools valType
 
     -- countIdent <- gets (Map.lookup ident . countLabels)
     -- case countIdent of
@@ -192,7 +195,7 @@ saveArgsToEnv ((Ar _ argType (Ident ident)) : args) numInts numStrs = do
     newLoc <- alloc
     insertToStoreNewIdentVal ident val newLoc
 
-    local (Map.insert ident newLoc) (saveArgsToEnv args updInts updStrs)
+    local (Map.insert ident newLoc) (saveArgsToEnv args updInts updStrs updBools)
 
         -- Just curNumId -> do
         --     increaseLabelCounter ident
@@ -220,10 +223,10 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     -- curFName <- gets curFuncName
     --print (show curFName
     env <- ask
-    (envWithParams, numInts, numStrs) <- local (const env) (saveArgsToEnv args 0 0)
+    (envWithParams, numInts, numStrs, numBools) <- local (const env) (saveArgsToEnv args 0 0 0)
 
     -- let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0 [] 0
-    let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) (numInts + numStrs) [] numInts [] numStrs
+    let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) (numInts + numStrs) [] numInts [] numStrs numBools
 
     insertToStoreNewFunc ident newFuncData
     updateCurFuncName ident
@@ -246,11 +249,11 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
 -- evalDecl :: Type' -> [Item'] -> QuadMonad Env
 
-createNewBody (Int numLoc) fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) numLoc (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) (getFuncNumStrVars fbody)
+createNewBody (Int numLoc) fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) numLoc (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) (getFuncNumStrVars fbody) (getFuncNumBools fbody)
 
-createIncreaseNumInts numInts fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) ((getFuncBodyIntsNum fbody) + numInts) (getFuncStringList fbody) (getFuncNumStrVars fbody)
+createIncreaseNumInts numInts fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) ((getFuncBodyIntsNum fbody) + numInts) (getFuncStringList fbody) (getFuncNumStrVars fbody) (getFuncNumBools fbody)
 
-addToStringVars strVal fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) (getFuncNumStrVars fbody)
+addToStringVars strVal fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) (getFuncNumStrVars fbody) (getFuncNumBools fbody)
 
 increaseNumInts = do
     curState <- get
@@ -270,7 +273,9 @@ updateStringVars strVal fname curBody = do
 
     -- return updatedStringList
 
-createIncreasedStrVarsNum fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) ((getFuncNumStrVars fbody) + 1)
+createIncreasedStrVarsNum fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) ((getFuncNumStrVars fbody) + 1) (getFuncNumBools fbody)
+
+createIncreasedBoolNum fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) (getFuncNumStrVars fbody) ((getFuncNumBools fbody) + 1)
 
 updateStringVarsNum fname curBody = do
     curState <- get
@@ -290,7 +295,7 @@ createStrVarListTwoVals False True _ val2 strVarList = (extractString val2) : st
 updBothStrNumAndList strVal fname fbody = do
     curState <- get
 
-    let newBody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) ((getFuncNumStrVars fbody) + 1)
+    let newBody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) ((getFuncNumStrVars fbody) + 1) (getFuncNumBools fbody)
 
     put curState {defFunc = Map.insert fname newBody (defFunc curState)}
 
@@ -302,7 +307,7 @@ updBothStrNumAndListTwoVals val1 val2 fname fbody = do
     let strVarList = createStrVarListTwoVals isRaw1 isRaw2 val1 val2 (getFuncStringList fbody)
     let strVarNumUpd = (cntIsRawString val1) + (cntIsRawString val2)
 
-    let newBody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) strVarList ((getFuncNumStrVars fbody) + strVarNumUpd)
+    let newBody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) strVarList ((getFuncNumStrVars fbody) + strVarNumUpd) (getFuncNumBools fbody)
 
     put curState {defFunc = Map.insert fname newBody (defFunc curState)}
 
@@ -359,6 +364,10 @@ increaseNumLocTypesCur exprVal = do
 
                     -- put curState {defFunc = Map.insert fname newBody (defFunc curState)}
                     updBothStrNumAndList strVal fname curBody
+
+                (BoolQVal b) -> do
+                    let updatedNumBools = createIncreasedBoolNum fname curBody
+                    put curState {defFunc = Map.insert fname updatedNumBools (defFunc curState)}
 
 updateLocalNumCur = do
     --update locals counter
@@ -641,6 +650,10 @@ genQStmt ((Incr _ (Ident ident)) : rest) qcode = createDecIncQCode ident qcode r
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
             
 genQExpr (EString pos strVal) _ = return ((StrQVal strVal), [], 1)
+
+genQExpr (ELitTrue _) _ = return ((BoolQVal True), [], 1)
+
+genQExpr (ELitFalse _) _ = return ((BoolQVal False), [], 1)
 
 genQExpr (EApp pos (Ident ident) exprList) isParam = do
     let isSpecial = isSpecialFuncQ ident --addToSpecialFuncsIfSpecial ident
