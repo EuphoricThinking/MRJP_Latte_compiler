@@ -360,7 +360,7 @@ allParamsTypeSizes (a@(ArgData ident valType) : args) sumParams =
 
 subLocals 0 _ = printMesA "here" >> return ()
 -- TODO fix it -> all params are saved in memory
-subLocals numLoc (FuncData name retType args locNum body numInts strVars strVarsNum) = do 
+subLocals numLoc (FuncData name retType args locNum body numInts strVars strVarsNum numBools) = do 
     st <- get
     printMesA $ "should not BE "  ++ (show numLoc) ++ " " ++ (curFuncNameAsm st)
     -- let localsSize = numInts*intBytes + strVarsNum*strPointerBytes--TODO add rest
@@ -368,7 +368,7 @@ subLocals numLoc (FuncData name retType args locNum body numInts strVars strVars
     -- -- let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
     -- let paramsSizes = allParamsTypeSizes args 0
     -- let sumLocalsAndParamsSizes = paramsSizes + localsSize
-    let sumLocalsAndParamsSizes = numInts*intBytes + strVarsNum*strPointerBytes
+    let sumLocalsAndParamsSizes = numInts*intBytes + strVarsNum*strPointerBytes + numBools
 
     printMesA $ "PARAMS " ++ (show args)
 
@@ -412,7 +412,7 @@ getValToMov (IntQVal val) = val
 
 printMesA mes = lift $ lift $ lift $ lift $ print mes
 
-getNumArgs (FuncData _ _ args _ _ _ _ _) = length args
+getNumArgs (FuncData _ _ args _ _ _ _ _ _) = length args
 
 createEndRetLabel = do
     curFName <- gets curFuncNameAsm
@@ -646,7 +646,7 @@ iterOverAllFuncs [] = do
     env <- ask
     return env
 
-iterOverAllFuncs ((QFunc finfo@(FuncData name retType args locNum body numInts strVars strVarsNum)) : rest) = do
+iterOverAllFuncs ((QFunc finfo@(FuncData name retType args locNum body numInts strVars strVarsNum numBools)) : rest) = do
     let args = getFuncStringList finfo
 
     env <- saveStrLiteralsInDataSec args
@@ -865,7 +865,7 @@ runGenAsm q = do--return BoolT
 genFuncsAsm :: QuadCode -> AsmMonad ()
 genFuncsAsm [] = return ()
 
-genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVars strVarsNum)) : rest) = do
+genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVars strVarsNum numBools)) : rest) = do
     -- env <- ask
     -- strEnv <- local (const env) (createStrLiteralLabels strVars)
 
