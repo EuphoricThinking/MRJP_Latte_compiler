@@ -67,6 +67,7 @@ data Quad = QLabel String --FuncData
     | QMul QVar Val Val
     | QDiv QVar Val Val
     | QMod QVar Val Val
+    | QDec QVar String
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -613,6 +614,19 @@ genQStmt ((Empty _) : rest) qcode = genQStmt rest qcode
 
 genQStmt ((VRet _) : rest) qcode = genQStmt rest (qcode ++ [QVRet])
 
+genQStmt ((Decr _ (Ident ident)) : rest) qcode = do
+    newVarName <- createTempVarNameCurFuncExprs
+    let locVar = QLoc newVarName IntQ
+
+    varLoc <- asks (Map.lookup ident)
+    case varLoc of
+        Nothing -> throwError $ ident ++ " variable not declared"
+        Just loc -> do
+            varLabel <- gets (Map.lookup loc . storeQ)
+            Nothing -> throwError ++ ident ++ " loc: " ++ (show loc) ++ " not found in storeQ"
+            Just (curLabel, varVal) -> --do
+
+            genQStmt rest (qcode ++ [QDec locVar ident])
 
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)

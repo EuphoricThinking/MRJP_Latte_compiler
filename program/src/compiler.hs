@@ -80,6 +80,8 @@ data Asm = AGlobl
     | AIdiv String
     | ACdq
     | AAnd String String
+    | AInc String
+    | ADec String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -119,6 +121,8 @@ instance Show Asm where
     show (AIdiv v1) = "\tidiv " ++ v1
     show ACdq = "\tcdq"
     show (AAnd v1 v2) = "\tand " ++ v1 ++ ", " ++ v2
+    show (AInc s) = "\tinc " ++ s
+    show (ADec s) = "\t dec " ++ s
 
 
 instance Show AsmRegister where
@@ -160,6 +164,7 @@ instance Show StoragePlace where
 
 type AsmCode = [Asm]
 
+-- LocQVal ident -> ident : (qvar, memAddr) ; StringQVal s -> s : (_, label (data section))
 type AsmEnv = Map.Map String (QVar, StoragePlace)
 type AsmMonad a = ReaderT AsmEnv (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
 
@@ -1368,3 +1373,9 @@ genStmtsAsm ((QMod qvar@(QLoc ident valType) val1 val2) : rest) = do
             resAddr <- idivMovEAXR11D (createAddrIntRBP addr1) (createAddrIntRBP addr2) True
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+genStmtsAsm ((QDec qvar@(QLoc resName valType) ident) : rest) = do
+    varAddr <- findAddr ident
+    tell $ [ADec (createAddrIntRBP varAddr)]
+
+    genStmtsAsm rest
