@@ -82,6 +82,7 @@ data Asm = AGlobl
     | AAnd String String
     | AInc String
     | ADec String
+    | AMovZX String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -123,6 +124,7 @@ instance Show Asm where
     show (AAnd v1 v2) = "\tand " ++ v1 ++ ", " ++ v2
     show (AInc s) = "\tinc " ++ s
     show (ADec s) = "\t dec " ++ s
+    show (AMov s1 s2) = "\tmovzx " ++ s1 ++ ", " ++ s2
 
 
 instance Show AsmRegister where
@@ -189,6 +191,7 @@ calleeSaved = [ARBP, ARBX, AR12, AR13, AR14, AR15]
 
 intBytes = 4
 strPointerBytes = 8
+boolBytes = 1
 
 paramsStartOff = 16
 stackParamSize = 8
@@ -368,7 +371,7 @@ subLocals numLoc (FuncData name retType args locNum body numInts strVars strVars
     -- -- let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
     -- let paramsSizes = allParamsTypeSizes args 0
     -- let sumLocalsAndParamsSizes = paramsSizes + localsSize
-    let sumLocalsAndParamsSizes = numInts*intBytes + strVarsNum*strPointerBytes + numBools
+    let sumLocalsAndParamsSizes = numInts*intBytes + strVarsNum*strPointerBytes + numBools*boolBytes
 
     printMesA $ "PARAMS " ++ (show args)
 
@@ -407,6 +410,11 @@ createAddrPtrRBP memStorage =
         OffsetRBP offset -> "qword " ++ (createRelAddrRBP offset)
         Register reg -> show reg
         ProgLabel l -> l  -- ++ [rip] to check
+
+createAddrBoolRBP memStorage =
+    case memStorage of
+        OffsetRBP offset -> "byte " ++ (createRelAddrRBP offset)
+        Register reg -> show reg
 
 getValToMov (IntQVal val) = val
 
@@ -458,6 +466,25 @@ allocVar v memSize = do
         tell $ [AMov (createAddrPtrRBP storageOffset) (show v)]
 
     return storageOffset
+
+allocBool b = do
+    curRBP <- gets lastAddrRBP
+    let newRBPOffset = curRBP - boolBytes
+    curState <- get
+    put curState {lastAddrRBP = newRBPOffset}
+
+    let storageOffset = OffsetRBP newRBPOffset
+
+    tell $ [AMov (createAddrIntRBP storageOffset) (show $ getTrueOrFalseInt b)]
+
+    return storageOffset
+
+getTrueOrFalseInt b =
+    case b of
+        True -> 1
+        False -> 0
+
+showBool b = show $ getTrueOrFalseInt b
 
 getMemSize valType = 
     case valType of
@@ -552,6 +579,18 @@ pushParams ((QParam val) : rest) = do
 
                             updateRSP pushWord
 
+                        (BoolQ) -> do
+                            tell $ [AMovZX (show AR11) (createAddrBoolRBP offset)]
+                            tell $ [APush (show AR11)]
+
+                            updateRSP pushWord
+
+        (BoolQVal b) -> do
+            tell $ [AMovZX (show AR11) (createAddrBoolRBP offset)]
+            tell $ [APush (show AR11)]
+
+            updateRSP pushWord
+
     pushParams rest
 
 -- genStmt -> genParams
@@ -592,6 +631,9 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs)= do
                 Just (_, lbl) -> do
                     tell $ [AMov (show reg) (show lbl)]
                     --gen
+
+        (BoolQVal b) -> do
+            tell $ [AMovZX (show ereg) (showBool b)]
 
     genParams rest regs eregs
 
@@ -720,25 +762,29 @@ createMemAddr memStorage isLoc32bit =
         Register reg -> show reg
         ProgLabel l -> l
 
-createMemAddrRBPdword_qword (OffsetRBP offset) isLoc32bit =
-    case isLoc32bit of
-        True -> "dword " ++ (createRelAddrRBP offset)
-        False -> "qword " ++ (createRelAddrRBP offset)
+createMemAddrRBPdword_qword (OffsetRBP offset) valType =
+    case valType of
+        IntQ -> "dword " ++ (createRelAddrRBP offset)
+        StringQ -> "qword " ++ (createRelAddrRBP offset)
+        BoolQ -> "byte " ++ (createAddrBoolRBP offset)
 
-moveTempToR11 memStorageAddr isLoc32bit = 
-    case isLoc32bit of
-        True -> do
+moveTempToR11 memStorageAddr valType = 
+    case valType of
+        IntQ -> do
             tell $ [AMov (show AR11D) memStorageAddr]
             return AR11D
-        False -> do
+        StringQ -> do
             tell $ [AMov (show AR11) memStorageAddr]
             return AR11
+        BoolQ -> do
+            tell $ [AMovZX (show AR11D) memStorageAddr]
+            return AR11D
 
 -- movVarToR11 varLoc isLoc32bit = do
 --     addr <- findAddr varLoc
 --     moveTempToR11 (show addr) isLoc32bit
 
-
+-- NOT suitable for booleans
 movMemoryVals memToL memFromR valType = do
     printMesA $ "memvals to: " ++ (show memToL) ++ " from: " ++ (show memFromR)
     let isLoc32bit = is32bit valType
@@ -747,10 +793,11 @@ movMemoryVals memToL memFromR valType = do
 
     if ((isOffset memFromR) && (isOffset memToL))
     then do
-        r11_sized <- moveTempToR11 rightAddr isLoc32bit
+        r11_sized <- moveTempToR11 rightAddr valType
         tell $ [AMov leftAddr (show r11_sized)]
-    else do
+    else --if not isBoolType valType then do
         tell $ [AMov leftAddr rightAddr]
+    -- else
 
 getQVarType (QLoc _ valType) = valType
 getQVarType (QArg _ valType) = valType
@@ -837,6 +884,11 @@ findIdentAddr ident = do
         Nothing -> throwError $ ident ++ " var not found for address determination"
         Just (_, memStorage) -> return memStorage
 
+isString StringQ = True
+isString _ = False
+
+isBool BoolQ = True
+isBool _ = False
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -914,11 +966,18 @@ genStmtsAsm ((QRet res) : rest) = do
                     if is32bit valType
                     then
                         movMemoryVals (Register AEAX) memStorageVar valType
-                    else
+                    else if isString valType then do
                         movMemoryVals (Register ARAX) memStorageVar valType
+                    else do
+                        case memStorage of
+                            OffsetRBP offset -> tell $ [AMovZX (show AEAX) (createAddrBoolRBP offset)]
+                            Register r -> tell $ [AMovZX (show AEAX) (show r)]
+
 
         (StrQVal s) -> do
             moveStringToMem (Register ARAX) s
+
+        (BoolQVal b) -> tell $ [AMovZX (show AEAX) (showBool b)]
 
     endLabel <- createEndRetLabel
     tell $ [AJmp endLabel]
@@ -962,6 +1021,8 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
     case id of
         Nothing -> throwError $ "Assignment to undeclared var in asm: " ++ name
         Just (var, memStorageL) -> do
+
+            -- at this moment the variables are stored only in memory
             case val of
                 (IntQVal v) -> do
                     tell $ [AMov (createAddrIntRBP memStorageL) (show v)]
@@ -975,6 +1036,8 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                         Just (_, lbl) ->
                             tell $ [AMov (createAddrPtrRBP memStorageL) (show lbl)]
 
+                (BoolQVal b) -> tell $ [AMov (createAddrBoolRBP memStorageL) (showBool b)]
+
                 (LocQVal ident valType) -> do
                     valStorage <- asks (Map.lookup ident)
                     case valStorage of
@@ -985,20 +1048,24 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                             -- TODO mov to another procedure, add more options
                             if isOffset storageR
                             then do
-                                if is32bit valType
+                                if isIntQ valType --is32bit valType
                                 then do
                                     tell $ [AMov (show AR11D) (createAddrIntRBP storageR)]
                                     tell $ [AMov (createAddrIntRBP memStorageL) (show AR11D)]
-                                else do
+                                else if isString valType
                                     tell $ [AMov (show AR11) (createAddrPtrRBP storageR)]
                                     tell $ [AMov (createAddrPtrRBP memStorageL) (show AR11)]
-                            
+                                else do
+                                    tell $ [AMovZX (show AR11D) (createAddrBoolRBP storageR)]
+                                    tell $ [AMov (createAddrBoolRBP memStorageL) (show AR11D)]
                             else do
-                                if is32bit valType
+                                if isIntQ valType--is32bit valType
                                 then
                                     tell $ [AMov (createAddrIntRBP memStorageL) (show storageR)]
-                                else
+                                else if isIntQ valType then
                                     tell $ [AMov (createAddrPtrRBP memStorageL) (show storageR)]
+                                else 
+                                    tell $ [AMov (createAddrBoolRBP memStorageL) (show storageR)] -- TODO fix this --> different types of registers
                             
 
             genStmtsAsm rest
@@ -1050,6 +1117,9 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
                     newRBPOffset <- allocVar strLabel strPointerBytes
                     local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
+        (BoolQVal b) -> do
+            newRBPOffset <- allocBool b
+            local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
 genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
 
