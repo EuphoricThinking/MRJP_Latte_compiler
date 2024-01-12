@@ -50,6 +50,23 @@ data AsmRegister = ARAX
     | AR11D
     | AR11
     | ARIP
+    | AAL
+    | ACL
+    | ADL
+    | ABL
+    | ASIL
+    | ADIL
+    | ASPL
+    | ABPL
+    | AR8B
+    | AR9B
+    | AR10B
+    | AR11B
+    | AR12B
+    | AR13B
+    | AR14B
+    | AR15B
+
 
 data Asm = AGlobl
     | SectText
@@ -154,6 +171,22 @@ instance Show AsmRegister where
     show AR11D = "r11d"
     show AR11 = "r11"
     show ARIP = "rip"
+    show AAL = "al"
+    show ACL = "cl"
+    show ADL = "dl"
+    show ABL = "bl"
+    show ASIL = "sil"
+    show ADIL = "dil"
+    show ASPL = "spl"
+    show ABPL = "bpl"
+    show AR8B = "r8b"
+    show AR9B = "r9b"
+    show AR10B = "r10b"
+    show AR11B = "r11b"
+    show AR12B = "r12b"
+    show AR13B = "r13b"
+    show AR14B = "r14b"
+    show AR15B = "r15b"
 
     -- ah:al in eax
 
@@ -187,6 +220,8 @@ data AStore = AStore {
 
 parametersRegistersInts32 = [AEDI, AESI, AEDX, AECX, AR8D, AR9D]
 parametersRegisterPoniters64 = [ARDI, ARSI, ARDX, ARCX, AR8, AR9]
+parameterRegistersBools = [ADIL, ASIL, ADL, ACL, AR8B, AR9B]
+
 calleeSaved = [ARBP, ARBX, AR12, AR13, AR14, AR15] 
 
 intBytes = 4
@@ -462,8 +497,10 @@ allocVar v memSize = do
     if memSize == intBytes
     then
         tell $ [AMov (createAddrIntRBP storageOffset) (show v)]
-    else -- TODO extend for extensions  at this moment other is ptr
+    else --if memsize == strPointerBytes then do-- TODO extend for extensions  at this moment other is ptr
         tell $ [AMov (createAddrPtrRBP storageOffset) (show v)]
+    -- else -- byte
+    --     tell $ [AMov (createAddrBoolRBP storageOffset) (showBool v)]
 
     return storageOffset
 
@@ -490,6 +527,7 @@ getMemSize valType =
     case valType of
         IntQ -> intBytes
         StringQ -> strPointerBytes
+        BoolQ -> intBytes
 
 allocVarCopyFromMem memToBeCopied valType = do
     curRBP <- gets lastAddrRBP
@@ -519,25 +557,33 @@ getNewOffsetUpdRBP memSize = do
     -- move over the lists, up to zero
 
 -- statt
-moveFromRegisters args [] [] = moveStackParams args paramsStartOff
+moveFromRegisters args [] [] [] = moveStackParams args paramsStartOff
 
-moveFromRegisters [] _ _ = do
+moveFromRegisters [] _ _ _ = do
     curEnv <- ask
     return curEnv
 
-moveFromRegisters ((ArgData ident valType) : args) (reg : regs) (ereg : eregs) = do
+moveFromRegisters ((ArgData ident valType) : args) (reg : regs) (ereg : eregs) (areg : aregs) = do
     let var = (QLoc ident valType)
 
     case valType of
         IntQ -> do
             offsetRBP <- allocVar ereg intBytes -- allocInt ereg
 
-            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs)
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
         StringQ -> do
             offsetRBP <- allocVar reg strPointerBytes
 
-            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs)
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+
+        BoolQ -> do
+             offsetRBP <- getNewOffsetUpdRBP boolBytes
+             tell $ [AMov (createAddrBoolRBP offsetRBP) (show areg)]
+             -- tell $ [AMovZX (show AR11D) (show areg)]
+
+
+             local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
 --moveParamsToLocal 
 moveStackParams [] _ = do
@@ -604,7 +650,7 @@ genParams qcode [] _ = do
     genStmtsAsm qcallcode
 
 
-genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs)= do
+genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs) = do
     printMesA qp
     case val of
         (IntQVal v) -> do
@@ -623,6 +669,8 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs)= do
 
                         StringQ -> do
                             tell $ [AMov (show reg) (createAddrPtrRBP offset)]
+                        BoolQ -> do
+                            tell $ [AMovZX (show ereg) (createAddrBoolRBP offset)]
 
         (StrQVal s) -> do
             findLbl <- asks (Map.lookup s)
@@ -752,12 +800,13 @@ clearStackParamsAndAlignment numArgs toDealloc = do
     else
         dealloc toDealloc
 
-createMemAddr memStorage isLoc32bit =
+createMemAddr memStorage locType =
     case memStorage of
         OffsetRBP offset -> do
-            case isLoc32bit of
-                True -> "dword " ++ (createRelAddrRBP offset)
-                False -> "qword " ++ (createRelAddrRBP offset)
+            case locType of
+                IntQ -> "dword " ++ (createRelAddrRBP offset)
+                StringQ -> "qword " ++ (createRelAddrRBP offset)
+                BoolQ -> "byte " ++ (createRelAddrRBP offset)
 
         Register reg -> show reg
         ProgLabel l -> l
@@ -788,8 +837,8 @@ moveTempToR11 memStorageAddr valType =
 movMemoryVals memToL memFromR valType = do
     printMesA $ "memvals to: " ++ (show memToL) ++ " from: " ++ (show memFromR)
     let isLoc32bit = is32bit valType
-    let rightAddr = createMemAddr memFromR isLoc32bit
-    let leftAddr = createMemAddr memToL isLoc32bit
+    let rightAddr = createMemAddr memFromR valType--isLoc32bit
+    let leftAddr = createMemAddr memToL valType --isLoc32bit
 
     if ((isOffset memFromR) && (isOffset memToL))
     then do
@@ -935,7 +984,7 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     updateCurFuncNameAsm name
 
     env <- ask
-    curEnv <- local (const env) (moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32)
+    curEnv <- local (const env) (moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32 parameterRegistersBools)
 
     local (const curEnv) (genStmtsAsm body)
 
@@ -977,7 +1026,7 @@ genStmtsAsm ((QRet res) : rest) = do
         (StrQVal s) -> do
             moveStringToMem (Register ARAX) s
 
-        (BoolQVal b) -> tell $ [AMovZX (show AEAX) (showBool b)]
+        (BoolQVal b) -> tell $ [AMov (show AEAX) (showBool b)]
 
     endLabel <- createEndRetLabel
     tell $ [AJmp endLabel]

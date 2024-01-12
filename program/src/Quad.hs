@@ -99,6 +99,7 @@ runQuadGen (Prog pos topDefs) = do
 getOrigQType (Int _) = IntQ
 getOrigQType (Str _) = StringQ
 getOrigQType (Void _) = VoidQ
+getOrigQType (Bool _) = BoolQ
 
 alloc :: QuadMonad Loc
 alloc = do
@@ -277,6 +278,11 @@ createIncreasedStrVarsNum fname fbody = FuncData fname (getFuncRet fbody) (getFu
 
 createIncreasedBoolNum fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) (getFuncNumStrVars fbody) ((getFuncNumBools fbody) + 1)
 
+increaseBoolsNum fname fbody = do
+    curState <- get
+    let updatedNumBools = createIncreasedBoolNum fname fbody
+    put curState {defFunc = Map.insert fname updatedNumBools (defFunc curState)}
+
 updateStringVarsNum fname curBody = do
     curState <- get
     -- curFName <- gets curFuncName
@@ -342,6 +348,8 @@ increaseNumLocTypesCur exprVal = do
                             printMesQ $ (show $ getFuncNumStrVars curBody)
                             --return () --do
                             --printMesQ $ "STR " ++ (show t)
+                        BoolQ -> do
+                            increaseBoolsNum fname curBody
 
 
 
@@ -366,8 +374,9 @@ increaseNumLocTypesCur exprVal = do
                     updBothStrNumAndList strVal fname curBody
 
                 (BoolQVal b) -> do
-                    let updatedNumBools = createIncreasedBoolNum fname curBody
-                    put curState {defFunc = Map.insert fname updatedNumBools (defFunc curState)}
+                    -- let updatedNumBools = createIncreasedBoolNum fname curBody
+                    -- put curState {defFunc = Map.insert fname updatedNumBools (defFunc curState)}
+                    increaseBoolsNum fname curBody
 
 updateLocalNumCur = do
     --update locals counter
@@ -535,6 +544,7 @@ getValType val =
         (LocQVal _ vtype) -> vtype
         (ParamQVal _ vtype) -> vtype
         (StrQVal _) -> StringQ
+        (BoolQVal _) -> BoolQ
 
 isRawString (StrQVal _) = True
 isRawString _ = False
