@@ -552,7 +552,7 @@ createDecIncQCode ident qcode rest isDecrement = do
             varLabel <- gets (Map.lookup loc . storeQ)
 
             case varLabel of
-                Nothing -> throwError ++ ident ++ " loc: " ++ (show loc) ++ " not found in storeQ"
+                Nothing -> throwError $ ident ++ " loc: " ++ (show loc) ++ " not found in storeQ"
                 Just (curLabel, varVal) ->
                     if isDecrement then
                         genQStmt rest (qcode ++ [QDec locVar ident])

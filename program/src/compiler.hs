@@ -1389,6 +1389,6 @@ genStmtsAsm ((QDec qvar@(QLoc resName valType) ident) : rest) = do
 
 genStmtsAsm ((QInc qvar@(QLoc resName valType) ident) : rest) = do
     varAddr <- findIdentAddr ident
-    tell $ [ADec (createAddrIntRBP varAddr)]
+    tell $ [AInc (createAddrIntRBP varAddr)]
 
     genStmtsAsm rest
