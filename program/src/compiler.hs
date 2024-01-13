@@ -953,11 +953,21 @@ increaseCodeLabelsCounter curLblCnt = do
 
 createNewCodeLabel curLblCounter = functionLabel ++ (show curLblCounter)
 
-getLabelOfStringOrLabel origLabel = do
+getLabelOfStringOrLabel origLabel = do -- (isNew, label)
     lblData <- asks (Map.lookup origLabel)
     case lblData of
-        Nothing -> throwError $ origLabel ++ " string or label label not found"
-        Just (_, codeLabel) -> return codeLabel
+        Nothing -> do -- not created
+            newLabel <- createNewLabelUpdateCounter
+            return (True, (ProgLabel newLabel))
+            --throwError $ origLabel ++ " string or label label not found"
+        Just (_, codeLabel) -> return (False, codeLabel)
+
+createNewLabelUpdateCounter = do
+    curLabelNr <- gets (labelsCounter)
+    let newLabel = createNewCodeLabel curLabelNr
+    increaseCodeLabelsCounter curLabelNr
+
+    return newLabel
 
 createAddrLabel (ProgLabel l) = l
 
@@ -1225,6 +1235,8 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
         "printInt" -> do
             tell $ [ACall "printInt"]
             dealloc valSubtracted
+
+            printMesA $ "IN PRINT " ++ (show rest)
 
             genStmtsAsm rest
 
@@ -1566,13 +1578,20 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
 -- generate label
 genStmtsAsm ((QLabel labelFalse) : rest) = do
     -- hceck label in store
-    codeLabel <- getLabelOfStringOrLabel labelFalse
+    printMesA $ "LABLE HERE " ++ labelFalse
+    (_, codeLabel) <- getLabelOfStringOrLabel labelFalse
     tell $ [ALabel (createAddrLabel codeLabel)]
 
     genStmtsAsm rest
 
 genStmtsAsm ((QGoTo label) : rest) = do
-    codeLabel <- getLabelOfStringOrLabel label
+    printMesA $ "IN GOTO " ++ (show rest)
+    (isNew, codeLabel) <- getLabelOfStringOrLabel label
+    printMesA $ "after codelabel"
+
     tell $ [AJmp (createAddrLabel codeLabel)]
 
-    genStmtsAsm rest
+    if isNew then
+        local (Map.insert label (NoMeaning, codeLabel)) (genStmtsAsm rest)
+    else
+        genStmtsAsm rest
