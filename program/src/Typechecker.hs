@@ -671,6 +671,6 @@ ifElseCheck pos condExpr stm1 stm2 depth ifdepth blockDepth = do
         then
             checkBody [stm1] depth ifdepth blockDepth >> checkBody [stm2] (depth + 1) ifdepth blockDepth >> return (checkRet [stm1])
         else if (isFalseLit condExpr) then
-            checkBody [stm1] (depth + 1) ifdepth blockDepth >> checkBody [stm2] depth ifdepth blockDepth >> return (checkRet [stm2])
+            checkBody [stm1] (depth + 1) ifdepth blockDepth >> checkBody [stm2] (depth + 1) ifdepth blockDepth >> return (checkRet [stm2]) -- TODO CHANGED
         else
             checkBody [stm1] (depth + 1) ifdepth blockDepth >> checkBody [stm2] (depth + 1) ifdepth blockDepth >> return (checkRet [stm1] && checkRet [stm2])
