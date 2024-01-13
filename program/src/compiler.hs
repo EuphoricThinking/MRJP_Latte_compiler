@@ -953,6 +953,12 @@ increaseCodeLabelsCounter curLblCnt = do
 
 createNewCodeLabel curLblCounter = functionLabel ++ (show curLblCounter)
 
+getLabelOfStringOrLabel origLabel = do
+    lblData <- asks (origLabel)
+    case lblData of
+        Nothing -> throwError $ origLabel ++ " string or label label not found"
+        Just (_, codeLabel) -> codeLabel
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
@@ -1556,3 +1562,9 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
         --(LocQVal ident valType) -> do
 
 -- generate label
+genStmtsAsm ((QLabel labelFalse) : rest) = do
+    -- hceck label in store
+    codeLabel <- getLabelOfStringOrLabel labelFalse
+    tell $ [ALabel codeLabel]
+
+    genStmtsAsm rest

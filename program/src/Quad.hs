@@ -581,6 +581,7 @@ createDecIncQCode ident qcode rest isDecrement = do
                     else
                         genQStmt rest (qcode ++ [QInc locVar ident])
 
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -667,7 +668,7 @@ genQStmt ((Cond _ expr stmt) : rest) qcode = do
     labelFalse <- createTempVarNameCurFuncExprs -- after if block
     let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelFalse]
 
-    stmtCode <- genQStmt stmt
+    stmtCode <- genQStmt stmt codeAfterCondExpr
 
     genQStmt rest (stmtCode ++ [QLabel labelFalse])
 
