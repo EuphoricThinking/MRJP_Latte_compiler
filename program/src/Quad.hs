@@ -685,7 +685,7 @@ genQStmt ((CondElse pos expr1 stm1 stm2) : rest) qcode = do
 
     stmtsElse <- genQStmt [stm2] codeAfterTrueToEnd
 
-    genQStmt rest (stmtsElse ++ [QLabel labelElse])
+    genQStmt rest (stmtsElse ++ [QLabel labelEnd])
 
 
 
