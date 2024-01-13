@@ -527,7 +527,7 @@ getMemSize valType =
     case valType of
         IntQ -> intBytes
         StringQ -> strPointerBytes
-        BoolQ -> intBytes
+        BoolQ -> boolBytes
 
 allocVarCopyFromMem memToBeCopied valType = do
     curRBP <- gets lastAddrRBP
@@ -536,6 +536,7 @@ allocVarCopyFromMem memToBeCopied valType = do
     put curState {lastAddrRBP = newRBPOffset}
 
     let storageOffset = OffsetRBP newRBPOffset
+    printMesA $ "alllocVar " ++ (show memToBeCopied) ++ " " ++ (show valType) ++ " " ++ (show storageOffset)
 
     movMemoryVals storageOffset memToBeCopied valType
 
@@ -826,8 +827,9 @@ moveTempToR11 memStorageAddr valType =
             tell $ [AMov (show AR11) memStorageAddr]
             return AR11
         BoolQ -> do
-            tell $ [AMovZX (show AR11D) memStorageAddr]
-            return AR11D
+            printMesA $ "MOVER11 " ++ (show memStorageAddr)
+            tell $ [AMov (show AR11B) memStorageAddr]
+            return AR11B
 
 -- movVarToR11 varLoc isLoc32bit = do
 --     addr <- findAddr varLoc
@@ -1106,7 +1108,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                                     tell $ [AMov (createAddrPtrRBP memStorageL) (show AR11)]
                                 else do
                                     tell $ [AMovZX (show AR11D) (createAddrBoolRBP storageR)]
-                                    tell $ [AMov (createAddrBoolRBP memStorageL) (show AR11D)]
+                                    tell $ [AMov (createAddrBoolRBP memStorageL) (show AR11B)]
                             else do
                                 if isIntQ valType--is32bit valType
                                 then
