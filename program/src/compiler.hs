@@ -100,6 +100,7 @@ data Asm = AGlobl
     | AInc String
     | ADec String
     | AMovZX String String
+    | ACmp String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -142,6 +143,7 @@ instance Show Asm where
     show (AInc s) = "\tinc " ++ s
     show (ADec s) = "\t dec " ++ s
     show (AMovZX s1 s2) = "\tmovzx " ++ s1 ++ ", " ++ s2
+    show (ACmp s1 s2) = "\tcmp " ++ s1 ++ ", " ++ s2
 
 
 instance Show AsmRegister where
@@ -199,7 +201,7 @@ instance Show StoragePlace where
 
 type AsmCode = [Asm]
 
--- LocQVal ident -> ident : (qvar, memAddr) ; StringQVal s -> s : (_, label (data section))
+-- LocQVal ident -> ident : (qvar, memAddr) ; StringQVal s -> s : (_, label (data section or code section))
 type AsmEnv = Map.Map String (QVar, StoragePlace)
 type AsmMonad a = ReaderT AsmEnv (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
 
@@ -942,6 +944,12 @@ isString _ = False
 isBool BoolQ = True
 isBool _ = False
 
+increaseCodeLabelsCounter curLblCnt = do
+    curState <- get
+    put curState {labelsCounter = (curLblCnt + 1)}
+
+createNewCodeLabel curLblCounter = functionLabel ++ (show curLblCounter)
+
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
@@ -1514,3 +1522,29 @@ genStmtsAsm ((QInc qvar@(QLoc resName valType) ident) : rest) = do
     tell $ [AInc (createAddrIntRBP varAddr)]
 
     genStmtsAsm rest
+
+genStmtsAsm ((QIf val labelFalse) : rest) = do
+    -- add a new label
+    -- create a new label
+    curLabelNr <- gets (labelsCounter)
+    let newLabelFalse = createNewCodeLabel curLabelNr
+    increaseCodeLabelsCounter curLabelNr
+
+    case val of
+        (BoolQVal b) -> do
+            case b of 
+                False -> do 
+                    tell $ [AJmp newLabelFalse]
+                    local (Map.insert labelFalse (NoMeaning, newLabelFalse)) (genStmtsAsm rest)
+
+                True -> do
+                    local (Map.insert labelFalse (NoMeaning, newLabelFalse)) (genStmtsAsm rest)
+
+        qvar@(LocQVal ident valType) -> do
+            -- load from memory
+            -- cmp 0
+            -- must be bool type - due to typechecker
+            varAddr <- findAddr qvar
+            
+
+        --(LocQVal ident valType) -> do

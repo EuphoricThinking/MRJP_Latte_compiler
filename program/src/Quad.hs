@@ -29,6 +29,7 @@ data QStore = QStore {
     specialFunc :: [String],
     defFunc :: Map.Map String FuncData,
     countLabels :: Map.Map String Int
+    -- add label map?
 } deriving (Show)
 
 data ValType = IntQ | StringQ | BoolQ | VoidQ deriving (Eq, Show)
@@ -70,6 +71,8 @@ data Quad = QLabel String --FuncData
     | QMod QVar Val Val
     | QDec QVar String
     | QInc QVar String
+    | QGoTo String -- label
+    | QIf Val String -- Val is also a variable
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -655,6 +658,23 @@ genQStmt ((VRet _) : rest) qcode = genQStmt rest (qcode ++ [QVRet])
 genQStmt ((Decr _ (Ident ident)) : rest) qcode = createDecIncQCode ident qcode rest True
 
 genQStmt ((Incr _ (Ident ident)) : rest) qcode = createDecIncQCode ident qcode rest False
+
+genQStmt ((Cond _ expr stmt) : rest) qcode = do
+    (val, codeExpr, depth) <- genQExpr expr
+
+    -- if false -> jump further
+    valLabel <- createTempVarNameCurFuncExprs
+    labelFalse <- createTempVarNameCurFuncExprs -- after if block
+    let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelFalse]
+
+    stmtCode <- genQStmt stmt
+
+    genQStmt rest (stmtCode ++ [QLabel labelFalse])
+
+
+
+
+
 
 -- fromInteger intVal
 genQExpr (ELitInt pos intVal) _ = return ((IntQVal (fromInteger intVal)), [], 1)
