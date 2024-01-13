@@ -293,7 +293,6 @@ getExprType (ELitFalse pos) = return (Just BoolT)
 getExprType (EString _ _) = return (Just StringT)
 
 getExprType (EApp pos (Ident "printInt") expr) = do
-    printMes $ "printint " ++ (show pos)
     case expr of
         [] -> throwError $ "printInt needs an argument (row, col): " ++ show (getPos pos)
         otherwise -> do
@@ -326,7 +325,6 @@ getExprType (EApp pos (Ident "printString") expr) = do
                     throwError $ "printString argument is not string " ++ (writePos pos)
 
 getExprType (EApp pos (Ident ident) expr) = do
-    printMes $ "eapp " ++ (show pos)
     if (isSpecialFunc ident)
     then do
         case expr of
@@ -448,7 +446,6 @@ checkDecl vartype ((NoInit posIn (Ident ident)) : rest) blockDepth = do
     case foundVar of
         Just loc  -> do
             valD <- gets (Map.lookup loc . store)
-            printMes $ "decl noinit " ++ (show valD) 
             if (getBlockDepth valD) == blockDepth
             then
                 throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
@@ -466,7 +463,6 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) blockDepth = do
     case foundVar of
         Just loc -> do
             valD <- gets (Map.lookup loc . store)
-            printMes $ "init " ++ (show valD) 
             if (getBlockDepth valD) == blockDepth
             then
                 throwError $ "Multiple variable declaration (row, col): " ++ show (getPos posIn)
@@ -495,7 +491,6 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) blockDepth = do
                 throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
 
 checkBody [] depth ifdepth blockDepth = do
-    printMes $ "check [] " ++ (show blockDepth)
     if depth == 0 && ifdepth == 0 && blockDepth == 0
     then do
         curFunD <- gets curFunc
@@ -525,7 +520,6 @@ checkBody [] depth ifdepth blockDepth = do
                     then
                         return Success
                     else do
-                        printMes $ "bdepth " ++ (show blockDepth)
                         throwError $ ident ++ " lacks return statement" ++ (writePos (getFuncPos funcData))
     else
         return Success
@@ -538,10 +532,9 @@ checkBody ((Decl pos vartype items) : rest) depth ifdepth blockDepth = do
 
 checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth blockDepth = do
     curEnv <- ask
-    printMes $ "block " ++ (show pos)
-    local (const curEnv) (checkBody stmts depth ifdepth (blockDepth + 1)) >> (printMes $ "block between " ++ (show pos)) >> checkBody rest depth ifdepth blockDepth 
+    local (const curEnv) (checkBody stmts depth ifdepth (blockDepth + 1)) >> checkBody rest depth ifdepth blockDepth 
 
-checkBody ((SExp pos expr) : rest) depth ifdepth blockDepth = (printMes $ (show blockDepth) ++ " rest " ++ (show rest)) >> getExprType expr >> checkBody rest depth ifdepth blockDepth
+checkBody ((SExp pos expr) : rest) depth ifdepth blockDepth = getExprType expr >> checkBody rest depth ifdepth blockDepth
 
 checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth blockDepth = do
     varloc <- asks (Map.lookup ident)
@@ -593,7 +586,6 @@ checkBody ((CondElse pos condExpr stm1 stm2): rest) depth ifdepth blockDepth = d
 
 checkBody ((Cond pos expr stmt) : rest) depth ifdepth blockDepth = do
     exprType <- getExprType expr
-    printMes $ "bef cond " ++ (show stmt)
 
     if not (isBoolType exprType)
     then
@@ -601,8 +593,6 @@ checkBody ((Cond pos expr stmt) : rest) depth ifdepth blockDepth = do
     else
         if isTrueLit expr
         then do
-            printMes $ (show (length stmt))
-            printMes $ "show " ++ (show [stmt])
             --checkBody [stmt] depth ifdepth blockDepth >> (printMes $ "cond FIRST " ++ (show pos) ++ " rest " ++ (show rest)) >> checkBody rest depth ifdepth blockDepth
             checkBody (stmt : rest) depth ifdepth blockDepth -- TODO HERE CHANGED!!!
         else
@@ -612,7 +602,6 @@ checkBody ((VRet pos) : rest) depth ifdepth blockDepth = retVoidOrValUpd (Just V
 
 checkBody ((Ret pos expr) : rest) depth ifdepth blockDepth = do
     exprType <- getExprType expr
-    printMes $ "ia am in ret"
     retVoidOrValUpd exprType pos rest depth ifdepth blockDepth
 
 
