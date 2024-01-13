@@ -661,14 +661,14 @@ genQStmt ((Decr _ (Ident ident)) : rest) qcode = createDecIncQCode ident qcode r
 genQStmt ((Incr _ (Ident ident)) : rest) qcode = createDecIncQCode ident qcode rest False
 
 genQStmt ((Cond _ expr stmt) : rest) qcode = do
-    (val, codeExpr, depth) <- genQExpr expr
+    (val, codeExpr, depth) <- genQExpr expr JustLocal
 
     -- if false -> jump further
     valLabel <- createTempVarNameCurFuncExprs
     labelFalse <- createTempVarNameCurFuncExprs -- after if block
     let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelFalse]
 
-    stmtCode <- genQStmt stmt codeAfterCondExpr
+    stmtCode <- genQStmt [stmt] codeAfterCondExpr
 
     genQStmt rest (stmtCode ++ [QLabel labelFalse])
 
