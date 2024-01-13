@@ -954,10 +954,12 @@ increaseCodeLabelsCounter curLblCnt = do
 createNewCodeLabel curLblCounter = functionLabel ++ (show curLblCounter)
 
 getLabelOfStringOrLabel origLabel = do
-    lblData <- asks (origLabel)
+    lblData <- asks (Map.lookup origLabel)
     case lblData of
         Nothing -> throwError $ origLabel ++ " string or label label not found"
-        Just (_, codeLabel) -> codeLabel
+        Just (_, codeLabel) -> return codeLabel
+
+createAddrLabel (ProgLabel l) = l
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -1544,10 +1546,10 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
             case b of 
                 False -> do 
                     tell $ [AJmp newLabelFalse]
-                    local (Map.insert labelFalse (NoMeaning, newLabelFalse)) (genStmtsAsm rest)
+                    local (Map.insert labelFalse (NoMeaning, (ProgLabel newLabelFalse))) (genStmtsAsm rest)
 
                 True -> do
-                    local (Map.insert labelFalse (NoMeaning, newLabelFalse)) (genStmtsAsm rest)
+                    local (Map.insert labelFalse (NoMeaning, (ProgLabel newLabelFalse))) (genStmtsAsm rest)
 
         qvar@(LocQVal ident valType) -> do
             -- load from memory
@@ -1557,7 +1559,7 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
             tell $ [ACmp (createAddrBoolRBP varAddr) (show falseVal)]
             tell $ [AJe newLabelFalse]
 
-            local (Map.insert labelFalse (NoMeaning, newLabelFalse)) (genStmtsAsm rest)
+            local (Map.insert labelFalse (NoMeaning, (ProgLabel newLabelFalse))) (genStmtsAsm rest)
 
         --(LocQVal ident valType) -> do
 
@@ -1565,6 +1567,6 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
 genStmtsAsm ((QLabel labelFalse) : rest) = do
     -- hceck label in store
     codeLabel <- getLabelOfStringOrLabel labelFalse
-    tell $ [ALabel codeLabel]
+    tell $ [ALabel (createAddrLabel codeLabel)]
 
     genStmtsAsm rest
