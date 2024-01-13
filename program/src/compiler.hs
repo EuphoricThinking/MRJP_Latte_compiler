@@ -690,9 +690,10 @@ assignResToRegister var@(QLoc varTmpId varType) =
     -- case varType of
     --     IntQ -> (var, (Register AEAX))
     --     StringQ -> (var, (Register ARAX))
-    case is32bit varType of
-        True -> (var, (Register AEAX))
-        False -> (var, (Register ARAX))
+    case varType of
+        IntQ -> (var, (Register AEAX))
+        StringQ -> (var, (Register ARAX))
+        BoolQ -> (var, (Register AAL))
 
 increaseStrLblCounterByOne curStrLblCnt = do
     curState <- get
