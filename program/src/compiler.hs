@@ -101,6 +101,7 @@ data Asm = AGlobl
     | ADec String
     | AMovZX String String
     | ACmp String String
+    | AJe String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -144,6 +145,7 @@ instance Show Asm where
     show (ADec s) = "\t dec " ++ s
     show (AMovZX s1 s2) = "\tmovzx " ++ s1 ++ ", " ++ s2
     show (ACmp s1 s2) = "\tcmp " ++ s1 ++ ", " ++ s2
+    show (AJe s) = "\tje " ++ s
 
 
 instance Show AsmRegister where
@@ -243,6 +245,7 @@ labelRegister = ARIP
 
 stackAlignment = 16
 pushWord = 8
+falseVal = 0
 
 extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
@@ -1545,6 +1548,11 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
             -- cmp 0
             -- must be bool type - due to typechecker
             varAddr <- findAddr qvar
-            
+            tell $ [ACmp (createAddrBoolRBP varAddr) (show falseVal)]
+            tell $ [AJe newLabelFalse]
+
+            local (Map.insert labelFalse (NoMeaning, newLabelFalse)) (genStmtsAsm rest)
 
         --(LocQVal ident valType) -> do
+
+-- generate label
