@@ -1570,3 +1570,7 @@ genStmtsAsm ((QLabel labelFalse) : rest) = do
     tell $ [ALabel (createAddrLabel codeLabel)]
 
     genStmtsAsm rest
+
+genStmtsAsm ((QGoTo label) : rest) = do
+    codeLabel <- getLabelOfStringOrLabel label
+    tell $ [AJmp (createAddrLabel codeLabel)]
