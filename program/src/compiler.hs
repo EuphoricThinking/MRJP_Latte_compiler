@@ -116,6 +116,7 @@ data Asm = AGlobl
     | ASETL String
     | ASETLE String
     | ASETGE String
+    | AOr String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -185,6 +186,7 @@ instance Show Asm where
     show (ASETL s) = "\tsetl " ++ s
     show (ASETLE s) = "\tsetle " ++ s
     show (ASETGE s) = "\tsetge " ++ s
+    show (AOr op1 op2) = "\tor " ++ op1 ++ ", " ++ op2
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -832,7 +834,12 @@ is32bit valType =
 isIntLiteral (IntQVal _) = True
 isIntLiteral _ = False
 
+isBoolLiteral (BoolQVal _) = True
+isBoolLiteral _ = False
+
 extractIntVal (IntQVal v) = v
+
+extractBoolVal (BoolQVal b) = b
 
 extractLocQvarId (LocQVal id _) = id
 
@@ -1082,6 +1089,24 @@ chooseSETcc mode resultMemByte = do
         QLE -> tell $ [ASETLE resultMemByte] -- JLE <=
         QGE -> tell $ [ASETGE resultMemByte] --  JGE >=
 
+getBoolCondValLiteralAndOr val1 val2 mode = 
+    case mode of
+        QAND -> ((extractBoolVal val1) && (extractBoolVal val2))
+        QOR -> ((extractBoolVal val1) || (extractBoolVal val2))
+
+performAndOrOneLiteral boolLiteral boolVar mode = do
+    addrVar <- findAddr boolVar
+    -- resAddr <- allocBool (extractBoolVal boolLiteral)
+
+    tell $ [AMovzx (show AR11D) (showBool $ extractBoolVal boolLiteral)]
+    case mode of
+        QAND -> do
+            tell $ [AAnd (show AR11D) (createAddrBoolRBP addrVar)]
+        QOR -> do
+            tell $ [AOr (show AR11D) (createAddrBoolRBP addrVar)]
+
+    resAddr <- allocBoolFromMem AR11B
+    return resAddr
                                             -- HELPER END ---------END----------
 
 runGenAsm :: QuadCode -> AsmMonad Value
@@ -1786,3 +1811,20 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
 
         local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
     else do
+        if isBoolLiteral val1 && isBoolLiteral val2
+            let conditionRes = getBoolCondValLiteralAndOr val1 val2 mode
+            resAddr <- allocBool conditionRes
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+        else if isBoolLiteral val1 then do
+            resAddr <- performAndOrOneLiteral val1 val2 mode
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+        else if isBoolLiteral val2 then do
+            resAddr <- performAndOrOneLiteral val2 val1 mode
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+        else
+            -- commutative
