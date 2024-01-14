@@ -1864,7 +1864,7 @@ genStmtsAsm ((QWhile val label) : rest) = do
             loc <- asks (Map.lookup ident)
             varAddr <- findAddr qvar
 
-        tell $ [ACmp (createAddrBoolRBP varAddr) (show falseVal)]
-        tell $ [AJNE label]
+            tell $ [ACmp (createAddrBoolRBP varAddr) (show falseVal)]
+            tell $ [AJNE label]
 
-        genStmtsAsm rest
+            genStmtsAsm rest

@@ -817,7 +817,7 @@ genQStmt ((While pos condExpr stmt) : rest) qcode = do
 
     stmtsCode <- genQStmt [stmt] codeStart
 
-    let codeCond = stmtCode ++ [QLabel labelCond]
+    let codeCond = stmtsCode ++ [QLabel labelCond]
 
     codeAfterCondExpr <- getCodeAccordingToExprIfElse condExpr labelStart codeCond False
 
