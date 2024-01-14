@@ -83,6 +83,7 @@ data Quad = QLabel String --FuncData
     | QNot QVar Val
     | QCond QVar Val Val CondType
     | JumpCondQ String Val Val CondType
+    | QWhile Val String
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -615,28 +616,54 @@ getRelOperandQuad operand qvar val1 val2 =
         (LE _) -> [QCond qvar val1 val2 QLE]
         (LTH _) -> [QCond qvar val1 val2 QLTH]
 
-getJumpCond operand label val1 val2 =
-    case operand of
-        (EQU _) -> [JumpCondQ label val1 val2 QNE]
-        (NE _) -> [JumpCondQ label val1 val2 QEQU]
-        (GE _) -> [JumpCondQ label val1 val2 QLTH]
-        (GTH _) -> [JumpCondQ label val1 val2 QLE]
-        (LE _) -> [JumpCondQ label val1 val2 QGTH]
-        (LTH _) -> [JumpCondQ label val1 val2 QGE]
+getJumpCond operand label val1 val2 isJumpNegated =
+    let
+        newOp = getNegatedJumpOrNormal isJumpNegated operand
+    in
+        case operand of
+            (EQU _) -> [JumpCondQ label val1 val2 newOp]--QNE]
+            (NE _) -> [JumpCondQ label val1 val2 newOp] --QEQU]
+            (GE _) -> [JumpCondQ label val1 val2 newOp]--QLTH]
+            (GTH _) -> [JumpCondQ label val1 val2 newOp]--QLE]
+            (LE _) -> [JumpCondQ label val1 val2 newOp]--QGTH]
+            (LTH _) -> [JumpCondQ label val1 val2 newOp]--QGE]
 
+getNegatedJumpOrNormal isJumpNegated operand = 
+    if isJumpNegated
+    then
+        case operand of
+            (EQU _) -> QNE
+            (NE _) -> QEQU
+            (GE _) -> QLTH
+            (GTH _) -> QLE
+            (LE _) -> QGTH
+            (LTH _) -> QGE
+    else
+        case operand of
+            (EQU _) -> QEQU
+            (NE _) -> QNE
+            (GE _) -> QGE
+            (GTH _) -> QGTH
+            (LE _) -> QLE
+            (LTH _) -> QLTH
 
-getCodeAccordingToExpr expr label qcode = do
+getQuadIfOrWhile val label isIfElse =
+    case isIfElse of
+        True -> [QIf val label]
+        False -> [QWhile val label]
+
+getCodeAccordingToExprIfElse expr label qcode isIfElse = do
     case expr of
         (ERel pos expr1 operand expr2) -> do
             (val1, code1, depth1) <- genQExpr expr1 JustLocal
             (val2, code2, depth2) <- genQExpr expr2 JustLocal
 
-            let codeAfterCondExpr = qcode ++ code1 ++ code2 ++ (getJumpCond operand label val1 val2)
+            let codeAfterCondExpr = qcode ++ code1 ++ code2 ++ (getJumpCond operand label val1 val2 isIfElse) -- jump negated
 
             return codeAfterCondExpr
         _ -> do
             (val, codeExpr, depth) <- genQExpr expr JustLocal
-            let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val label]
+            let codeAfterCondExpr = qcode ++ codeExpr ++ (getQuadIfOrWhile val label isIfElse) --[QIf val label]
 
             return codeAfterCondExpr
 
@@ -752,7 +779,7 @@ genQStmt ((Cond _ expr stmt) : rest) qcode = do
     --         (val2, code2, depth2) <- genQExpr expr2 JustLocal
 
     --         let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelFalse]
-    codeAfterCondExpr <- getCodeAccordingToExpr expr labelFalse qcode
+    codeAfterCondExpr <- getCodeAccordingToExprIfElse expr labelFalse qcode True
 
 
     stmtCode <- genQStmt [stmt] codeAfterCondExpr
@@ -773,7 +800,7 @@ genQStmt ((CondElse pos expr1 stm1 stm2) : rest) qcode = do
     labelEnd <- createTempVarNameCurFuncExprs
     labelElse <- createTempVarNameCurFuncExprs
     --let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelElse]
-    codeAfterCondExpr <- getCodeAccordingToExpr expr1 labelElse qcode
+    codeAfterCondExpr <- getCodeAccordingToExprIfElse expr1 labelElse qcode True
 
     stmtsTrue <- genQStmt [stm1] codeAfterCondExpr
 
@@ -783,7 +810,18 @@ genQStmt ((CondElse pos expr1 stm1 stm2) : rest) qcode = do
 
     genQStmt rest (stmtsElse ++ [QLabel labelEnd])
 
+genQStmt ((While pos condExpr stmt) : rest) qcode = do
+    labelCond <- createTempVarNameCurFuncExprs
+    labelStart <- createTempVarNameCurFuncExprs
+    let codeStart = qcode ++ [(QGoTo labelCond), (QLabel labelStart)]
 
+    stmtsCode <- genQStmt [stmt] codeStart
+
+    let codeCond = stmtCode ++ [QLabel labelCond]
+
+    codeAfterCondExpr <- getCodeAccordingToExprIfElse condExpr labelStart codeCond False
+
+    genQStmt rest codeAfterCondExpr
 
 
 

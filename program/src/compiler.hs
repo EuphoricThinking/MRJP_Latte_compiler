@@ -1108,6 +1108,13 @@ performAndOr valToR11D addrCompRight mode = do
 
     resAddr <- allocBoolFromMem AR11B
     return resAddr
+
+getBoolLiteralActionForGenStmt b isIfElse =
+    case isIfElse of
+        True -> b
+        False ->  (not b)
+
+
                                             -- HELPER END ---------END----------
 
 runGenAsm :: QuadCode -> AsmMonad Value
@@ -1692,6 +1699,8 @@ genStmtsAsm ((QInc qvar@(QLoc resName valType) ident) : rest) = do
 genStmtsAsm ((QIf val labelFalse) : rest) = do
     -- add a new label
     -- create a new label
+
+
     curLabelNr <- gets (labelsCounter)
     let newLabelFalse = createNewCodeLabel curLabelNr
     increaseCodeLabelsCounter curLabelNr
@@ -1724,6 +1733,7 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
             tell $ [AJe newLabelFalse]
 
             local (Map.insert labelFalse (NoMeaning, (ProgLabel newLabelFalse))) (genStmtsAsm rest)
+
 
         -- rel sould be in if
 
@@ -1840,5 +1850,21 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
+genStmtsAsm ((QWhile val label) : rest) = do
+    case val of
+        (BoolQVal b) -> do
+            case b of
+                True -> do
+                    tell $ [AJmp label] -- label must have been assigned previously
+                    genStmtsAsm rest
 
-            -- commutative
+                False -> genStmtsAsm rest
+        
+        qvar@(LocQVal ident valType) -> do          
+            loc <- asks (Map.lookup ident)
+            varAddr <- findAddr qvar
+
+        tell $ [ACmp (createAddrBoolRBP varAddr) (show falseVal)]
+        tell $ [AJNE label]
+
+        genStmtsAsm rest
