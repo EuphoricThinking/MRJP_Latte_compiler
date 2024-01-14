@@ -530,7 +530,7 @@ allocBool b = do
 
     let storageOffset = OffsetRBP newRBPOffset
 
-    tell $ [AMov (createAddrIntRBP storageOffset) (show $ getTrueOrFalseInt b)]
+    tell $ [AMov (createAddrBoolRBP storageOffset) (show $ getTrueOrFalseInt b)]
 
     return storageOffset
 
@@ -542,7 +542,7 @@ allocBoolFromMem memStorage = do
 
     let storageOffset = OffsetRBP newRBPOffset
 
-    tell $ [AMov (createAddrIntRBP storageOffset) (show memStorage)]
+    tell $ [AMov (createAddrBoolRBP storageOffset) (show memStorage)]
 
     return storageOffset
 
