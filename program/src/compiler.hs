@@ -102,6 +102,7 @@ data Asm = AGlobl
     | AMovZX String String
     | ACmp String String
     | AJe String
+    | ANot String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -157,6 +158,7 @@ instance Show Asm where
     show (AMovZX s1 s2) = "\tmovzx " ++ s1 ++ ", " ++ s2
     show (ACmp s1 s2) = "\tcmp " ++ s1 ++ ", " ++ s2
     show (AJe s) = "\tje " ++ s
+    show (ANot mem) = "\tnot " ++ mem
 
 
 instance Show AsmRegister where
@@ -531,6 +533,20 @@ allocBool b = do
     tell $ [AMov (createAddrIntRBP storageOffset) (show $ getTrueOrFalseInt b)]
 
     return storageOffset
+
+allocBoolFromMem memStorage = do
+    curRBP <- gets lastAddrRBP
+    let newRBPOffset = curRBP - boolBytes
+    curState <- get
+    put curState {lastAddrRBP = newRBPOffset}
+
+    let storageOffset = OffsetRBP newRBPOffset
+
+    tell $ [AMov (createAddrIntRBP storageOffset) (show memStorage)]
+
+    return storageOffset
+
+
 
 getTrueOrFalseInt b =
     case b of
@@ -1579,6 +1595,7 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
             -- cmp 0
             -- must be bool type - due to typechecker
             varAddr <- findAddr qvar
+            -- not test var, var, because it would require additional loading to the register from the register
             tell $ [ACmp (createAddrBoolRBP varAddr) (show falseVal)]
             tell $ [AJe newLabelFalse]
 
@@ -1606,3 +1623,20 @@ genStmtsAsm ((QGoTo label) : rest) = do
         local (Map.insert label (NoMeaning, codeLabel)) (genStmtsAsm rest)
     else
         genStmtsAsm rest
+
+genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
+    case val of
+        (BoolQVal b) -> do
+            boolAddr <- allocBool (not b)
+
+            local (Map.insert ident (qvar, boolAddr)) (genStmtsAsm rest)
+
+        (LocQVal ident valType) -> do
+            valAddr <- findAddr val -- (LocQVal valTmpName valType)
+
+            tell $ [AMovZX (show AR11D) (createAddrBoolRBP valAddr)]
+            tell $ [ANot (show AR11D)]
+
+            resAddr <- allocBoolFromMem AR11B
+
+            local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
