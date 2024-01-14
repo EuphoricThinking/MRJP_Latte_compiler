@@ -441,11 +441,11 @@ allParamsTypeSizes (a@(ArgData ident valType) : args) sumParams =
         IntQ -> allParamsTypeSizes args (sumParams + intBytes)
         StringQ -> allParamsTypeSizes args (sumParams + strPointerBytes)
 
-subLocals 0 _ = printMesA "here" >> return ()
+subLocals 0 _ = return ()
 -- TODO fix it -> all params are saved in memory
 subLocals numLoc (FuncData name retType args locNum body numInts strVars strVarsNum numBools) = do 
     st <- get
-    printMesA $ "should not BE "  ++ (show numLoc) ++ " " ++ (curFuncNameAsm st)
+    --printMesA $ "should not BE "  ++ (show numLoc) ++ " " ++ (curFuncNameAsm st)
     -- let localsSize = numInts*intBytes + strVarsNum*strPointerBytes--TODO add rest
     -- -- let stackParamsSize = sumParamsSizesPastRegisters args numRegisterParams
     -- -- let sumLocalsAndParamsSizes = localsSize + stackParamsSize -- parameters are saved in memory
@@ -515,7 +515,7 @@ allocInt v = do
     let storageOffset = OffsetRBP newRBPOffset
     -- gen command
     -- if register, mem location, constant
-    printMesA $ "ALLOC " ++ (show v)
+    --printMesA $ "ALLOC " ++ (show v)
     tell $ [AMov (createAddrIntRBP storageOffset) (show v)]
 
     return storageOffset
@@ -536,7 +536,7 @@ allocVar v memSize = do
     put curState {lastAddrRBP = newRBPOffset}
 
     let storageOffset = OffsetRBP newRBPOffset
-    printMesA $ "ALLOC_VAR " ++ (show v)
+    --printMesA $ "ALLOC_VAR " ++ (show v)
     -- gen command
     -- if register, mem location, constant
     if memSize == intBytes
@@ -557,7 +557,7 @@ allocBool b = do
 
     let storageOffset = OffsetRBP newRBPOffset
 
-    printMesA $ "boolval " ++ (show $ getTrueOrFalseInt b)
+    --printMesA $ "boolval " ++ (show $ getTrueOrFalseInt b)
 
     tell $ [AMov (createAddrBoolRBP storageOffset) (show $ getTrueOrFalseInt b)]
 
@@ -597,7 +597,7 @@ allocVarCopyFromMem memToBeCopied valType = do
     put curState {lastAddrRBP = newRBPOffset}
 
     let storageOffset = OffsetRBP newRBPOffset
-    printMesA $ "alllocVar " ++ (show memToBeCopied) ++ " " ++ (show valType) ++ " " ++ (show storageOffset)
+   --printMesA $ "alllocVar " ++ (show memToBeCopied) ++ " " ++ (show valType) ++ " " ++ (show storageOffset)
 
     movMemoryVals storageOffset memToBeCopied valType
 
@@ -713,7 +713,7 @@ genParams qcode [] _ = do
 
 
 genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs) = do
-    printMesA qp
+    --printMesA qp
     case val of
         (IntQVal v) -> do
             tell $ [AMov (show ereg) (show v)]
@@ -724,7 +724,7 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs) = do
             case varData of
                 Nothing -> throwError $ "No env data for " ++ ident
                 Just (var, offset) -> do
-                    printMesA $ "param loc " ++ (show offset)
+                    --printMesA $ "param loc " ++ (show offset)
                     case valType of
                         (IntQ) -> do
                             tell $ [AMov (show ereg) (createAddrIntRBP offset)]
@@ -895,7 +895,7 @@ moveTempToR11 memStorageAddr valType =
             tell $ [AMov (show AR11) memStorageAddr]
             return AR11
         BoolQ -> do
-            printMesA $ "MOVER11 " ++ (show memStorageAddr)
+            --printMesA $ "MOVER11 " ++ (show memStorageAddr)
             tell $ [AMov (show AR11B) memStorageAddr]
             return AR11B
 
@@ -905,7 +905,7 @@ moveTempToR11 memStorageAddr valType =
 
 -- NOT suitable for booleans
 movMemoryVals memToL memFromR valType = do
-    printMesA $ "memvals to: " ++ (show memToL) ++ " from: " ++ (show memFromR)
+   --printMesA $ "memvals to: " ++ (show memToL) ++ " from: " ++ (show memFromR)
     let isLoc32bit = is32bit valType
     let rightAddr = createMemAddr memFromR valType--isLoc32bit
     let leftAddr = createMemAddr memToL valType --isLoc32bit
@@ -1063,11 +1063,13 @@ getJump mode codeLabel = do
 compareIntCond val1 val2 = do
     if isIntLiteral val1 && isIntLiteral val2
     then do
-        tell $ [ACmp (showIntLiteral val1) (showIntLiteral val2)]
+        tell $ [AMov (show AR11D) (showIntLiteral val1)]
+        tell $ [ACmp (show AR11D) (showIntLiteral val2)]
         
     else if isIntLiteral val1 then do
         addr2 <- findAddr val2
-        tell $ [ACmp (showIntLiteral val1) (createAddrIntRBP addr2)]
+        tell $ [AMov (show AR11D) (showIntLiteral val1)]
+        tell $ [ACmp (show AR11D) (createAddrIntRBP addr2)]
         -- getJump mode codeLabel
     else if isIntLiteral val2 then do
         addr1 <- findAddr val1
@@ -1181,7 +1183,7 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
 -- ret needs to know the value, to move a good one to eax
 genStmtsAsm :: QuadCode -> AsmMonad ()
 genStmtsAsm ((QRet res) : rest) = do
-    printMesA $ "RETCOMP " ++ (show res)
+   -- printMesA $ "RETCOMP " ++ (show res)
     case res of
         (IntQVal numVal) -> do
             tell $ [AMov (show AEAX) (show numVal)] -- zostaw, później skoncz do ret
@@ -1265,7 +1267,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                             tell $ [AMov (createAddrPtrRBP memStorageL) (show lbl)]
 
                 (BoolQVal b) -> do
-                    printMesA $ "showbool " ++ (showBool b)
+                   -- printMesA $ "showbool " ++ (showBool b)
                     tell $ [AMov (createAddrBoolRBP memStorageL) (showBool b)]
 
                 (LocQVal ident valType) -> do
@@ -1273,7 +1275,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                     case valStorage of
                         Nothing -> throwError $ ident ++ " var to be assigned not in env"
                         Just (varFromAssigned, storageR) -> do
-                            printMesA $ "ASSIGN loc " ++ ident ++ " " ++ (show id)
+                            --printMesA $ "ASSIGN loc " ++ ident ++ " " ++ (show id)
                             -- all variables are stored in the memory at this moment, but this is for further extensions
                             -- TODO mov to another procedure, add more options
                             if isOffset storageR
@@ -1348,7 +1350,7 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
                     local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
         (BoolQVal b) -> do
-            printMesA $ "decl bool"
+            --printMesA $ "decl bool"
             newRBPOffset <- allocBool b
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
@@ -1386,7 +1388,7 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             tell $ [ACall "printInt"]
             dealloc valSubtracted
 
-            printMesA $ "IN PRINT " ++ (show rest)
+            --printMesA $ "IN PRINT " ++ (show rest)
 
             genStmtsAsm rest
 
@@ -1467,7 +1469,7 @@ genStmtsAsm ((QAdd qvar@(QLoc ident valType) val1 val2) : rest) = do
 
 
 genStmtsAsm ((QSub qvar@(QLoc ident valType) val1 val2) : rest) = do
-    printMesA $ "\t SUB " ++ (show qvar) ++ " " ++ (show val1) ++ " " ++ (show val2)
+    --printMesA $ "\t SUB " ++ (show qvar) ++ " " ++ (show val1) ++ " " ++ (show val2)
     
     if (isIntLiteral val1) && (isIntLiteral val2)
     then do
@@ -1498,7 +1500,7 @@ genStmtsAsm ((QNeg qvar@(QLoc ident valType) val) : rest) = do
     if isIntLiteral val
     then do
         let intVal = extractIntVal val
-        printMesA $ "neg intval " ++ (show intVal) ++ " | " ++ (show val)
+        --printMesA $ "neg intval " ++ (show intVal) ++ " | " ++ (show val)
         intAddr <- allocInt (-intVal)
 
         local (Map.insert ident (qvar, intAddr)) (genStmtsAsm rest)
@@ -1543,7 +1545,7 @@ genStmtsAsm ((QDiv qvar@(QLoc ident valType) val1 val2) : rest) = do
     if isPowerOfTwo val2 && isIntLiteral val2
     then do
         let power = findPowerOfTwo (extractIntVal val2) 0
-        printMesA $ "POWER " ++ (show $ extractIntVal val2)
+        --printMesA $ "POWER " ++ (show $ extractIntVal val2)
         if isIntLiteral val1 -- then both are && isIntLiteral val2
         then do
             resAddr <- allocInt $ extractIntVal val1
@@ -1719,11 +1721,11 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
             -- load from memory
             -- cmp 0
             -- must be bool type - due to typechecker
-            printMesA $ "findloc qif "
+            --printMesA $ "findloc qif "
             loc <- asks (Map.lookup ident)
-            printMesA $ (show loc)
+            --printMesA $ (show loc)
             varAddr <- findAddr qvar
-            printMesA $ "found loc"
+            --printMesA $ "found loc"
             -- not test var, var, because it would require additional loading to the register from the register
             -- tell $ [AMovzx (show AEAX) (createAddrBoolRBP varAddr)]
             -- tell $ [ATest (show AAL) (show AAL)]
@@ -1743,15 +1745,19 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
 genStmtsAsm ((QLabel labelFalse) : rest) = do
     -- hceck label in store
     printMesA $ "LABLE HERE " ++ labelFalse
-    (_, codeLabel) <- getLabelOfStringOrLabel labelFalse
+    (isNew, codeLabel) <- getLabelOfStringOrLabel labelFalse
     tell $ [ALabel (createAddrLabel codeLabel)]
 
-    genStmtsAsm rest
+    -- genStmtsAsm rest
+    if isNew then
+        local (Map.insert labelFalse (NoMeaning, codeLabel)) (genStmtsAsm rest)
+    else
+        genStmtsAsm rest
 
 genStmtsAsm ((QGoTo label) : rest) = do
-    printMesA $ "IN GOTO " ++ (show rest)
+    --printMesA $ "IN GOTO " ++ (show rest)
     (isNew, codeLabel) <- getLabelOfStringOrLabel label
-    printMesA $ "after codelabel"
+    --printMesA $ "after codelabel"
 
     tell $ [AJmp (createAddrLabel codeLabel)]
 
@@ -1779,11 +1785,11 @@ genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
             tell $ [AMovZX (show AR11D) (createAddrBoolRBP valAddr)]
             tell $ [AXor (show AR11D) (show 1)]
 
-            printMesA $ "before NOT ALLOC"
+            --printMesA $ "before NOT ALLOC"
 
             resAddr <- allocBoolFromMem AR11B --AAL --AR11B -- 
 
-            printMesA $ " rest NOT " ++ (show rest)   
+            --printMesA $ " rest NOT " ++ (show rest)   
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
@@ -1794,11 +1800,11 @@ genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
     
 genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
     (isNew, codeLabel) <- getLabelOfStringOrLabel label
-    printMesA $ "jumpcond " ++ (show j)
+    printMesA $ "jumpcond " ++ (show j) ++ " label: " ++ (show codeLabel) ++ " is new: " ++ (show isNew)
 
     if isArithmMode mode
     then do
-        printMesA $ "isA"
+        --printMesA $ "isA"
         compareIntCond val1 val2
         getJump mode codeLabel
 
@@ -1850,12 +1856,15 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
-genStmtsAsm ((QWhile val label) : rest) = do
+genStmtsAsm ((QWhile val labelWhile) : rest) = do
+    printMesA $ "in while"
+    (_, label) <- getLabelOfStringOrLabel labelWhile
+    printMesA $ "label WHILE " ++ (show label)
     case val of
         (BoolQVal b) -> do
             case b of
                 True -> do
-                    tell $ [AJmp label] -- label must have been assigned previously
+                    tell $ [AJmp (createAddrLabel label)] -- label must have been assigned previously
                     genStmtsAsm rest
 
                 False -> genStmtsAsm rest
@@ -1865,6 +1874,6 @@ genStmtsAsm ((QWhile val label) : rest) = do
             varAddr <- findAddr qvar
 
             tell $ [ACmp (createAddrBoolRBP varAddr) (show falseVal)]
-            tell $ [AJNE label]
+            tell $ [AJNE (createAddrLabel label)]
 
             genStmtsAsm rest
