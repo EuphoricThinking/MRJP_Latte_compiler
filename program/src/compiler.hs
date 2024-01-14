@@ -1099,7 +1099,7 @@ performAndOr valToR11D addrCompRight mode = do
     --addrVar <- findAddr boolVar
     -- resAddr <- allocBool (extractBoolVal boolLiteral)
 
-    tell $ [AMovzx (show AR11D) valToR11D] --(showBool $ extractBoolVal boolLiteral)]
+    tell $ [AMovZX (show AR11D) valToR11D] --(showBool $ extractBoolVal boolLiteral)]
     case mode of
         QAND -> do
             tell $ [AAnd (show AR11D) addrCompRight] --(createAddrBoolRBP addrVar)]
@@ -1812,7 +1812,7 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
 
         local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
     else do
-        if isBoolLiteral val1 && isBoolLiteral val2
+        if isBoolLiteral val1 && isBoolLiteral val2 then do
             let conditionRes = getBoolCondValLiteralAndOr val1 val2 mode
             resAddr <- allocBool conditionRes
 
@@ -1820,7 +1820,7 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
         else if isBoolLiteral val1 then do
             addr2 <- findAddr val2
             -- resAddr <- performAndOrOneLiteral val1 val2 mode
-            resAddr <- performAndOr (showBool $ extractBoolVal val1) (createAddrBoolRBP addr2)
+            resAddr <- performAndOr (showBool $ extractBoolVal val1) (createAddrBoolRBP addr2) mode
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
@@ -1828,7 +1828,7 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
             --resAddr <- performAndOrOneLiteral val2 val1 mode
             addr1 <- findAddr val1
             -- resAddr <- performAndOrOneLiteral val1 val2 mode
-            resAddr <- performAndOr (showBool $ extractBoolVal val2) (createAddrBoolRBP addr1)
+            resAddr <- performAndOr (showBool $ extractBoolVal val2) (createAddrBoolRBP addr1) mode
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
@@ -1836,7 +1836,7 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
             addr1 <- findAddr val1
             addr2 <- findAddr val2
 
-            resAddr <- performAndOr (createAddrBoolRBP addr1) (createAddrBoolRBP addr2)
+            resAddr <- performAndOr (createAddrBoolRBP addr1) (createAddrBoolRBP addr2) mode
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
