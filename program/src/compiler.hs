@@ -542,8 +542,10 @@ allocVar v memSize = do
     if memSize == intBytes
     then
         tell $ [AMov (createAddrIntRBP storageOffset) (show v)]
-    else --if memsize == strPointerBytes then do-- TODO extend for extensions  at this moment other is ptr
+    else -- if memSize == strPointerBytes then --if memsize == strPointerBytes then do-- TODO extend for extensions  at this moment other is ptr
         tell $ [AMov (createAddrPtrRBP storageOffset) (show v)]
+    -- else
+    --     tell $ [AMovZX (createAddrBoolRBP storageOffset) (s)]
     -- else -- byte
     --     tell $ [AMov (createAddrBoolRBP storageOffset) (showBool v)]
 
@@ -751,10 +753,22 @@ assignResToRegister var@(QLoc varTmpId varType) =
     -- case varType of
     --     IntQ -> (var, (Register AEAX))
     --     StringQ -> (var, (Register ARAX))
-    case varType of
-        IntQ -> (var, (Register AEAX))
-        StringQ -> (var, (Register ARAX))
-        BoolQ -> (var, (Register AAL))
+
+    -- case varType of
+    --     IntQ -> (var, (Register AEAX))
+    --     StringQ -> (var, (Register ARAX))
+    --     BoolQ -> (var, (Register AAL))
+     case varType of
+        IntQ -> do
+            resAddr <- allocInt AEAX
+            return (var, resAddr) --(Register AEAX))
+        StringQ -> do
+            resAddr <- allocVar ARAX strPointerBytes
+            return (var, resAddr) --(Register ARAX))
+        BoolQ -> do
+            offsetRBP <- getNewOffsetUpdRBP boolBytes
+            tell $ [AMov (createAddrBoolRBP offsetRBP) (show AAL)]
+            return (var, offsetRBP) --(Register AAL))
 
 increaseStrLblCounterByOne curStrLblCnt = do
     curState <- get
@@ -1246,6 +1260,7 @@ genStmtsAsm [] = do
 
 --genStmtsAsm [] = return () -- NIE, zamień miejscmi, w QRET zrób GOTO ret, tutaj dodaj epilog itp.
 genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
+    -- printMesA $ "qass " ++ (show var) ++ " val: " ++ (show val)
     id <- asks (Map.lookup name)
 
     case id of
@@ -1294,7 +1309,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                                 if isIntQ valType--is32bit valType
                                 then
                                     tell $ [AMov (createAddrIntRBP memStorageL) (show storageR)]
-                                else if isIntQ valType then
+                                else if isString valType then
                                     tell $ [AMov (createAddrPtrRBP memStorageL) (show storageR)]
                                 else 
                                     tell $ [AMov (createAddrBoolRBP memStorageL) (show storageR)] -- TODO fix this --> different types of registers
@@ -1396,7 +1411,8 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             tell $ [ACall "readInt"]
             dealloc valSubtracted
 
-            let valStorage = assignResToRegister qvar
+            -- let valStorage = assignResToRegister qvar
+            valStorage <- assignResToRegister qvar
 
             local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
@@ -1410,7 +1426,8 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             tell $ [ACall "readString"]
             dealloc valSubtracted
 
-            let valStorage = assignResToRegister qvar
+            -- let valStorage = assignResToRegister qvar
+            valStorage <- assignResToRegister qvar
 
             local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
@@ -1430,7 +1447,9 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             case varType of
                 VoidQ -> genStmtsAsm rest
                 _ -> do
-                    let valStorage = assignResToRegister qvar
+                    --let valStorage = assignResToRegister qvar
+                    -- printMesA $ "after call " ++ ident ++ " " ++ (show valStorage)
+                    valStorage <- assignResToRegister qvar
 
                     local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
