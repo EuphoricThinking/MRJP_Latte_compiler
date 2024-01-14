@@ -1716,11 +1716,13 @@ genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
 --     if isIntLiteral val1 && isIntLiteral val2
 --     then do
     
-genStmtsAsm ((JumpCondQ label val1 val2 mode) : rest) = do
+genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
     (isNew, codeLabel) <- getLabelOfStringOrLabel label
+    printMesA $ "jumpcond " ++ (show j)
 
     if isArithmMode mode
     then do
+        printMesA $ "isA"
         if isIntLiteral val1 && isIntLiteral val2
         then do
             tell $ [ACmp (showIntLiteral val1) (showIntLiteral val2)]
