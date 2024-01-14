@@ -110,6 +110,12 @@ data Asm = AGlobl
     | AJL String -- <   LTH
     | AJG String -- >    GTH
     | AJLE String -- <=  LE
+    | ASETE String
+    | ASETNE String
+    | ASETG String
+    | ASETL String
+    | ASETLE String
+    | ASETGE String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -173,7 +179,12 @@ instance Show Asm where
     show (AJGE s) = "\tjge " ++ s
     show (AJL s) = "\tjl " ++ s
     show (AJLE s) = "\tjle " ++ s
-
+    show (ASETE s) = "\tsete " ++ s
+    show (ASETNE s) = "\tsetne " ++ s
+    show (ASETG s) = "\tsetg " ++ s
+    show (ASETL s) = "\tsetl " ++ s
+    show (ASETLE s) = "\tsetle " ++ s
+    show (ASETGE s) = "\tsetge " ++ s
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -1042,6 +1053,35 @@ getJump mode codeLabel = do
         QGE -> tell $ [AJGE label]
 
 
+compareIntCond val1 val2 = do
+    if isIntLiteral val1 && isIntLiteral val2
+    then do
+        tell $ [ACmp (showIntLiteral val1) (showIntLiteral val2)]
+        
+    else if isIntLiteral val1 then do
+        addr2 <- findAddr val2
+        tell $ [ACmp (showIntLiteral val1) (createAddrIntRBP addr2)]
+        -- getJump mode codeLabel
+    else if isIntLiteral val2 then do
+        addr1 <- findAddr val1
+        tell $ [ACmp (createAddrIntRBP addr1) (showIntLiteral val2)]
+        -- getJump mode codeLabel
+    else do
+        addr1 <- findAddr val1
+        addr2 <- findAddr val2
+        tell $ [AMov (show AR11D) (createAddrIntRBP addr1)]
+        tell $ [ACmp (show AR11D) (createAddrIntRBP addr2)]
+            -- getJump mode codeLabel
+
+chooseSETcc mode resultMemByte = do
+    case mode of
+        QEQU -> tell $ [ASETE resultMemByte]
+        QNE -> tell $ [ASETNE resultMemByte]
+        QGTH -> tell $ [ASETG resultMemByte] -- JG >
+        QLTH -> tell $ [ASETL resultMemByte] -- JL <
+        QLE -> tell $ [ASETLE resultMemByte] -- JLE <=
+        QGE -> tell $ [ASETGE resultMemByte] --  JGE >=
+
                                             -- HELPER END ---------END----------
 
 runGenAsm :: QuadCode -> AsmMonad Value
@@ -1723,24 +1763,8 @@ genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
     if isArithmMode mode
     then do
         printMesA $ "isA"
-        if isIntLiteral val1 && isIntLiteral val2
-        then do
-            tell $ [ACmp (showIntLiteral val1) (showIntLiteral val2)]
-            getJump mode codeLabel
-        else if isIntLiteral val1 then do
-            addr2 <- findAddr val2
-            tell $ [ACmp (showIntLiteral val1) (createAddrIntRBP addr2)]
-            getJump mode codeLabel
-        else if isIntLiteral val2 then do
-            addr1 <- findAddr val1
-            tell $ [ACmp (createAddrIntRBP addr1) (showIntLiteral val2)]
-            getJump mode codeLabel
-        else do
-            addr1 <- findAddr val1
-            addr2 <- findAddr val2
-            tell $ [AMov (show AR11D) (createAddrIntRBP addr1)]
-            tell $ [ACmp (show AR11D) (createAddrIntRBP addr2)]
-            getJump mode codeLabel
+        compareIntCond val1 val2
+        getJump mode codeLabel
 
         if isNew then
             local (Map.insert label (NoMeaning, codeLabel)) (genStmtsAsm rest)
@@ -1748,8 +1772,17 @@ genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
             genStmtsAsm rest
 
     else
+        -- possible todo
         if isNew then
             local (Map.insert label (NoMeaning, codeLabel)) (genStmtsAsm rest)
         else
             genStmtsAsm rest
 
+genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
+    if isArithmMode mode then do
+        compareIntCond val1 val2
+        resAddr <- getNewOffsetUpdRBP intBytes
+        chooseSETcc mode (createAddrIntRBP resAddr)
+
+        local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+    else do
