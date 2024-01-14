@@ -614,6 +614,11 @@ getRelOperandQuad operand qvar val1 val2 =
         (LE _) -> [QCond qvar val1 val2 QLE]
         (LTH _) -> [QCond qvar val1 val2 QLTH]
 
+isRel expr =
+    case expr of
+        (ERel _ _ _ _) -> True
+        _ -> False
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -718,7 +723,6 @@ genQStmt ((CondElse pos expr1 stm1 stm2) : rest) qcode = do
     stmtsElse <- genQStmt [stm2] codeAfterTrueToEnd
 
     genQStmt rest (stmtsElse ++ [QLabel labelEnd])
-
 
 
 

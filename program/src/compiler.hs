@@ -1003,7 +1003,17 @@ createNewLabelUpdateCounter = do
 
     return newLabel
 
-createAddrLabel (ProgLabel l) = l
+createAddrLabel (ProgLabel l) = l 
+
+
+-- a == b  cmp a, b jne
+-- performAccordingToOperand operand memLeft memRight = do
+--     case operand of
+--         QEQU -> do
+--             tell $
+
+
+                                            -- HELPER END ---------END----------
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
@@ -1063,7 +1073,8 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     -- genStmtsAsm body
     genFuncsAsm rest
 
-    -- what about recursive functions?
+    -- what about recursive functions? 
+
 
 -- ret needs to know the value, to move a good one to eax
 genStmtsAsm :: QuadCode -> AsmMonad ()
@@ -1619,6 +1630,8 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
 
             local (Map.insert labelFalse (NoMeaning, (ProgLabel newLabelFalse))) (genStmtsAsm rest)
 
+        -- rel sould be in if
+
         --(LocQVal ident valType) -> do
 
 -- generate label
@@ -1668,3 +1681,9 @@ genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
             printMesA $ " rest NOT " ++ (show rest)   
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+
+
+-- genStmtsAsm ((QCond qvar val1 val2 operand) : rest) = do
+--     if isIntLiteral val1 && isIntLiteral val2
+--     then do
+    
