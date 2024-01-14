@@ -82,6 +82,7 @@ data Quad = QLabel String --FuncData
     | QIf Val String -- Val is also a variable
     | QNot QVar Val
     | QCond QVar Val Val CondType
+    | JumpCondQ String Val Val CondType
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -614,6 +615,33 @@ getRelOperandQuad operand qvar val1 val2 =
         (LE _) -> [QCond qvar val1 val2 QLE]
         (LTH _) -> [QCond qvar val1 val2 QLTH]
 
+getJumpCond operand label val1 val2 =
+    case operand of
+        (EQU _) -> [JumpCondQ label val1 val2 QNE]
+        (NE _) -> [JumpCondQ label val1 val2 QEQU]
+        (GE _) -> [JumpCondQ label val1 val2 QLTH]
+        (GTH _) -> [JumpCondQ label val1 val2 QLE]
+        (LE _) -> [JumpCondQ label val1 val2 QGTH]
+        (LTH _) -> [JumpCondQ label val1 val2 QGE]
+
+
+getCodeAccordingToExpr expr label qcode = do
+    case expr of
+        (ERel pos expr1 operand expr2) -> do
+            (val1, code1, depth1) <- genQExpr expr1 JustLocal
+            (val2, code2, depth2) <- genQExpr expr2 JustLocal
+
+            let codeAfterCondExpr = qcode ++ code1 ++ code2 ++ (getJumpCond operand label val1 val2)
+
+            return codeAfterCondExpr
+        _ -> do
+            (val, codeExpr, depth) <- genQExpr expr JustLocal
+            let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val label]
+
+            return codeAfterCondExpr
+
+
+
 isRel expr =
     case expr of
         (ERel _ _ _ _) -> True
@@ -698,15 +726,30 @@ genQStmt ((Decr _ (Ident ident)) : rest) qcode = createDecIncQCode ident qcode r
 genQStmt ((Incr _ (Ident ident)) : rest) qcode = createDecIncQCode ident qcode rest False
 
 genQStmt ((Cond _ expr stmt) : rest) qcode = do
-    (val, codeExpr, depth) <- genQExpr expr JustLocal
+    -- (val, codeExpr, depth) <- genQExpr expr JustLocal
 
     -- if false -> jump further
     labelFalse <- createTempVarNameCurFuncExprs -- after if block
-    let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelFalse]
+    
+    -- case expr of
+    --     (ERel pos expr1 operand expr2) -> do
+    --         (val1, code1, depth1) <- genQExpr expr1 JustLocal
+    --         (val2, code2, depth2) <- genQExpr expr2 JustLocal
+
+    --         let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelFalse]
+    codeAfterCondExpr <- getCodeAccordingToExpr expr labelFalse qcode
+
 
     stmtCode <- genQStmt [stmt] codeAfterCondExpr
 
     genQStmt rest (stmtCode ++ [QLabel labelFalse])
+
+        -- _ -> do
+        --     let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelFalse]
+
+        --     stmtCode <- genQStmt [stmt] codeAfterCondExpr
+
+        --     genQStmt rest (stmtCode ++ [QLabel labelFalse])
 
 
 genQStmt ((CondElse pos expr1 stm1 stm2) : rest) qcode = do
