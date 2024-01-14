@@ -34,6 +34,13 @@ data QStore = QStore {
 
 data ValType = IntQ | StringQ | BoolQ | VoidQ deriving (Eq, Show)
 
+data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE deriving (Show)
+
+-- | QGE QVar Val Val -- greate or equal, a >= b
+-- | QGTH QVar Val Val -- greater than, a > b
+-- | QLTH QVar Val Val -- less than, a < b
+-- | QLE QVar Val Val -- less or equal, a <= b
+
 data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool
              deriving (Eq, Show)
 
@@ -74,12 +81,7 @@ data Quad = QLabel String --FuncData
     | QGoTo String -- label
     | QIf Val String -- Val is also a variable
     | QNot QVar Val
-    | QEQ QVar Val Val
-    | QNE QVar Val Val
-    | QGE QVar Val Val -- greate or equal, a >= b
-    | QGTH QVar Val Val -- greater than, a > b
-    | QLTH QVar Val Val -- less than, a < b
-    | QLE QVar Val Val -- less or equal, a <= b
+    | QCond QVar Val Val CondType
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -605,12 +607,12 @@ createNegOrNotExpr expr isParam isNeg = do
 
 getRelOperandQuad operand qvar val1 val2 =
     case operand of
-        (EQU _) -> [QEQ qvar val1 val2]
-        (NE _) -> [QNE qvar val1 val2]
-        (GE _) -> [QGE qvar val1 val2]
-        (GTH _) -> [QGTH qvar val1 val2]
-        (LE _) -> [QLE qvar val1 val2]
-        (LTH _) -> [QLTH qvar val1 val2]
+        (EQU _) -> [QCond qvar val1 val2 QEQU]
+        (NE _) -> [QCond qvar val1 val2 QNE]
+        (GE _) -> [QCond qvar val1 val2 QGE]
+        (GTH _) -> [QCond qvar val1 val2 QGTH]
+        (LE _) -> [QCond qvar val1 val2 QLE]
+        (LTH _) -> [QCond qvar val1 val2 QLTH]
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
