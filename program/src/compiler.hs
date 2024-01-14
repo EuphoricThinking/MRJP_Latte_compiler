@@ -103,6 +103,8 @@ data Asm = AGlobl
     | ACmp String String
     | AJe String
     | ANot String
+    | ATest String String
+    | AXor String String
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -159,6 +161,8 @@ instance Show Asm where
     show (ACmp s1 s2) = "\tcmp " ++ s1 ++ ", " ++ s2
     show (AJe s) = "\tje " ++ s
     show (ANot mem) = "\tnot " ++ mem
+    show (ATest op1 op2) = "\ttest " ++ op1 ++ ", " ++ op2
+    show (AXor op1 op2) = "\txor " ++ op1 ++ ", " ++ op2
 
 
 instance Show AsmRegister where
@@ -530,6 +534,8 @@ allocBool b = do
 
     let storageOffset = OffsetRBP newRBPOffset
 
+    printMesA $ "boolval " ++ (show $ getTrueOrFalseInt b)
+
     tell $ [AMov (createAddrBoolRBP storageOffset) (show $ getTrueOrFalseInt b)]
 
     return storageOffset
@@ -809,7 +815,8 @@ extractIntVal (IntQVal v) = v
 
 extractLocQvarId (LocQVal id _) = id
 
-findAddr (LocQVal ident _) = do
+findAddr v@(LocQVal ident _) = do
+    --printMes $ "locqval lookup " ++ (show v)
     idData <- asks (Map.lookup ident)
     case idData of
         Nothing -> throwError $ ident ++ " var not found for address determination"
@@ -1144,7 +1151,9 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                         Just (_, lbl) ->
                             tell $ [AMov (createAddrPtrRBP memStorageL) (show lbl)]
 
-                (BoolQVal b) -> tell $ [AMov (createAddrBoolRBP memStorageL) (showBool b)]
+                (BoolQVal b) -> do
+                    printMesA $ "showbool " ++ (showBool b)
+                    tell $ [AMov (createAddrBoolRBP memStorageL) (showBool b)]
 
                 (LocQVal ident valType) -> do
                     valStorage <- asks (Map.lookup ident)
@@ -1226,6 +1235,7 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
                     local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
         (BoolQVal b) -> do
+            printMesA $ "decl bool"
             newRBPOffset <- allocBool b
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
 
@@ -1594,9 +1604,17 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
             -- load from memory
             -- cmp 0
             -- must be bool type - due to typechecker
+            printMesA $ "findloc qif "
+            loc <- asks (Map.lookup ident)
+            printMesA $ (show loc)
             varAddr <- findAddr qvar
+            printMesA $ "found loc"
             -- not test var, var, because it would require additional loading to the register from the register
+            -- tell $ [AMovzx (show AEAX) (createAddrBoolRBP varAddr)]
+            -- tell $ [ATest (show AAL) (show AAL)]
+            
             tell $ [ACmp (createAddrBoolRBP varAddr) (show falseVal)]
+            
             tell $ [AJe newLabelFalse]
 
             local (Map.insert labelFalse (NoMeaning, (ProgLabel newLabelFalse))) (genStmtsAsm rest)
@@ -1631,12 +1649,22 @@ genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
 
             local (Map.insert ident (qvar, boolAddr)) (genStmtsAsm rest)
 
-        (LocQVal ident valType) -> do
+        (LocQVal nameLocExpr valType) -> do
             valAddr <- findAddr val -- (LocQVal valTmpName valType)
 
-            tell $ [AMovZX (show AR11D) (createAddrBoolRBP valAddr)]
-            tell $ [ANot (show AR11D)]
+            -- tell $ [AMovZX (show AR11D) (createAddrBoolRBP valAddr)]
+            -- tell $ [ANot (show AR11D)]
+            
+            -- tell $ [AMovZX (show AEAX) (createAddrBoolRBP valAddr)]
+            -- tell $ [ANot (show AEAX)]
 
-            resAddr <- allocBoolFromMem AR11B
+            tell $ [AMovZX (show AR11D) (createAddrBoolRBP valAddr)]
+            tell $ [AXor (show AR11D) (show 1)]
+
+            printMesA $ "before NOT ALLOC"
+
+            resAddr <- allocBoolFromMem AR11B --AAL --AR11B -- 
+
+            printMesA $ " rest NOT " ++ (show rest)   
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
