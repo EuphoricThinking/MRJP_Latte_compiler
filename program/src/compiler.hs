@@ -1029,7 +1029,7 @@ isArithmMode mode =
         QLTH -> True
         QLE -> True
         QGE -> True
-        otherwise -> False
+--        otherwise -> False
 
 getJump mode codeLabel = do
     let label = createAddrLabel codeLabel

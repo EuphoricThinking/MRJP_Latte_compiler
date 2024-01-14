@@ -753,11 +753,12 @@ genQStmt ((Cond _ expr stmt) : rest) qcode = do
 
 
 genQStmt ((CondElse pos expr1 stm1 stm2) : rest) qcode = do
-    (val, codeExpr, depth) <- genQExpr expr1 JustLocal
+    -- (val, codeExpr, depth) <- genQExpr expr1 JustLocal
 
     labelEnd <- createTempVarNameCurFuncExprs
     labelElse <- createTempVarNameCurFuncExprs
-    let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelElse]
+    --let codeAfterCondExpr = qcode ++ codeExpr ++ [QIf val labelElse]
+    codeAfterCondExpr <- getCodeAccordingToExpr expr1 labelElse qcode
 
     stmtsTrue <- genQStmt [stm1] codeAfterCondExpr
 
