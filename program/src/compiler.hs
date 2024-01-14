@@ -1099,12 +1099,12 @@ performAndOr valToR11D addrCompRight mode = do
     --addrVar <- findAddr boolVar
     -- resAddr <- allocBool (extractBoolVal boolLiteral)
 
-    tell $ [AMovZX (show AR11D) valToR11D] --(showBool $ extractBoolVal boolLiteral)]
+    tell $ [AMov (show AR11B) valToR11D] --(showBool $ extractBoolVal boolLiteral)]
     case mode of
         QAND -> do
-            tell $ [AAnd (show AR11D) addrCompRight] --(createAddrBoolRBP addrVar)]
+            tell $ [AAnd (show AR11B) addrCompRight] --(createAddrBoolRBP addrVar)]
         QOR -> do
-            tell $ [AOr (show AR11D) addrCompRight] --(createAddrBoolRBP addrVar)]
+            tell $ [AOr (show AR11B) addrCompRight] --(createAddrBoolRBP addrVar)]
 
     resAddr <- allocBoolFromMem AR11B
     return resAddr
