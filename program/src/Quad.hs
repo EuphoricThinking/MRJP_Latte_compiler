@@ -73,6 +73,7 @@ data Quad = QLabel String --FuncData
     | QInc QVar String
     | QGoTo String -- label
     | QIf Val String -- Val is also a variable
+    | QNot QVar Val
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -581,6 +582,21 @@ createDecIncQCode ident qcode rest isDecrement = do
                     else
                         genQStmt rest (qcode ++ [QInc locVar ident])
 
+createNegOrNotExpr expr isParam isNeg = do
+    (val, code, depth) <- genQExpr expr isParam
+
+    resTmpName <- createTempVarNameCurFuncExprs
+    let locVar = QLoc resTmpName IntQ
+
+    if isNeg then do
+        let newCode = code ++ [QNeg locVar val]
+
+        return ((LocQVal resTmpName IntQ), newCode, depth)
+    else do
+        let newCode = code ++ [QNot locVar val]
+
+        return ((LocQVal resTmpName IntQ), newCode, depth)
+
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
@@ -788,14 +804,10 @@ genQExpr (EAdd pos expr1 (Minus posP) expr2) isParam = do
 
     return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
 
-genQExpr (Neg pos expr) isParam = do
-    (val, code, depth) <- genQExpr expr isParam
+genQExpr (Neg pos expr) isParam = createNegOrNotExpr expr isParam True
+    
 
-    resTmpName <- createTempVarNameCurFuncExprs
-    let locVar = QLoc resTmpName IntQ
-    let newCode = code ++ [QNeg locVar val]
-
-    return ((LocQVal resTmpName IntQ), newCode, depth)
+genQExpr (Not pos expr) isParam = createNegOrNotExpr expr isParam False
 
 genQExpr (EMul pos expr1 mulOperand expr2) isParam = do
     (val1, code1, depth1) <- genQExpr expr1 isParam

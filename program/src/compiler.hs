@@ -111,6 +111,17 @@ data Asm = AGlobl
 
 -- RSP ~ 0 mod 16 (before CALL, therefore 8 after CALL - pushed return address)
 
+-- xor : if bits are the same = 0 ; otherwise = 1
+-- xor eax, eax - zeroing the eax register (faster than xor al, al)
+
+-- test al, al - bitwise `and` operation between al and itself; does not place the result int the target operand, but changes ZF (zero) flag; 
+-- test al, al - a standard idiom to test if the 8-bit value stored in AL is zero; checking whether a Boolean is true or false, and branching accordingly
+
+-- mov     BYTE PTR -1[rbp], 1 -- save bool variable
+-- movzx   eax, BYTE PTR -1[rbp] -- move boool var to reg, zero-extend sign
+-- xor     eax, 1 -- negate
+-- test    al, al -- move check if zero (for branching)
+
 instance Show Asm where
     show AGlobl = "\tglobal main"
     show SectText = "section .text"
