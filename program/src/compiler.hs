@@ -453,13 +453,13 @@ subLocals numLoc (FuncData name retType args locNum body numInts strVars strVars
     -- let sumLocalsAndParamsSizes = paramsSizes + localsSize
     let sumLocalsAndParamsSizes = numInts*intBytes + strVarsNum*strPointerBytes + numBools*boolBytes
 
-    printMesA $ "PARAMS " ++ (show args)
+    -- printMesA $ "PARAMS " ++ (show args)
 
-    printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
-    -- printMesA $ "sum params: " ++ (show paramsSizes)
-    -- printMesA $ "sum locals: " ++ (show localsSize)
-    printMesA $ "numStrs: " ++ (show strVarsNum)
-    printMesA $ "numInts: " ++ (show numInts)
+    -- printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
+    -- -- printMesA $ "sum params: " ++ (show paramsSizes)
+    -- -- printMesA $ "sum locals: " ++ (show localsSize)
+    -- printMesA $ "numStrs: " ++ (show strVarsNum)
+    -- printMesA $ "numInts: " ++ (show numInts)
 
     let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
     updateRSP stackUpdate
@@ -1153,9 +1153,9 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     tell $ [ALabel name]
     tell $ [AProlog]
 
-    printMesA $ "NAME IN |" ++ name ++ "|"
-    printMesA "boooodyyy"
-    printMesA (show body)
+    -- printMesA $ "NAME IN |" ++ name ++ "|"
+    -- printMesA "boooodyyy"
+    -- printMesA (show body)
 
     -- get size of params, subtract from the stack (probably iterate once again)
     -- clear store before function leave
@@ -1171,8 +1171,8 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     clearCurFuncParams
 
     st <- get
-    printMesA "curs"
-    printMesA st
+    -- printMesA "curs"
+    -- printMesA st
 
     -- genStmtsAsm body
     genFuncsAsm rest
@@ -1744,7 +1744,7 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
 -- generate label
 genStmtsAsm ((QLabel labelFalse) : rest) = do
     -- hceck label in store
-    printMesA $ "LABLE HERE " ++ labelFalse
+    -- printMesA $ "LABLE HERE " ++ labelFalse
     (isNew, codeLabel) <- getLabelOfStringOrLabel labelFalse
     tell $ [ALabel (createAddrLabel codeLabel)]
 
@@ -1800,7 +1800,7 @@ genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
     
 genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
     (isNew, codeLabel) <- getLabelOfStringOrLabel label
-    printMesA $ "jumpcond " ++ (show j) ++ " label: " ++ (show codeLabel) ++ " is new: " ++ (show isNew)
+    -- printMesA $ "jumpcond " ++ (show j) ++ " label: " ++ (show codeLabel) ++ " is new: " ++ (show isNew)
 
     if isArithmMode mode
     then do
@@ -1857,9 +1857,9 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
 genStmtsAsm ((QWhile val labelWhile) : rest) = do
-    printMesA $ "in while"
+    -- printMesA $ "in while"
     (_, label) <- getLabelOfStringOrLabel labelWhile
-    printMesA $ "label WHILE " ++ (show label)
+    --printMesA $ "label WHILE " ++ (show label)
     case val of
         (BoolQVal b) -> do
             case b of

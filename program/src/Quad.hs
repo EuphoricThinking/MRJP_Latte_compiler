@@ -104,6 +104,15 @@ genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadG
     -- in
             -- runwriterv $ runexcept $ evalstate (runreader p mapempty) s
 
+declareEmptyFuncBodiesWithRets [] = return ()
+declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) do =
+    let emptyBodyFunc = FuncData ident (getOrigQType rettype) args 0 [] 0 [] 0 0
+    insertToStoreNewFunc ident emptyBodyFunc
+
+    declareEmptyFuncBodiesWithRets rest
+
+
+
 runQuadGen :: Program -> QuadMonad (ValType, QStore)
 runQuadGen (Prog pos topDefs) = do
     cur_state <- insOneByOne topDefs --get
@@ -847,6 +856,8 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
 
         callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
     else do
+        funcs<- gets (defFunc)
+        printMesQ $ show (funcs)
         fbody <- gets (Map.lookup ident . defFunc)
         -- return ((IntQVal (fromInteger 1)), [], 1)
         case fbody of
