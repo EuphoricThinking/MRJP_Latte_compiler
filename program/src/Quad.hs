@@ -34,7 +34,7 @@ data QStore = QStore {
 
 data ValType = IntQ | StringQ | BoolQ | VoidQ deriving (Eq, Show)
 
-data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE deriving (Show)
+data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show)
 
 -- | QGE QVar Val Val -- greate or equal, a >= b
 -- | QGTH QVar Val Val -- greater than, a > b
@@ -647,6 +647,21 @@ isRel expr =
         (ERel _ _ _ _) -> True
         _ -> False
 
+getAndOrQCond isAnd qvar val1 val2 =
+    case isAnd of
+        True -> [QCond qvar val1 val2 QAND]
+        False -> [QCond qvar val1 val2 QOR]
+
+getAndOrExpr expr1 isAnd expr2 isParam = do
+    (val1, code1, depth1) <- genQExpr expr1 isParam
+    (val2, code2, depth2) <- genQExpr expr2 isParam
+
+    resTmpName <- createTempVarNameCurFuncExprs
+    let locVar = QLoc resTmpName BoolQ
+    let newCode = code1 ++ code2 ++ (getAndOrQCond isAnd locVar val1 val2)
+
+    return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2) + 1)
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -908,3 +923,7 @@ genQExpr (ERel pos expr1 operand expr2) isParam = do
     let newCode = code1 ++ code2 ++ (getRelOperandQuad operand locVar val1 val2)
 
     return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2) + 1)
+
+genQExpr (EAnd pos expr1 expr2) isParam = getAndOrExpr expr1 True expr2 isParam
+
+genQExpr (EOr pos expr1 expr2) isParam = getAndOrExpr expr1 False expr2 isParam
