@@ -314,12 +314,12 @@ main = do
                         Right _ -> do
                             printOK
                             (eitherQuad, quadcode) <- genQuadcode p
-                            print $ (show eitherQuad)
-                            print $ (show quadcode)
+                            -- print $ (show eitherQuad)
+                            -- print $ (show quadcode)
                             let ftuple = splitExtension filename
                             let fname = fst ftuple
                             let finalName = fname ++ ".s"
-                            print $ finalName
+                            -- print $ finalName
                             (eithAsm, asmcode) <- genAssembly (extractQStore eitherQuad) quadcode --(prepareAsmStore eitherQuad) quadcode
                             writeToFile filename (unlines $ map show asmcode)
                             exitSuccess

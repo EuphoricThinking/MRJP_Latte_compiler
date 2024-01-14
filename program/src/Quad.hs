@@ -105,8 +105,8 @@ genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadG
             -- runwriterv $ runexcept $ evalstate (runreader p mapempty) s
 
 declareEmptyFuncBodiesWithRets [] = return ()
-declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) do =
-    let emptyBodyFunc = FuncData ident (getOrigQType rettype) args 0 [] 0 [] 0 0
+declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
+    let emptyBodyFunc = FuncData ident (getOrigQType rettype) [] 0 [] 0 [] 0 0
     insertToStoreNewFunc ident emptyBodyFunc
 
     declareEmptyFuncBodiesWithRets rest
@@ -115,6 +115,7 @@ declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stm
 
 runQuadGen :: Program -> QuadMonad (ValType, QStore)
 runQuadGen (Prog pos topDefs) = do
+    declareEmptyFuncBodiesWithRets topDefs
     cur_state <- insOneByOne topDefs --get
     -- cur_state <- get
     return (IntQ, cur_state)
@@ -367,9 +368,9 @@ increaseNumLocTypesCur exprVal = do
 
                         StringQ -> do
                             updateStringVarsNum fname curBody
-                            printMesQ $ "upd " ++ (show t)
-                            printMesQ $ (show $ getFuncNumStrVars curBody)
-                            --return () --do
+                            --printMesQ $ "upd " ++ (show t)
+                            --printMesQ $ (show $ getFuncNumStrVars curBody)
+                            return () --do
                             --printMesQ $ "STR " ++ (show t)
                         BoolQ -> do
                             increaseBoolsNum fname curBody
@@ -538,7 +539,7 @@ createTempVarName ident = do
         Nothing -> do
             insertNewLabelToCounter candName
 
-            printMesQ $ "cand " ++ candName
+            --printMesQ $ "cand " ++ candName
 
             return candName
 
@@ -549,7 +550,7 @@ createTempVarName ident = do
 
 
 
-            printMesQ $ "newn " ++ newName
+            --printMesQ $ "newn " ++ newName
 
             return newName
 
@@ -856,8 +857,8 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
 
         callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
     else do
-        funcs<- gets (defFunc)
-        printMesQ $ show (funcs)
+        --funcs<- gets (defFunc)
+        --printMesQ $ show (funcs)
         fbody <- gets (Map.lookup ident . defFunc)
         -- return ((IntQVal (fromInteger 1)), [], 1)
         case fbody of
@@ -868,7 +869,7 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
                 callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
 
 genQExpr v@(EVar pos (Ident ident)) isParam = do
-    printMesQ $ "quad " ++ (show v) ++ (show isParam)
+    --printMesQ $ "quad " ++ (show v) ++ (show isParam)
     curLoc <- asks (Map.lookup ident)
     case curLoc of
         Nothing -> throwError $ ident ++ " var not found"
