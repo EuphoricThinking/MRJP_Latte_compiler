@@ -74,6 +74,12 @@ data Quad = QLabel String --FuncData
     | QGoTo String -- label
     | QIf Val String -- Val is also a variable
     | QNot QVar Val
+    | QEQ QVar Val Val
+    | QNE QVar Val Val
+    | QGE QVar Val Val -- greate or equal, a >= b
+    | QGTH QVar Val Val -- greater than, a > b
+    | QLTH QVar Val Val -- less than, a < b
+    | QLE QVar Val Val -- less or equal, a <= b
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -597,6 +603,14 @@ createNegOrNotExpr expr isParam isNeg = do
 
         return ((LocQVal resTmpName IntQ), newCode, depth)
 
+getRelOperandQuad operand qvar val1 val2 =
+    case operand of
+        (EQU _) -> [QEQ qvar val1 val2]
+        (NE _) -> [QNE qvar val1 val2]
+        (GE _) -> [QGE qvar val1 val2]
+        (GTH _) -> [QGTH qvar val1 val2]
+        (LE _) -> [QLE qvar val1 val2]
+        (LTH _) -> [QLTH qvar val1 val2]
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
@@ -835,7 +849,12 @@ genQExpr (EMul pos expr1 mulOperand expr2) isParam = do
 
             return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
 
+genQExpr (ERel pos expr1 operand expr2) isParam = do
+    (val1, code1, depth1) <- genQExpr expr1 isParam
+    (val2, code2, depth2) <- genQExpr expr2 isParam
 
+    resTmpName <- createTempVarNameCurFuncExprs
+    let locVar = QLoc resTmpName BoolQ
+    let newCode = code1 ++ code2 ++ (getRelOperandQuad operand locVar val1 val2)
 
-
-
+    return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2) + 1)
