@@ -751,7 +751,8 @@ singleValsGenCond expr lTrue lFalse = do
 
     let locVar = QLoc callTmpName retType--resTmpName BoolQ
 
-    let newCode = code ++ [(QCondJMPAndOr locVar val (BoolQVal True) QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
+    -- let newCode = code ++ [(QCondJMPAndOr locVar val (BoolQVal True) QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
+    let newCode = code ++ [(QCond locVar val (BoolQVal True) QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
 
     return ((LocQVal callTmpName BoolQ), newCode, depth) -- resTmpName)
 
@@ -1078,7 +1079,10 @@ genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
 
     resTmpName <- createTempVarNameCurFuncExprs
 
-    let newCode = code1 ++ code2 ++ [(QCmp val1 val2), (QJumpCMP (createCondGenJumpMode operand) lTrue), (QGoTo lFalse)]
+    let varLoc = QLoc resTmpName BoolQ
+    let mode = createCondGenJumpMode operand
+    -- let newCode = code1 ++ code2 ++ [(QCmp val1 val2), (QJumpCMP (createCondGenJumpMode operand) lTrue), (QGoTo lFalse)]
+    let newCode = code1 ++ code2 ++ [(QCond varLoc val1 val2 mode),  (QJumpCMP mode lTrue), (QGoTo lFalse)]
 
     return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2 ) + 1)
 
@@ -1096,7 +1100,9 @@ genCond (EAnd pos expr1 expr2) lTrue lFalse = do
     (val2, code2, depth2) <- genCond expr2 lTrue lFalse
 
     let locVar = QLoc resTmpName BoolQ
-    let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)] --(QTrueJMP lTrue), (QGoTo LFalse)]
+    -- let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)] -- //(QTrueJMP lTrue), (QGoTo LFalse)]
+    let codeAft2 = codeAft1 ++ code2 ++ [(QCond locVar val1 val2 QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
+
     printMesQ $ "gencond origAnd " ++ resTmpName ++ " val1: " ++ (show val1) ++ " val2: " ++ (show val2)
     --return 
     return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
@@ -1113,7 +1119,8 @@ genCond (EOr pos expr1 expr2) lTrue lFalse = do
     increaseBoolsWihoutArgs
 
     let locVar = QLoc resTmpName BoolQ
-    let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QOR), (QJumpCMP QNE lTrue), (QGoTo lFalse)] --(QTrueJMP lTrue), (QGoto lFalse)]
+    -- let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QOR), (QJumpCMP QNE lTrue), (QGoTo lFalse)] -- // (QTrueJMP lTrue), (QGoto lFalse)]
+    let codeAft2 = codeAft1 ++ code2 ++ [(QCond locVar val1 val2 QOR),(QJumpCMP QNE lTrue), (QGoTo lFalse)] -- // (QTrueJMP lTrue), (QGoto lFalse)]
 
     return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
 

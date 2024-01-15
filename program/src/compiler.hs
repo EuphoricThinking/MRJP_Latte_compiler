@@ -863,6 +863,7 @@ extractLocQvarId (LocQVal id _) = id
 
 findAddr v@(LocQVal ident _) = do
     idData <- asks (Map.lookup ident)
+    printMesA $ "id " ++ ident ++ " " ++ (show idData)
     case idData of
         Nothing -> throwError $ ident ++ " var not found for address determination"
         Just (_, memStorage) -> return memStorage
