@@ -1965,7 +1965,8 @@ genStmtsAsm ((QWhile val labelWhile) : rest) = do
             genStmtsAsm rest
 
 genStmtsAsm ((QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : rest) = do
-    if isBoolLiteral val1 && isBoolLiteral val2 then do
+    if isBoolLiteral val1 && isBoolLiteral val2
+    then do
         boolOnlyMovAndOr (extractAndShowBool val1) (extractAndShowBool val2) condType
     else if isBoolLiteral val1 then do
         addr2 <- findAddr val2
@@ -1973,7 +1974,7 @@ genStmtsAsm ((QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : rest)
     else if isBoolLiteral val2 then do
         addr1 <- findAddr val1
         boolOnlyMovAndOr (createAddrBoolRBP addr1) (extractAndShowBool val2) condType
-    else
+    else do
         addr1 <- findAddr val1
         addr2 <- findAddr val2
         boolOnlyMovAndOr (createAddrBoolRBP addr1) (createAddrBoolRBP addr2) condType
@@ -1985,14 +1986,14 @@ genStmtsAsm ((QJumpCMP operand label) : rest) = do
 
     case operand of
         QNE -> tell $ [AJNE (createAddrLabel codeLabel)] -- ZF = 1
-        QEQU -> tell $ [AJE (createAddrLabel codeLabel)]
+        QEQU -> tell $ [AJe (createAddrLabel codeLabel)]
         QGTH -> tell $ [AJG (createAddrLabel codeLabel)]
         QLTH -> tell $ [AJL (createAddrLabel codeLabel)]
         QLE -> tell $ [AJLE (createAddrLabel codeLabel)]
         QGE -> tell $ [AJGE (createAddrLabel codeLabel)]
 
     if isNew then
-        local (Map.insert labelFalse (NoMeaning, codeLabel)) (genStmtsAsm rest)
+        local (Map.insert label (NoMeaning, codeLabel)) (genStmtsAsm rest)
     else
         genStmtsAsm rest
 
