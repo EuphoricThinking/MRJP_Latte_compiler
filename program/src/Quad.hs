@@ -714,6 +714,14 @@ createCondGenJumpMode mode =
         (LE _) -> QLE
         (LTH _) -> QLTH
 
+increaseBoolsWihoutArgs = do
+    fname <- gets (curFuncName)
+    body <- gets (Map.lookup fname . defFunc)
+    case body of
+        Nothing -> throwError $ "No cur func in increase bool"
+        Just fbody -> increaseBoolsNum fname fbody 
+
+
 changeExprToGenCond expr = do
     printMesQ $ "Change to cond"
     --lTrue <- createTempVarNameCurFuncExprs
@@ -723,6 +731,8 @@ changeExprToGenCond expr = do
     resTmpName <- createTempVarNameCurFuncExprs
     let locVar = QLoc resTmpName BoolQ
 
+    --increaseBoolsNum
+    increaseBoolsWihoutArgs
 
     (val, code, depth) <- genCond expr lEnd lFalse  --lTrue lFalse
 
@@ -1041,15 +1051,16 @@ genCond v@(ELitFalse _) _ _ = genQExpr v JustLocal
 genCond v@(ELitTrue _) _ _ = genQExpr v JustLocal
 -- comparison between numbers is handled in gencond erel
 genCond v@(EApp pos (Ident ident) exprList) lTrue lFalse = do
-    (val, code, depth) <- genQExpr v JustLocal
+    (val@(LocQVal callTmpName retType), code, depth) <- genQExpr v JustLocal
 
     resTmpName <- createTempVarNameCurFuncExprs
+    printMesQ $ "eapp cond  " ++ resTmpName ++ " " ++ (show val)
 
-    let locVar = QLoc resTmpName BoolQ
+    let locVar = QLoc callTmpName retType--resTmpName BoolQ
 
     let newCode = code ++ [(QCondJMPAndOr locVar val (BoolQVal True) QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
 
-    return ((LocQVal resTmpName BoolQ), newCode, depth)
+    return ((LocQVal callTmpName BoolQ), newCode, depth) -- resTmpName
 
     -- not equal - ZF = 1 -> true && true
 
@@ -1069,6 +1080,7 @@ genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
 genCond (EAnd pos expr1 expr2) lTrue lFalse = do
     printMesQ $ "genconrig eand"
     resTmpName <- createTempVarNameCurFuncExprs
+    printMesQ $ "genAnd  " ++ resTmpName
 
     lMid <- createTempVarNameCurFuncExprs
 
@@ -1080,7 +1092,7 @@ genCond (EAnd pos expr1 expr2) lTrue lFalse = do
 
     let locVar = QLoc resTmpName BoolQ
     let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)] --(QTrueJMP lTrue), (QGoTo LFalse)]
-
+    printMesQ $ "gencond origAnd " ++ resTmpName ++ " val1: " ++ (show val1) ++ " val2: " ++ (show val2)
     --return 
     return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
 
@@ -1091,6 +1103,9 @@ genCond (EOr pos expr1 expr2) lTrue lFalse = do
     (val1, code1, depth1) <- genCond expr1 lTrue lMid
     let codeAft1 = code1 ++ [QLabel lMid]
     (val2, code2, depth2) <- genCond expr2 lTrue lFalse
+
+    --increaseBoolsNum
+    increaseBoolsWihoutArgs
 
     let locVar = QLoc resTmpName BoolQ
     let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QOR), (QJumpCMP QNE lTrue), (QGoTo lFalse)] --(QTrueJMP lTrue), (QGoto lFalse)]

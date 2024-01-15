@@ -859,7 +859,7 @@ extractBoolVal (BoolQVal b) = b
 extractLocQvarId (LocQVal id _) = id
 
 findAddr v@(LocQVal ident _) = do
-    --printMes $ "locqval lookup " ++ (show v)
+    printMesA $ "locqval lookup " ++ (show v)
     idData <- asks (Map.lookup ident)
     case idData of
         Nothing -> throwError $ ident ++ " var not found for address determination"
@@ -1514,7 +1514,7 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
                     --let valStorage = assignResToRegister qvar
                     -- printMesA $ "after call " ++ ident ++ " " ++ (show valStorage)
                     valStorage <- assignResToRegister qvar
-                    printMesA $ ident ++ (show rest)
+                    printMesA $ ident ++ " var id: " ++ varTmpId
 
                     local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
@@ -1839,9 +1839,9 @@ genStmtsAsm ((QLabel labelFalse) : rest) = do
         genStmtsAsm rest
 
 genStmtsAsm ((QGoTo label) : rest) = do
-    --printMesA $ "IN GOTO " ++ (show rest)
+    printMesA $ "IN GOTO " -- ++ (show rest)
     (isNew, codeLabel) <- getLabelOfStringOrLabel label
-    --printMesA $ "after codelabel"
+    printMesA $ "after codelabel " ++ (createAddrLabel codeLabel)
 
     tell $ [AJmp (createAddrLabel codeLabel)]
 
@@ -1967,7 +1967,8 @@ genStmtsAsm ((QWhile val labelWhile) : rest) = do
 
             genStmtsAsm rest
 
-genStmtsAsm ((QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : rest) = do
+genStmtsAsm (v@(QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : rest) = do
+    printMesA $ "QCondJMPAndOr " ++ (show v)
     if isBoolLiteral val1 && isBoolLiteral val2
     then do
         boolOnlyMovAndOr (extractAndShowBool val1) (extractAndShowBool val2) condType
@@ -1978,8 +1979,10 @@ genStmtsAsm ((QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : rest)
         addr1 <- findAddr val1
         boolOnlyMovAndOr (createAddrBoolRBP addr1) (extractAndShowBool val2) condType
     else do
+        printMesA $ "finding addr"
         addr1 <- findAddr val1
         addr2 <- findAddr val2
+        printMesA $ "addr found"
         boolOnlyMovAndOr (createAddrBoolRBP addr1) (createAddrBoolRBP addr2) condType
 
     genStmtsAsm rest
