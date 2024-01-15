@@ -84,6 +84,7 @@ data Quad = QLabel String --FuncData
     | QCond QVar Val Val CondType
     | JumpCondQ String Val Val CondType
     | QWhile Val String
+
     deriving (Show)
 
 type QuadCode = [Quad]
@@ -977,3 +978,51 @@ genQExpr (ERel pos expr1 operand expr2) isParam = do
 genQExpr (EAnd pos expr1 expr2) isParam = getAndOrExpr expr1 True expr2 isParam
 
 genQExpr (EOr pos expr1 expr2) isParam = getAndOrExpr expr1 False expr2 isParam
+
+genCond v@(EVar pos (Ident ident)) _ _ = genQExpr v JustLocal
+genCond v@(ELitFalse _) _ _ = genQExpr v JustLocal
+genCond v@(ELitTrue _) _ _ = genQExpr v JustLocal
+
+genCond (ERel pos expr1 (GTH _) expr2) lTrue lFalse = do
+    (val1, code1, depth1) <- genQExpr expr1 JustLocal
+    (val2, code2, depth2) <- genQExpr expr2 JustLocal
+
+    --increaseNumInts
+
+    resTmpName <- createTempVarNameCurFuncExprs
+
+    let newCode = code1 ++ code2 ++ [(QCmp val1 val2), (QJumpGTH lTrue), (QGoTo lFalse)]
+
+    return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2 ) + 1)
+
+genCond (EAnd pos expr1 expr2) lTrue lFalse = do
+    resTmpName <- createTempVarNameCurFuncExprs
+
+    lMid <- createTempVarNameCurFuncExprs
+
+    (val1, code1, depth1) <- genCond expr1 lMid lFalse
+
+    let codeAft1 = code ++ [QLabel lMid]
+
+    (val2, code2, depth2) <- genCond expr2 lTrue lFalse
+
+    let locVar = QLoc resTmpName BoolQ
+    let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMP locVar val1 val2 QAND), (QTrueJMP lTrue), (QGoTo LFalse)]
+
+    --return 
+    return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
+
+genCond (EOr pos expr1 expr2) lTrue lFalse = do
+    resTmpName <- createTempVarNameCurFuncExprs
+
+    lMid <- createTempVarNameCurFuncExprs
+    (val1, code1, depth1) <- genCond expr1 lTrue lMid
+    let codeAft1 = code ++ [QLabel lMid]
+    (val2, code2, depth2) <- genCond expr2 lTrue lFalse
+
+    let locVar = QLoc resTmpName BoolQ
+    let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMP locVar val1 val2 QOR), (QTrueJMP lTrue), (QGoto lFalse)]
+
+    return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
+
+genCond (Not pos expr) lTrue lFalse = genCond expr lFalse lTrue    

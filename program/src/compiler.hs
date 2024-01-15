@@ -745,7 +745,7 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs) = do
                     --gen
 
         (BoolQVal b) -> do
-            tell $ [AMovZX (show ereg) (showBool b)]
+            tell $ [AMov (show ereg) (showBool b)]
 
     genParams rest regs eregs
 
@@ -1125,6 +1125,7 @@ getBoolCondValLiteralAndOrEq val1 val2 mode =
 performAndOrEQ valToR11D addrCompRight mode = do
     --addrVar <- findAddr boolVar
     -- resAddr <- allocBool (extractBoolVal boolLiteral)
+    -- printMesA $ (show mode)
 
     tell $ [AMovZX (show AR11D) valToR11D] --(showBool $ extractBoolVal boolLiteral)] -- TODO CHANGED
     case mode of
@@ -1233,7 +1234,7 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
 
     st <- get
     -- printMesA "curs"
-    printMesA st
+    -- printMesA st
 
     env <- ask
     curEnv <- local (const env) (moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32 parameterRegistersBools)
@@ -1872,14 +1873,14 @@ genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
 --     then do
     
 genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
-    printMesA $ "enter jump"
+    -- printMesA $ "enter jump"
     (isNew, codeLabel) <- getLabelOfStringOrLabel label
-    printMesA $ "found l " ++ (show j)
+    -- printMesA $ "found l " ++ (show j)
     -- printMesA $ "jumpcond " ++ (show j) ++ " label: " ++ (show codeLabel) ++ " is new: " ++ (show isNew)
 
     if isIntTypeQ val1--isArithmMode mode
     then do
-        printMesA $ "isA"
+        -- printMesA $ "isA"
         compareIntCond val1 val2
         getJump mode codeLabel
 
@@ -1889,7 +1890,7 @@ genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
             genStmtsAsm rest
 
     else do
-        printMesA $ "herere"
+        -- printMesA $ "herere"
         performBoolComparison val1 val2
         getJump mode codeLabel
         -- possible todo
@@ -1899,10 +1900,10 @@ genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
             genStmtsAsm rest
 
 genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
-    if isIntQ valType then do --isArithmMode mode then do
+    if isIntTypeQ val1 then do --isArithmMode mode then do
         compareIntCond val1 val2
-        resAddr <- getNewOffsetUpdRBP intBytes
-        chooseSETcc mode (createAddrIntRBP resAddr) -- TODO I THINK IT SHOUL BE CHANGED to bool
+        resAddr <- getNewOffsetUpdRBP boolBytes --intBytes
+        chooseSETcc mode (createAddrBoolRBP resAddr) -- TODO I THINK IT SHOUL BE CHANGED to bool
 
         local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
     else do
