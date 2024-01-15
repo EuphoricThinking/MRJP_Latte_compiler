@@ -84,6 +84,10 @@ data Quad = QLabel String --FuncData
     | QCond QVar Val Val CondType
     | JumpCondQ String Val Val CondType
     | QWhile Val String
+    | QCondJMP QVar Val Val CondType
+    | QTrueJMP String
+    | QCmp Val Val
+    | QJumpCMP CondType String
 
     deriving (Show)
 
@@ -1019,7 +1023,7 @@ genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
 
     resTmpName <- createTempVarNameCurFuncExprs
 
-    let newCode = code1 ++ code2 ++ [(QCmp val1 val2), (QJumpCMP (createCondGenJumpMode operand)), (QGoTo lFalse)]
+    let newCode = code1 ++ code2 ++ [(QCmp val1 val2), (QJumpCMP (createCondGenJumpMode operand) lTrue), (QGoTo lFalse)]
 
     return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2 ) + 1)
 
