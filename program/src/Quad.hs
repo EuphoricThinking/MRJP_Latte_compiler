@@ -724,7 +724,7 @@ changeExprToGenCond expr = do
 
     (val, code, depth) <- genCond expr lTrue lFalse
 
-    let ifElseAssignCode = code ++ [(QLabel lTrue), (QAss locVar (BoolQVal True)), (QGoTo lEnd), (QLabel lFalse), (QAss locVar (BoolQVal False), (QLabel lEnd)) ]
+    let ifElseAssignCode = code ++ [(QLabel lTrue), (QAss locVar (BoolQVal True)), (QGoTo lEnd), (QLabel lFalse), (QAss locVar (BoolQVal False)), (QLabel lEnd) ]
 
     return ((LocQVal resTmpName BoolQ), ifElseAssignCode, depth)
 
@@ -981,7 +981,7 @@ genQExpr (EAdd pos expr1 (Minus posP) expr2) isParam = do
 
     return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
 
-genQExpr (Neg pos expr) isParam = createNegOrNotExpr expr isParam True
+genQExpr exprNeg@(Neg pos expr) isParam = createNegOrNotExpr exprNeg isParam True
     
 
 genQExpr (Not pos expr) isParam = changeExprToGenCond expr --createNegOrNotExpr expr isParam False
@@ -1029,11 +1029,12 @@ genQExpr expr@(EAnd pos expr1 expr2) isParam = changeExprToGenCond expr
     
     --getAndOrExpr expr1 True expr2 isParam
 
-genQExpr (EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOrExpr expr1 False expr2 isParam
+genQExpr expr@(EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOrExpr expr1 False expr2 isParam
 
 genCond v@(EVar pos (Ident ident)) _ _ = genQExpr v JustLocal
 genCond v@(ELitFalse _) _ _ = genQExpr v JustLocal
 genCond v@(ELitTrue _) _ _ = genQExpr v JustLocal
+genCond v@(EApp pos (Ident ident) exprList) _ _ = genQExpr v JustLocal
 
 genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
     (val1, code1, depth1) <- genQExpr expr1 JustLocal
