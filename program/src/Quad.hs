@@ -743,6 +743,7 @@ changeExprToGenCond expr = do
     return ((LocQVal resTmpName BoolQ), ifElseAssignCode, depth)
 
 singleValsGenCond expr lTrue lFalse = do
+    printMesQ $ "single " ++ (show expr)
     (val@(LocQVal callTmpName retType), code, depth) <- genQExpr expr JustLocal
 
     resTmpName <- createTempVarNameCurFuncExprs
@@ -1024,7 +1025,7 @@ genQExpr (EAdd pos expr1 (Minus posP) expr2) isParam = do
 genQExpr (Neg pos expr) isParam = createNegOrNotExpr expr isParam True
     
 
-genQExpr exprNot@(Not pos expr) isParam = changeExprToGenCond exprNot --createNegOrNotExpr expr isParam False
+genQExpr exprNot@(Not pos expr) isParam = printMesQ "notting " >> changeExprToGenCond exprNot --createNegOrNotExpr expr isParam False
 
 genQExpr (EMul pos expr1 mulOperand expr2) isParam = do
     (val1, code1, depth1) <- genQExpr expr1 isParam
@@ -1069,7 +1070,7 @@ genQExpr expr@(EAnd pos expr1 expr2) isParam = changeExprToGenCond expr
     
     --getAndOrExpr expr1 True expr2 isParam
 
-genQExpr expr@(EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOrExpr expr1 False expr2 isParam
+genQExpr expr@(EOr pos expr1 expr2) isParam = printMesQ "oring" >> changeExprToGenCond expr--getAndOrExpr expr1 False expr2 isParam
 
 genCond v@(EVar pos (Ident ident)) lTrue lFalse = singleValsGenCond v lTrue lFalse
 
@@ -1135,7 +1136,7 @@ genCond (EOr pos expr1 expr2) lTrue lFalse = do
 
     return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
 
-genCond (Not pos expr) lTrue lFalse = genCond expr lFalse lTrue --do
+genCond (Not pos expr) lTrue lFalse = printMesQ "gennot" >> genCond expr lFalse lTrue --do
     -- resTmpName <- createTempVarNameCurFuncExprs
     -- (val, code, depth) <- genCond expr lFalse lTrue
 
