@@ -479,7 +479,10 @@ updateCurFuncNameAsm name = do
 isIntQ IntQ = True
 isIntQ _ = False
 
-createRelAddrRBP offset = "[rbp" ++ (show offset) ++ "]"
+createRelAddrRBP offset = 
+    if offset < 0 then
+        "[rbp" ++ (show offset) ++ "]"
+    else "[rbp+" ++ (show offset) ++ "]"
 
 createAddrIntRBP memStorage = 
     case memStorage of
