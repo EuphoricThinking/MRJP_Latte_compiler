@@ -1174,6 +1174,7 @@ boolCmpMovToR11D val1R11DAfterShow val2AfterShow = do
 -- EQU or NEQ
 -- fix jumpcond, if, and qconde
 performBoolComparison val1 val2 = do
+    printMesA $ "   COMPARE BOOL"
     if isBoolLiteral val1 && isBoolLiteral val2
     then do
         -- tell $ [AMovZX (show AR11D) (showBool val1)]
@@ -1914,7 +1915,8 @@ genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
         else
             genStmtsAsm rest
 
-genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
+genStmtsAsm (c@(QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
+    -- printMesA $ "qcond " ++ (show c)
     if isIntTypeQ val1 then do --isArithmMode mode then do
         compareIntCond val1 val2
         resAddr <- getNewOffsetUpdRBP boolBytes --intBytes
@@ -1923,9 +1925,12 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
         local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
     else do
         if isBoolLiteral val1 && isBoolLiteral val2 then do
-            let conditionRes = getBoolCondValLiteralAndOrEq val1 val2 mode
-            resAddr <- allocBool conditionRes
+            -- printMesA $ "literals " ++ (show c)
 
+            -- let conditionRes = getBoolCondValLiteralAndOrEq val1 val2 mode
+            -- resAddr <- allocBool conditionRes
+            resAddr <- performAndOrEQ (extractAndShowBool val1) (extractAndShowBool val2) mode
+            -- printMesA $ "lit addr " ++ (show resAddr)
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else if isBoolLiteral val1 then do
             addr2 <- findAddr val2
@@ -1945,7 +1950,7 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
         else do
             addr1 <- findAddr val1
             addr2 <- findAddr val2
-
+            printMesA $ "addresses " ++ (show addr1) ++ " " ++ (show addr2)
             resAddr <- performAndOrEQ (createAddrBoolRBP addr1) (createAddrBoolRBP addr2) mode
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
@@ -1976,6 +1981,7 @@ genStmtsAsm (v@(QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : res
     -- printMesA $ "QCondJMPAndOr " ++ (show v)
     if isBoolLiteral val1 && isBoolLiteral val2
     then do
+        printMesA $ "QCondJMPAndOr " ++ (show v)
         boolOnlyMovAndOr (extractAndShowBool val1) (extractAndShowBool val2) condType
     else if isBoolLiteral val1 then do
         addr2 <- findAddr val2
@@ -2008,7 +2014,7 @@ genStmtsAsm ((QJumpCMP operand label) : rest) = do
     else
         genStmtsAsm rest
 
-genStmtsAsm ((QCmp val1 val2) : rest) = do
+genStmtsAsm (c@(QCmp val1 val2) : rest) = do
     if isIntTypeQ val1 then
         compareIntCond val1 val2
     else 
