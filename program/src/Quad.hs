@@ -84,8 +84,8 @@ data Quad = QLabel String --FuncData
     | QCond QVar Val Val CondType
     | JumpCondQ String Val Val CondType
     | QWhile Val String
-    | QCondJMP QVar Val Val CondType
-    | QTrueJMP String
+    | QCondJMPAndOr QVar Val Val CondType
+    --| QTrueJMP String
     | QCmp Val Val
     | QJumpCMP CondType String
 
@@ -1039,7 +1039,7 @@ genCond (EAnd pos expr1 expr2) lTrue lFalse = do
     (val2, code2, depth2) <- genCond expr2 lTrue lFalse
 
     let locVar = QLoc resTmpName BoolQ
-    let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMP locVar val1 val2 QAND), (QTrueJMP lTrue), (QGoTo LFalse)]
+    let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QAND), (QJumpCMP QNE lTrue), (QGoto lFalse)] --(QTrueJMP lTrue), (QGoTo LFalse)]
 
     --return 
     return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
@@ -1053,7 +1053,7 @@ genCond (EOr pos expr1 expr2) lTrue lFalse = do
     (val2, code2, depth2) <- genCond expr2 lTrue lFalse
 
     let locVar = QLoc resTmpName BoolQ
-    let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMP locVar val1 val2 QOR), (QTrueJMP lTrue), (QGoto lFalse)]
+    let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QOR), (QJumpCMP QNE lTrue), (QGoto lFalse)] --(QTrueJMP lTrue), (QGoto lFalse)]
 
     return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
 

@@ -1186,6 +1186,13 @@ performBoolComparison val1 val2 = do
 
 extractAndShowBool val = showBool $ extractBoolVal val
 
+boolOnlyMovAndOr showed1 showed2 mode = do
+    tell $ [AMov (show AR11B) showed1]
+
+    case mode of
+        QAND -> tell $ [AAnd (show AR11B) showed2]
+        QOR -> tell $ [AOr (show AR11B) showed2]
+
                                             -- HELPER END ---------END----------
 
 runGenAsm :: QuadCode -> AsmMonad Value
@@ -1956,3 +1963,40 @@ genStmtsAsm ((QWhile val labelWhile) : rest) = do
             tell $ [AJNE (createAddrLabel label)]
 
             genStmtsAsm rest
+
+genStmtsAsm ((QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : rest) = do
+    if isBoolLiteral val1 && isBoolLiteral val2 then do
+        boolOnlyMovAndOr (extractAndShowBool val1) (extractAndShowBool val2) condType
+    else if isBoolLiteral val1 then do
+        addr2 <- findAddr val2
+        boolOnlyMovAndOr (extractAndShowBool val1) (createAddrBoolRBP addr2) condType
+    else if isBoolLiteral val2 then do
+        addr1 <- findAddr val1
+        boolOnlyMovAndOr (createAddrBoolRBP addr1) (extractAndShowBool val2) condType
+    else
+        addr1 <- findAddr val1
+        addr2 <- findAddr val2
+        boolOnlyMovAndOr (createAddrBoolRBP addr1) (createAddrBoolRBP addr2) condType
+
+    genStmtsAsm rest
+
+genStmtsAsm ((QJumpCMP operand label) : rest) = do
+    (isNew, codeLabel) <- getLabelOfStringOrLabel label
+
+    case operand of
+        QNE -> tell $ [AJNE (createAddrLabel codeLabel)] -- ZF = 1
+        QEQU -> tell $ [AJE (createAddrLabel codeLabel)]
+        QGTH -> tell $ [AJG (createAddrLabel codeLabel)]
+        QLTH -> tell $ [AJL (createAddrLabel codeLabel)]
+        QLE -> tell $ [AJLE (createAddrLabel codeLabel)]
+        QGE -> tell $ [AJGE (createAddrLabel codeLabel)]
+
+    if isNew then
+        local (Map.insert labelFalse (NoMeaning, codeLabel)) (genStmtsAsm rest)
+    else
+        genStmtsAsm rest
+
+genStmtAsm ((QCmp val1 val2) : rest) = do
+    compareIntCond val1 val2
+
+    genStmtAsm rest
