@@ -3,8 +3,8 @@ do
 	echo "$file"
 	./latc_x86_64 "$file" | grep -e "OK|ERROR"
 	echo "between"
-	./latc_x86_64 "$file" > ${file}_new.out
-	diff ${file}.out ${file}_new.out
+	./latc_x86_64 "$file" > "${file%.*}.new"
+	diff "${file%.*}.output" "${file%.*}.new"
 	echo $?
 done
 
@@ -13,6 +13,6 @@ echo -e "\nBAD"
 for file in `ls ../lattests/bad/*lat`
 do
         echo "$file"
-        cat "$file" | ./latc_x86_64 | grep "OK|ERROR"
+        ./latc_x86_64 "$file" | grep "OK|ERROR"
 	echo $?
 done
