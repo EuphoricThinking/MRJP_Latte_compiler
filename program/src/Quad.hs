@@ -526,6 +526,7 @@ printMesQ mes = lift $ lift $ lift $ lift $ print mes
 callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth = do
     case isParam of
                 JustLocal -> do
+                    
                     let locVal = QLoc newTmpName retType
                     let newCode = updCode ++ [QCall locVal ident (length exprList)]
 
@@ -981,10 +982,10 @@ genQExpr (EAdd pos expr1 (Minus posP) expr2) isParam = do
 
     return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
 
-genQExpr exprNeg@(Neg pos expr) isParam = createNegOrNotExpr exprNeg isParam True
+genQExpr (Neg pos expr) isParam = createNegOrNotExpr expr isParam True
     
 
-genQExpr (Not pos expr) isParam = changeExprToGenCond expr --createNegOrNotExpr expr isParam False
+genQExpr exprNot@(Not pos expr) isParam = changeExprToGenCond exprNot --createNegOrNotExpr expr isParam False
 
 genQExpr (EMul pos expr1 mulOperand expr2) isParam = do
     (val1, code1, depth1) <- genQExpr expr1 isParam
