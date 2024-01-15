@@ -1145,7 +1145,7 @@ performAndOrEQ valToR11D addrCompRight mode = do --isLeftAddr mode = do
             return resAddr
 
         _ -> do
-            tell $ [AXor (show AR11B) valToR11D]
+            tell $ [AXor (show AR11B) addrCompRight]
             --  SF, ZF, and PF flags are set according to the result
             -- SETE -> equal -> ZF = 1 (001 xor 001) (000 xor 000) give zero, (001 xor 000) give 1
             resAddr <- getNewOffsetUpdRBP boolBytes
@@ -1236,9 +1236,9 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     tell $ [ALabel name]
     tell $ [AProlog]
 
-    -- printMesA $ "NAME IN |" ++ name ++ "|"
-    -- printMesA "boooodyyy"
-    -- printMesA (show body)
+    printMesA $ "NAME IN |" ++ name ++ "|"
+    printMesA $ "boooodyyy"
+    printMesA $ (show body)
 
     -- get size of params, subtract from the stack (probably iterate once again)
     -- clear store before function leave
@@ -1857,6 +1857,7 @@ genStmtsAsm ((QGoTo label) : rest) = do
         genStmtsAsm rest
 
 genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
+    printMesA $ "in not " ++ (show qvar)
     case val of
         (BoolQVal b) -> do
             boolAddr <- allocBool (not b)

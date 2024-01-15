@@ -735,7 +735,6 @@ changeExprToGenCond expr = do
     increaseBoolsWihoutArgs
 
     (val, code, depth) <- genCond expr lEnd lFalse  --lTrue lFalse
-
 -- initialize, check, reassign
     --let ifElseAssignCode = [(QDecl locVar (BoolQVal True))] ++ code ++ [(QLabel lTrue), (QDecl locVar (BoolQVal True)), (QGoTo lEnd), (QLabel lFalse), (QDecl locVar (BoolQVal False)), (QLabel lEnd) ]
     let ifElseAssignCode = [(QDecl locVar (BoolQVal True))] ++ code ++ [(QLabel lFalse), (QAss locVar (BoolQVal False)), (QLabel lEnd) ]
@@ -1124,4 +1123,8 @@ genCond (EOr pos expr1 expr2) lTrue lFalse = do
 
     return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
 
-genCond (Not pos expr) lTrue lFalse = genCond expr lFalse lTrue    
+genCond (Not pos expr) lTrue lFalse = genCond expr lFalse lTrue --do
+    -- resTmpName <- createTempVarNameCurFuncExprs
+    -- (val, code, depth) <- genCond expr lFalse lTrue
+
+    -- let locVar = QLoc resTmpName BoolQ
