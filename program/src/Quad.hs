@@ -755,6 +755,18 @@ singleValsGenCond expr lTrue lFalse = do
 
     return ((LocQVal callTmpName BoolQ), newCode, depth) -- resTmpName)
 
+eLitToGenCode expr lTrue lFalse = do
+    resTmpName <- createTempVarNameCurFuncExprs
+    let locVar = QLoc resTmpName BoolQ
+    increaseBoolsWihoutArgs
+
+
+    (val, code, depth) <- genQExpr expr JustLocal
+
+    let eLitCode = code ++ [(QCond locVar val (BoolQVal True) QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
+
+    return (val, eLitCode, depth)
+-- first Ltrue label, not equal = ZF = 1 (`and` result)
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
@@ -1062,8 +1074,8 @@ genQExpr expr@(EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOr
 genCond v@(EVar pos (Ident ident)) lTrue lFalse = singleValsGenCond v lTrue lFalse
 
     --printMesQ ("var " ++ ident) >> genQExpr v JustLocal
-genCond v@(ELitFalse _) _ _ = genQExpr v JustLocal
-genCond v@(ELitTrue _) _ _ = genQExpr v JustLocal
+genCond v@(ELitFalse _) lTrue lFalse = eLitToGenCode v lTrue lFalse -- genQExpr v JustLocal
+genCond v@(ELitTrue _) lTrue lFalse = eLitToGenCode v lTrue lFalse-- genQExpr v JustLocal
 -- comparison between numbers is handled in gencond erel
 genCond v@(EApp pos (Ident ident) exprList) lTrue lFalse = singleValsGenCond v lTrue lFalse
 
