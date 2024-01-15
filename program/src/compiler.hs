@@ -1020,8 +1020,17 @@ findIdentAddr ident = do
 isString StringQ = True
 isString _ = False
 
-isBool BoolQ = True
-isBool _ = False
+isBoolQ BoolQ = True
+isBoolQ _ = False
+
+isBoolType (BoolQVal _) = True
+--isBoolType (QLoc _ BoolQ) = True
+isBoolType (LocQVal _ BoolQ) = True
+isBoolType _ = False
+
+isIntTypeQ (IntQVal _) = True
+isIntTypeQ (LocQVal _ IntQ) = True
+isIntTypeQ _ = False
 
 increaseCodeLabelsCounter curLblCnt = do
     curState <- get
@@ -1105,31 +1114,76 @@ chooseSETcc mode resultMemByte = do
         QLE -> tell $ [ASETLE resultMemByte] -- JLE <=
         QGE -> tell $ [ASETGE resultMemByte] --  JGE >=
 
-getBoolCondValLiteralAndOr val1 val2 mode = 
+getBoolCondValLiteralAndOrEq val1 val2 mode = 
     case mode of
         QAND -> ((extractBoolVal val1) && (extractBoolVal val2))
         QOR -> ((extractBoolVal val1) || (extractBoolVal val2))
+        QEQU -> ((extractBoolVal val1) == (extractBoolVal val2))
+        QNE -> ((extractBoolVal val1) /= (extractBoolVal val2))
 
 --val1: boolLiteral ; val2: boolVar
-performAndOr valToR11D addrCompRight mode = do
+performAndOrEQ valToR11D addrCompRight mode = do
     --addrVar <- findAddr boolVar
     -- resAddr <- allocBool (extractBoolVal boolLiteral)
 
-    tell $ [AMov (show AR11B) valToR11D] --(showBool $ extractBoolVal boolLiteral)]
+    tell $ [AMovZX (show AR11D) valToR11D] --(showBool $ extractBoolVal boolLiteral)] -- TODO CHANGED
     case mode of
         QAND -> do
             tell $ [AAnd (show AR11B) addrCompRight] --(createAddrBoolRBP addrVar)]
+            resAddr <- allocBoolFromMem AR11B
+            return resAddr
         QOR -> do
             tell $ [AOr (show AR11B) addrCompRight] --(createAddrBoolRBP addrVar)]
+            resAddr <- allocBoolFromMem AR11B
+            return resAddr
 
-    resAddr <- allocBoolFromMem AR11B
-    return resAddr
+        _ -> do
+            tell $ [AXor (show AR11D) valToR11D]
+            --  SF, ZF, and PF flags are set according to the result
+            -- SETE -> equal -> ZF = 1 (001 xor 001) (000 xor 000) give zero, (001 xor 000) give 1
+            resAddr <- getNewOffsetUpdRBP boolBytes
+
+            case mode of
+                QEQU -> do
+                    tell $ [ASETE (createAddrBoolRBP resAddr)]
+                    return resAddr
+
+                QNE -> do
+                    tell $ [ASETNE (createAddrBoolRBP resAddr)]
+                    return resAddr
+
+    -- resAddr <- allocBoolFromMem AR11B
+    -- return resAddr
 
 getBoolLiteralActionForGenStmt b isIfElse =
     case isIfElse of
         True -> b
         False ->  (not b)
 
+boolCmpMovToR11D val1R11DAfterShow val2AfterShow = do
+    tell $ [AMovZX (show AR11D) val2AfterShow] --(showBool val1R11DAfterShow)]
+    tell $ [ACmp (show AR11B) val2AfterShow]--(showBool val2)]
+-- string comparison, too
+-- EQU or NEQ
+-- fix jumpcond, if, and qconde
+performBoolComparison val1 val2 mode = do
+    if isBoolLiteral val1 && isBoolLiteral val2
+    then do
+        -- tell $ [AMovZX (show AR11D) (showBool val1)]
+        -- tell $ [ACmp (show AR11D) (showBool val2)]
+        boolCmpMovToR11D (extractAndShowBool val1) (extractAndShowBool val2)
+    else if isBoolLiteral val1 then do
+        addr2 <- findAddr val2
+        boolCmpMovToR11D (extractAndShowBool val1) (createAddrBoolRBP addr2)
+    else if isBoolLiteral val2 then do
+        addr1 <- findAddr val1
+        boolCmpMovToR11D (extractAndShowBool val2) (createAddrBoolRBP addr1)
+    else do
+        addr1 <- findAddr val1
+        addr2 <- findAddr val2
+        boolCmpMovToR11D (createAddrBoolRBP addr1) (createAddrBoolRBP addr2)
+
+extractAndShowBool val = showBool $ extractBoolVal val
 
                                             -- HELPER END ---------END----------
 
@@ -1177,16 +1231,16 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     subLocals locNum finfo
     updateCurFuncNameAsm name
 
+    st <- get
+    -- printMesA "curs"
+    printMesA st
+
     env <- ask
     curEnv <- local (const env) (moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32 parameterRegistersBools)
 
     local (const curEnv) (genStmtsAsm body)
 
     clearCurFuncParams
-
-    st <- get
-    -- printMesA "curs"
-    -- printMesA st
 
     -- genStmtsAsm body
     genFuncsAsm rest
@@ -1818,12 +1872,14 @@ genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
 --     then do
     
 genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
+    printMesA $ "enter jump"
     (isNew, codeLabel) <- getLabelOfStringOrLabel label
+    printMesA $ "found l " ++ (show j)
     -- printMesA $ "jumpcond " ++ (show j) ++ " label: " ++ (show codeLabel) ++ " is new: " ++ (show isNew)
 
-    if isArithmMode mode
+    if isIntTypeQ val1--isArithmMode mode
     then do
-        --printMesA $ "isA"
+        printMesA $ "isA"
         compareIntCond val1 val2
         getJump mode codeLabel
 
@@ -1832,7 +1888,8 @@ genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
         else
             genStmtsAsm rest
 
-    else
+    else do
+        printMesA $ "herere"
         -- possible todo
         if isNew then
             local (Map.insert label (NoMeaning, codeLabel)) (genStmtsAsm rest)
@@ -1840,22 +1897,22 @@ genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
             genStmtsAsm rest
 
 genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
-    if isArithmMode mode then do
+    if isIntQ valType then do --isArithmMode mode then do
         compareIntCond val1 val2
         resAddr <- getNewOffsetUpdRBP intBytes
-        chooseSETcc mode (createAddrIntRBP resAddr)
+        chooseSETcc mode (createAddrIntRBP resAddr) -- TODO I THINK IT SHOUL BE CHANGED to bool
 
         local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
     else do
         if isBoolLiteral val1 && isBoolLiteral val2 then do
-            let conditionRes = getBoolCondValLiteralAndOr val1 val2 mode
+            let conditionRes = getBoolCondValLiteralAndOrEq val1 val2 mode
             resAddr <- allocBool conditionRes
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
         else if isBoolLiteral val1 then do
             addr2 <- findAddr val2
             -- resAddr <- performAndOrOneLiteral val1 val2 mode
-            resAddr <- performAndOr (showBool $ extractBoolVal val1) (createAddrBoolRBP addr2) mode
+            resAddr <- performAndOrEQ (showBool $ extractBoolVal val1) (createAddrBoolRBP addr2) mode
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
@@ -1863,7 +1920,7 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
             --resAddr <- performAndOrOneLiteral val2 val1 mode
             addr1 <- findAddr val1
             -- resAddr <- performAndOrOneLiteral val1 val2 mode
-            resAddr <- performAndOr (showBool $ extractBoolVal val2) (createAddrBoolRBP addr1) mode
+            resAddr <- performAndOrEQ (showBool $ extractBoolVal val2) (createAddrBoolRBP addr1) mode
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
@@ -1871,7 +1928,7 @@ genStmtsAsm ((QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
             addr1 <- findAddr val1
             addr2 <- findAddr val2
 
-            resAddr <- performAndOr (createAddrBoolRBP addr1) (createAddrBoolRBP addr2) mode
+            resAddr <- performAndOrEQ (createAddrBoolRBP addr1) (createAddrBoolRBP addr2) mode
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
 
