@@ -661,9 +661,9 @@ moveStackParams [] _ = do
 moveStackParams ((ArgData ident valType): args) stackOffset = do
     case valType of
         IntQ -> do
-            tell $ [AMov (show ARAX) (createAddrIntRBP (OffsetRBP stackOffset))] 
+            tell $ [AMov (show AEAX) (createAddrIntRBP (OffsetRBP stackOffset))] 
             let var = QLoc ident valType
-            offsetRBP <- allocVar ARAX intBytes -- allocInt ARAX
+            offsetRBP <- allocVar AEAX intBytes -- allocInt ARAX
 
             local (Map.insert ident (var, offsetRBP)) (moveStackParams args (stackOffset + stackParamSize))
 
