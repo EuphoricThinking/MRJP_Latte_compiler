@@ -715,6 +715,7 @@ createCondGenJumpMode mode =
         (LTH _) -> QLTH
 
 changeExprToGenCond expr = do
+    printMesQ $ "Change to cond"
     lTrue <- createTempVarNameCurFuncExprs
     lFalse <- createTempVarNameCurFuncExprs
     lEnd <- createTempVarNameCurFuncExprs
@@ -724,8 +725,9 @@ changeExprToGenCond expr = do
 
 
     (val, code, depth) <- genCond expr lTrue lFalse
+    printMesQ $ "ltrue " ++ lTrue
 
-    let ifElseAssignCode = code ++ [(QLabel lTrue), (QAss locVar (BoolQVal True)), (QGoTo lEnd), (QLabel lFalse), (QAss locVar (BoolQVal False)), (QLabel lEnd) ]
+    let ifElseAssignCode = code ++ [(QLabel lTrue), (QDecl locVar (BoolQVal True)), (QGoTo lEnd), (QLabel lFalse), (QDecl locVar (BoolQVal False)), (QLabel lEnd) ]
 
     return ((LocQVal resTmpName BoolQ), ifElseAssignCode, depth)
 
@@ -1050,6 +1052,7 @@ genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
     return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2 ) + 1)
 
 genCond (EAnd pos expr1 expr2) lTrue lFalse = do
+    printMesQ $ "genconrig eand"
     resTmpName <- createTempVarNameCurFuncExprs
 
     lMid <- createTempVarNameCurFuncExprs

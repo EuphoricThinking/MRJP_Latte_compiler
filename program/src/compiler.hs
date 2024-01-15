@@ -1325,6 +1325,7 @@ genStmtsAsm [] = do
 genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
     -- printMesA $ "qass " ++ (show var) ++ " val: " ++ (show val)
     id <- asks (Map.lookup name)
+    printMesA $ "id qass " ++ (show id)
 
     case id of
         Nothing -> throwError $ "Assignment to undeclared var in asm: " ++ name
@@ -1830,6 +1831,8 @@ genStmtsAsm ((QLabel labelFalse) : rest) = do
     (isNew, codeLabel) <- getLabelOfStringOrLabel labelFalse
     tell $ [ALabel (createAddrLabel codeLabel)]
 
+    printMesA $ "orig " ++ labelFalse ++ " new " ++ (createAddrLabel codeLabel)
+    printMesA $ (show rest)
     -- genStmtsAsm rest
     if isNew then
         local (Map.insert labelFalse (NoMeaning, codeLabel)) (genStmtsAsm rest)
