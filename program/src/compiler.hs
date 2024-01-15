@@ -315,7 +315,7 @@ main = do
                             printOK
                             (eitherQuad, quadcode) <- genQuadcode p
                             -- print $ (show eitherQuad)
-                            print $ "After quad "
+                            -- print $ "After quad "
                             -- print $ (show quadcode)
                             let ftuple = splitExtension filename
                             let fname = fst ftuple
@@ -859,7 +859,6 @@ extractBoolVal (BoolQVal b) = b
 extractLocQvarId (LocQVal id _) = id
 
 findAddr v@(LocQVal ident _) = do
-    printMesA $ "locqval lookup " ++ (show v)
     idData <- asks (Map.lookup ident)
     case idData of
         Nothing -> throwError $ ident ++ " var not found for address determination"
@@ -1325,7 +1324,7 @@ genStmtsAsm [] = do
 genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
     -- printMesA $ "qass " ++ (show var) ++ " val: " ++ (show val)
     id <- asks (Map.lookup name)
-    printMesA $ "id qass " ++ (show id)
+    -- printMesA $ "id qass " ++ (show id) ++ " " ++ (show rest)
 
     case id of
         Nothing -> throwError $ "Assignment to undeclared var in asm: " ++ name
@@ -1461,6 +1460,7 @@ genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPo
 genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
     -- after params generation
     valSubtracted <- alignStack
+    -- printMesA $ "call " ++ ident ++ " " ++ (show rest)
 
     case ident of
         "printInt" -> do
@@ -1514,7 +1514,7 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
                     --let valStorage = assignResToRegister qvar
                     -- printMesA $ "after call " ++ ident ++ " " ++ (show valStorage)
                     valStorage <- assignResToRegister qvar
-                    printMesA $ ident ++ " var id: " ++ varTmpId
+                    -- printMesA $ ident ++ " var id: " ++ varTmpId
 
                     local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
@@ -1828,7 +1828,6 @@ genStmtsAsm ((QIf val labelFalse) : rest) = do
 -- generate label
 genStmtsAsm ((QLabel labelFalse) : rest) = do
     -- hceck label in store
-    -- printMesA $ "LABLE HERE " ++ labelFalse
     (isNew, codeLabel) <- getLabelOfStringOrLabel labelFalse
     tell $ [ALabel (createAddrLabel codeLabel)]
 
@@ -1839,9 +1838,9 @@ genStmtsAsm ((QLabel labelFalse) : rest) = do
         genStmtsAsm rest
 
 genStmtsAsm ((QGoTo label) : rest) = do
-    printMesA $ "IN GOTO " -- ++ (show rest)
+    -- printMesA $ "IN GOTO " -- ++ (show rest)
     (isNew, codeLabel) <- getLabelOfStringOrLabel label
-    printMesA $ "after codelabel " ++ (createAddrLabel codeLabel)
+    -- printMesA $ "after codelabel " ++ (createAddrLabel codeLabel)
 
     tell $ [AJmp (createAddrLabel codeLabel)]
 
@@ -1968,7 +1967,7 @@ genStmtsAsm ((QWhile val labelWhile) : rest) = do
             genStmtsAsm rest
 
 genStmtsAsm (v@(QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : rest) = do
-    printMesA $ "QCondJMPAndOr " ++ (show v)
+    -- printMesA $ "QCondJMPAndOr " ++ (show v)
     if isBoolLiteral val1 && isBoolLiteral val2
     then do
         boolOnlyMovAndOr (extractAndShowBool val1) (extractAndShowBool val2) condType
@@ -1979,10 +1978,10 @@ genStmtsAsm (v@(QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : res
         addr1 <- findAddr val1
         boolOnlyMovAndOr (createAddrBoolRBP addr1) (extractAndShowBool val2) condType
     else do
-        printMesA $ "finding addr"
+        -- printMesA $ "finding addr"
         addr1 <- findAddr val1
         addr2 <- findAddr val2
-        printMesA $ "addr found"
+        -- printMesA $ "addr found"
         boolOnlyMovAndOr (createAddrBoolRBP addr1) (createAddrBoolRBP addr2) condType
 
     genStmtsAsm rest
@@ -2003,7 +2002,10 @@ genStmtsAsm ((QJumpCMP operand label) : rest) = do
     else
         genStmtsAsm rest
 
-genStmtAsm ((QCmp val1 val2) : rest) = do
-    compareIntCond val1 val2
+genStmtsAsm ((QCmp val1 val2) : rest) = do
+    if isIntTypeQ val1 then
+        compareIntCond val1 val2
+    else 
+        performBoolComparison val1 val2
 
-    genStmtAsm rest
+    genStmtsAsm rest
