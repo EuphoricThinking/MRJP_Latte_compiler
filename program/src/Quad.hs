@@ -700,6 +700,15 @@ getAndOrExpr expr1 isAnd expr2 isParam = do
 
     return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2) + 1)
 
+createCondGenJumpMode mode =
+    case operand of
+        (EQU _) -> QEQU
+        (NE _) -> QNE
+        (GE _) -> QGE
+        (GTH _) -> QGTH
+        (LE _) -> QLE
+        (LTH _) -> QLTH
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -1002,7 +1011,7 @@ genCond v@(EVar pos (Ident ident)) _ _ = genQExpr v JustLocal
 genCond v@(ELitFalse _) _ _ = genQExpr v JustLocal
 genCond v@(ELitTrue _) _ _ = genQExpr v JustLocal
 
-genCond (ERel pos expr1 (GTH _) expr2) lTrue lFalse = do
+genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
     (val1, code1, depth1) <- genQExpr expr1 JustLocal
     (val2, code2, depth2) <- genQExpr expr2 JustLocal
 
@@ -1010,7 +1019,7 @@ genCond (ERel pos expr1 (GTH _) expr2) lTrue lFalse = do
 
     resTmpName <- createTempVarNameCurFuncExprs
 
-    let newCode = code1 ++ code2 ++ [(QCmp val1 val2), (QJumpGTH lTrue), (QGoTo lFalse)]
+    let newCode = code1 ++ code2 ++ [(QCmp val1 val2), (QJumpCMP (createCondGenJumpMode operand)), (QGoTo lFalse)]
 
     return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2 ) + 1)
 
