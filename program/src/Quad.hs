@@ -743,6 +743,19 @@ changeExprToGenCond expr = do
 
     return ((LocQVal resTmpName BoolQ), ifElseAssignCode, depth)
 
+singleValsGenCond expr lTrue lFalse = do
+    (val@(LocQVal callTmpName retType), code, depth) <- genQExpr expr JustLocal
+
+    resTmpName <- createTempVarNameCurFuncExprs
+    --printMesQ $ "eapp cond  " ++ resTmpName ++ " " ++ (show val)
+
+    let locVar = QLoc callTmpName retType--resTmpName BoolQ
+
+    let newCode = code ++ [(QCondJMPAndOr locVar val (BoolQVal True) QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
+
+    return ((LocQVal callTmpName BoolQ), newCode, depth) -- resTmpName)
+
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -1046,21 +1059,13 @@ genQExpr expr@(EAnd pos expr1 expr2) isParam = changeExprToGenCond expr
 
 genQExpr expr@(EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOrExpr expr1 False expr2 isParam
 
-genCond v@(EVar pos (Ident ident)) _ _ = genQExpr v JustLocal
+genCond v@(EVar pos (Ident ident)) lTrue lFalse = singleValsGenCond v lTrue lFalse
+
+    --printMesQ ("var " ++ ident) >> genQExpr v JustLocal
 genCond v@(ELitFalse _) _ _ = genQExpr v JustLocal
 genCond v@(ELitTrue _) _ _ = genQExpr v JustLocal
 -- comparison between numbers is handled in gencond erel
-genCond v@(EApp pos (Ident ident) exprList) lTrue lFalse = do
-    (val@(LocQVal callTmpName retType), code, depth) <- genQExpr v JustLocal
-
-    resTmpName <- createTempVarNameCurFuncExprs
-    printMesQ $ "eapp cond  " ++ resTmpName ++ " " ++ (show val)
-
-    let locVar = QLoc callTmpName retType--resTmpName BoolQ
-
-    let newCode = code ++ [(QCondJMPAndOr locVar val (BoolQVal True) QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
-
-    return ((LocQVal callTmpName BoolQ), newCode, depth) -- resTmpName
+genCond v@(EApp pos (Ident ident) exprList) lTrue lFalse = singleValsGenCond v lTrue lFalse
 
     -- not equal - ZF = 1 -> true && true
 
