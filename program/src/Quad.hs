@@ -713,6 +713,21 @@ createCondGenJumpMode mode =
         (LE _) -> QLE
         (LTH _) -> QLTH
 
+changeExprToGenCond expr = do
+    lTrue <- createTempVarNameCurFuncExprs
+    lFalse <- createTempVarNameCurFuncExprs
+    lEnd <- createTempVarNameCurFuncExprs
+
+    resTmpName <- createTempVarNameCurFuncExprs
+    let locVar = QLoc resTmpName BoolQ
+
+
+    (val, code, depth) <- genCond expr lTrue lFalse
+
+    let ifElseAssignCode = code ++ [(QLabel lTrue), (QAss locVar (BoolQVal True)), (QGoTo lEnd), (QLabel lFalse), (QAss locVar (BoolQVal False), (QLabel lEnd)) ]
+
+    return ((LocQVal resTmpName BoolQ), ifElseAssignCode, depth)
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -969,7 +984,7 @@ genQExpr (EAdd pos expr1 (Minus posP) expr2) isParam = do
 genQExpr (Neg pos expr) isParam = createNegOrNotExpr expr isParam True
     
 
-genQExpr (Not pos expr) isParam = createNegOrNotExpr expr isParam False
+genQExpr (Not pos expr) isParam = changeExprToGenCond expr --createNegOrNotExpr expr isParam False
 
 genQExpr (EMul pos expr1 mulOperand expr2) isParam = do
     (val1, code1, depth1) <- genQExpr expr1 isParam
@@ -1007,9 +1022,14 @@ genQExpr (ERel pos expr1 operand expr2) isParam = do
 
     return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2) + 1)
 
-genQExpr (EAnd pos expr1 expr2) isParam = getAndOrExpr expr1 True expr2 isParam
+genQExpr expr@(EAnd pos expr1 expr2) isParam = changeExprToGenCond expr
+    
 
-genQExpr (EOr pos expr1 expr2) isParam = getAndOrExpr expr1 False expr2 isParam
+    
+    
+    --getAndOrExpr expr1 True expr2 isParam
+
+genQExpr (EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOrExpr expr1 False expr2 isParam
 
 genCond v@(EVar pos (Ident ident)) _ _ = genQExpr v JustLocal
 genCond v@(ELitFalse _) _ _ = genQExpr v JustLocal

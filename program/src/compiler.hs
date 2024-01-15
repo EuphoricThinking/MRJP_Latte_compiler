@@ -1240,8 +1240,8 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     updateCurFuncNameAsm name
 
     st <- get
-    -- printMesA "curs"
-    -- printMesA st
+    printMesA "curs"
+    printMesA st
 
     env <- ask
     curEnv <- local (const env) (moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32 parameterRegistersBools)
