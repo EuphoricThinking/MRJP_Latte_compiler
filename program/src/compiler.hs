@@ -1126,12 +1126,14 @@ getBoolCondValLiteralAndOrEq val1 val2 mode =
         QNE -> ((extractBoolVal val1) /= (extractBoolVal val2))
 
 --val1: boolLiteral ; val2: boolVar
-performAndOrEQ valToR11D addrCompRight mode = do
+performAndOrEQ valToR11D addrCompRight mode = do --isLeftAddr mode = do
     --addrVar <- findAddr boolVar
     -- resAddr <- allocBool (extractBoolVal boolLiteral)
     -- printMesA $ (show mode)
 
-    tell $ [AMovZX (show AR11D) valToR11D] --(showBool $ extractBoolVal boolLiteral)] -- TODO CHANGED
+    -- if isLeftAddr then
+    --     tell $ [AMovZX (show AR11D)]
+    tell $ [AMov (show AR11B) valToR11D] --(showBool $ extractBoolVal boolLiteral)] -- TODO CHANGED -- TODO instead of movzx INSTEAD OF AR11D
     case mode of
         QAND -> do
             tell $ [AAnd (show AR11B) addrCompRight] --(createAddrBoolRBP addrVar)]
@@ -1143,7 +1145,7 @@ performAndOrEQ valToR11D addrCompRight mode = do
             return resAddr
 
         _ -> do
-            tell $ [AXor (show AR11D) valToR11D]
+            tell $ [AXor (show AR11B) valToR11D]
             --  SF, ZF, and PF flags are set according to the result
             -- SETE -> equal -> ZF = 1 (001 xor 001) (000 xor 000) give zero, (001 xor 000) give 1
             resAddr <- getNewOffsetUpdRBP boolBytes
