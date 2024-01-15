@@ -1161,12 +1161,12 @@ getBoolLiteralActionForGenStmt b isIfElse =
         False ->  (not b)
 
 boolCmpMovToR11D val1R11DAfterShow val2AfterShow = do
-    tell $ [AMovZX (show AR11D) val2AfterShow] --(showBool val1R11DAfterShow)]
+    tell $ [AMov (show AR11B) val2AfterShow] --(showBool val1R11DAfterShow)]
     tell $ [ACmp (show AR11B) val2AfterShow]--(showBool val2)]
 -- string comparison, too
 -- EQU or NEQ
 -- fix jumpcond, if, and qconde
-performBoolComparison val1 val2 mode = do
+performBoolComparison val1 val2 = do
     if isBoolLiteral val1 && isBoolLiteral val2
     then do
         -- tell $ [AMovZX (show AR11D) (showBool val1)]
@@ -1890,6 +1890,8 @@ genStmtsAsm (j@(JumpCondQ label val1 val2 mode) : rest) = do
 
     else do
         printMesA $ "herere"
+        performBoolComparison val1 val2
+        getJump mode codeLabel
         -- possible todo
         if isNew then
             local (Map.insert label (NoMeaning, codeLabel)) (genStmtsAsm rest)
