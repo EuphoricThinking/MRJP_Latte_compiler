@@ -716,7 +716,7 @@ createCondGenJumpMode mode =
 
 changeExprToGenCond expr = do
     printMesQ $ "Change to cond"
-    lTrue <- createTempVarNameCurFuncExprs
+    --lTrue <- createTempVarNameCurFuncExprs
     lFalse <- createTempVarNameCurFuncExprs
     lEnd <- createTempVarNameCurFuncExprs
 
@@ -724,10 +724,12 @@ changeExprToGenCond expr = do
     let locVar = QLoc resTmpName BoolQ
 
 
-    (val, code, depth) <- genCond expr lTrue lFalse
-    printMesQ $ "ltrue " ++ lTrue
+    (val, code, depth) <- genCond expr lEnd lFalse  --lTrue lFalse
 
-    let ifElseAssignCode = code ++ [(QLabel lTrue), (QDecl locVar (BoolQVal True)), (QGoTo lEnd), (QLabel lFalse), (QDecl locVar (BoolQVal False)), (QLabel lEnd) ]
+-- initialize, check, reassign
+    --let ifElseAssignCode = [(QDecl locVar (BoolQVal True))] ++ code ++ [(QLabel lTrue), (QDecl locVar (BoolQVal True)), (QGoTo lEnd), (QLabel lFalse), (QDecl locVar (BoolQVal False)), (QLabel lEnd) ]
+    let ifElseAssignCode = [(QDecl locVar (BoolQVal True))] ++ code ++ [(QLabel lFalse), (QAss locVar (BoolQVal False)), (QLabel lEnd) ]
+
 
     return ((LocQVal resTmpName BoolQ), ifElseAssignCode, depth)
 
@@ -1037,7 +1039,20 @@ genQExpr expr@(EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOr
 genCond v@(EVar pos (Ident ident)) _ _ = genQExpr v JustLocal
 genCond v@(ELitFalse _) _ _ = genQExpr v JustLocal
 genCond v@(ELitTrue _) _ _ = genQExpr v JustLocal
-genCond v@(EApp pos (Ident ident) exprList) _ _ = genQExpr v JustLocal
+-- comparison between numbers is handled in gencond erel
+genCond v@(EApp pos (Ident ident) exprList) lTrue lFalse = do
+    (val, code, depth) <- genQExpr v JustLocal
+
+    resTmpName <- createTempVarNameCurFuncExprs
+
+    let locVar = QLoc resTmpName BoolQ
+
+    let newCode = code ++ [(QCondJMPAndOr locVar val (BoolQVal True) QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
+
+    return ((LocQVal resTmpName BoolQ), newCode, depth)
+
+    -- not equal - ZF = 1 -> true && true
+
 
 genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
     (val1, code1, depth1) <- genQExpr expr1 JustLocal

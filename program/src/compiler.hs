@@ -1241,8 +1241,8 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     updateCurFuncNameAsm name
 
     st <- get
-    printMesA "curs"
-    printMesA st
+    -- printMesA "curs"
+    -- printMesA st
 
     env <- ask
     curEnv <- local (const env) (moveFromRegisters args parametersRegisterPoniters64 parametersRegistersInts32 parameterRegistersBools)
@@ -1514,6 +1514,7 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
                     --let valStorage = assignResToRegister qvar
                     -- printMesA $ "after call " ++ ident ++ " " ++ (show valStorage)
                     valStorage <- assignResToRegister qvar
+                    printMesA $ ident ++ (show rest)
 
                     local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
@@ -1831,8 +1832,6 @@ genStmtsAsm ((QLabel labelFalse) : rest) = do
     (isNew, codeLabel) <- getLabelOfStringOrLabel labelFalse
     tell $ [ALabel (createAddrLabel codeLabel)]
 
-    printMesA $ "orig " ++ labelFalse ++ " new " ++ (createAddrLabel codeLabel)
-    printMesA $ (show rest)
     -- genStmtsAsm rest
     if isNew then
         local (Map.insert labelFalse (NoMeaning, codeLabel)) (genStmtsAsm rest)
