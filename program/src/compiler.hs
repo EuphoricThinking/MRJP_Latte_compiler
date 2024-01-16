@@ -516,7 +516,9 @@ safeguardRSP memsize = do
     rbpVal <- gets (lastAddrRBP)
     rspVal <- gets (curRSP)
 
-    if (rbpVal - memsize) < rspVal
+    printMesA $ "safguars rbp " ++ (show rbpVal) ++ " rsp " ++ (show rspVal) 
+
+    if (rbpVal - memsize) < (-rspVal)
     then do
         let newRSP = rspVal - memsize
         curState <- get
