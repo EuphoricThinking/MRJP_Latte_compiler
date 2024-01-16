@@ -944,6 +944,8 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
     let isSpecial = isSpecialFuncQ ident --addToSpecialFuncsIfSpecial ident
     (updCode, depth) <- genParamCodeForExprList exprList isParam
 
+    -- updateLocalNumCur
+
     if isSpecial
     then do
         addToSpecialUncond ident
