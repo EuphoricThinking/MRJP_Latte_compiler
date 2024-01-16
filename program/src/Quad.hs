@@ -715,8 +715,10 @@ createCondGenJumpMode mode =
         (LTH _) -> QLTH
 
 increaseBoolsWihoutArgs = do
+    printMesQ $ "increasing"
     fname <- gets (curFuncName)
     body <- gets (Map.lookup fname . defFunc)
+    printMesQ $ "name: " ++ fname ++ " " ++ (show body)
     case body of
         Nothing -> throwError $ "No cur func in increase bool"
         Just fbody -> increaseBoolsNum fname fbody 
@@ -733,6 +735,7 @@ changeExprToGenCond expr = do
 
     --increaseBoolsNum
     increaseBoolsWihoutArgs
+    updateLocalNumCur
 
     (val, code, depth) <- genCond expr lEnd lFalse  --lTrue lFalse
 -- initialize, check, reassign
@@ -748,6 +751,8 @@ singleValsGenCond expr lTrue lFalse = do
 
     resTmpName <- createTempVarNameCurFuncExprs
     --printMesQ $ "eapp cond  " ++ resTmpName ++ " " ++ (show val)
+    increaseBoolsWihoutArgs
+    updateLocalNumCur
 
     let locVar = QLoc callTmpName retType--resTmpName BoolQ
 
@@ -760,6 +765,7 @@ eLitToGenCode expr lTrue lFalse = do
     resTmpName <- createTempVarNameCurFuncExprs
     let locVar = QLoc resTmpName BoolQ
     increaseBoolsWihoutArgs
+    updateLocalNumCur
 
 
     (val, code, depth) <- genQExpr expr JustLocal
@@ -979,7 +985,7 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
     (val1, code1, depth1) <- genQExpr expr1 isParam
     (val2, code2, depth2) <- genQExpr expr2 isParam
 
-    increaseNumInts
+    updateLocalNumCur
 
     curFName <- gets curFuncName
     resTmpName <- createTempVarName curFName
@@ -988,6 +994,7 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
         IntQ -> do
             let locVar = QLoc resTmpName IntQ
             let newCode = code1 ++ code2 ++ [QAdd locVar val1 val2]
+            increaseNumInts
 
             return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
 
@@ -1002,9 +1009,9 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
                 Nothing -> throwError $ "Quad Concat error: no cur func"
                 Just curBody -> do
 
-                updateStringVarsNum curFName curBody
+                updateStringVarsNum curFName curBody -- for itermediate (or final) result
 
-                updBothStrNumAndListTwoVals val1 val2 curFName curBody
+                updBothStrNumAndListTwoVals val1 val2 curFName curBody -- checks if any of the arguments is a raw string, adds to string list (data section)
 
                 return ((LocQVal resTmpName StringQ), newCode, (max depth1 depth2) + 1)
 
@@ -1014,6 +1021,7 @@ genQExpr (EAdd pos expr1 (Minus posP) expr2) isParam = do
     (val2, code2, depth2) <- genQExpr expr2 isParam
 
     increaseNumInts
+    updateLocalNumCur
 
     resTmpName <- createTempVarNameCurFuncExprs
 
@@ -1032,6 +1040,7 @@ genQExpr (EMul pos expr1 mulOperand expr2) isParam = do
     (val2, code2, depth2) <- genQExpr expr2 isParam
 
     increaseNumInts
+    updateLocalNumCur
 
     resTmpName <- createTempVarNameCurFuncExprs
 
@@ -1088,6 +1097,8 @@ genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
     (val2, code2, depth2) <- genQExpr expr2 JustLocal
 
     --increaseNumInts
+    increaseBoolsWihoutArgs
+    updateLocalNumCur
 
     resTmpName <- createTempVarNameCurFuncExprs
 
@@ -1102,6 +1113,9 @@ genCond (EAnd pos expr1 expr2) lTrue lFalse = do
     printMesQ $ "genconrig eand"
     resTmpName <- createTempVarNameCurFuncExprs
     printMesQ $ "genAnd  " ++ resTmpName
+
+    increaseBoolsWihoutArgs
+    updateLocalNumCur
 
     lMid <- createTempVarNameCurFuncExprs
 
@@ -1129,6 +1143,7 @@ genCond (EOr pos expr1 expr2) lTrue lFalse = do
 
     --increaseBoolsNum
     increaseBoolsWihoutArgs
+    updateLocalNumCur
 
     let locVar = QLoc resTmpName BoolQ
     -- let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QOR), (QJumpCMP QNE lTrue), (QGoTo lFalse)] -- // (QTrueJMP lTrue), (QGoto lFalse)]

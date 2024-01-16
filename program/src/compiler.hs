@@ -444,7 +444,7 @@ allParamsTypeSizes (a@(ArgData ident valType) : args) sumParams =
 
 subLocals 0 _ = return ()
 -- TODO fix it -> all params are saved in memory
-subLocals numLoc (FuncData name retType args locNum body numInts strVars strVarsNum numBools) = do 
+subLocals numLoc f@(FuncData name retType args locNum body numInts strVars strVarsNum numBools) = do 
     st <- get
     --printMesA $ "should not BE "  ++ (show numLoc) ++ " " ++ (curFuncNameAsm st)
     -- let localsSize = numInts*intBytes + strVarsNum*strPointerBytes--TODO add rest
@@ -456,11 +456,13 @@ subLocals numLoc (FuncData name retType args locNum body numInts strVars strVars
 
     -- printMesA $ "PARAMS " ++ (show args)
 
-    -- printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
+    printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
     -- -- printMesA $ "sum params: " ++ (show paramsSizes)
     -- -- printMesA $ "sum locals: " ++ (show localsSize)
-    -- printMesA $ "numStrs: " ++ (show strVarsNum)
-    -- printMesA $ "numInts: " ++ (show numInts)
+    printMesA $ "numStrs: " ++ (show strVarsNum)
+    printMesA $ "numInts: " ++ (show numInts)
+    printMesA $ "numBools: " ++ (show numBools)
+    printMesA $ f
 
     let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
     updateRSP stackUpdate
