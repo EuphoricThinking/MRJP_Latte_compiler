@@ -462,7 +462,7 @@ subLocals numLoc f@(FuncData name retType args locNum body numInts strVars strVa
     printMesA $ "numStrs: " ++ (show strVarsNum)
     printMesA $ "numInts: " ++ (show numInts)
     printMesA $ "numBools: " ++ (show numBools)
-    printMesA $ f
+    --printMesA $ f
 
     let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
     updateRSP stackUpdate
@@ -512,11 +512,28 @@ createEndRetLabel = do
     curFName <- gets curFuncNameAsm
     return ("." ++ curFName ++ endSuffix)
 
+safeguardRSP memsize = do
+    rbpVal <- gets (lastAddrRBP)
+    rspVal <- gets (curRSP)
+
+    if (rbpVal - memsize) < rspVal
+    then do
+        let newRSP = rspVal - memsize
+        curState <- get
+
+        tell $ [ASub (show ARSP) (show memsize)]
+
+        put curState {curRSP = newRSP}
+    else
+        return ()
+
 allocInt v = do
     curRBP <- gets lastAddrRBP
     let newRBPOffset = curRBP - intBytes
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
+
+    safeguardRSP intBytes
 
     let storageOffset = OffsetRBP newRBPOffset
     -- gen command
@@ -541,6 +558,8 @@ allocVar v memSize = do
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
 
+    safeguardRSP memSize
+
     let storageOffset = OffsetRBP newRBPOffset
     --printMesA $ "ALLOC_VAR " ++ (show v)
     -- gen command
@@ -563,6 +582,8 @@ allocBool b = do
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
 
+    safeguardRSP boolBytes
+
     let storageOffset = OffsetRBP newRBPOffset
 
     --printMesA $ "boolval " ++ (show $ getTrueOrFalseInt b)
@@ -576,6 +597,8 @@ allocBoolFromMem memStorage = do
     let newRBPOffset = curRBP - boolBytes
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
+
+    safeguardRSP boolBytes
 
     let storageOffset = OffsetRBP newRBPOffset
 
@@ -600,9 +623,12 @@ getMemSize valType =
 
 allocVarCopyFromMem memToBeCopied valType = do
     curRBP <- gets lastAddrRBP
-    let newRBPOffset = curRBP - (getMemSize valType)
+    let memSize = getMemSize valType
+    let newRBPOffset = curRBP - memSize --(getMemSize valType)
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
+
+    safeguardRSP memSize
 
     let storageOffset = OffsetRBP newRBPOffset
    --printMesA $ "alllocVar " ++ (show memToBeCopied) ++ " " ++ (show valType) ++ " " ++ (show storageOffset)
@@ -617,6 +643,8 @@ getNewOffsetUpdRBP memSize = do
     let newRBPOffset = curRBP - memSize
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
+
+    safeguardRSP memSize
 
     return (OffsetRBP newRBPOffset)
 
