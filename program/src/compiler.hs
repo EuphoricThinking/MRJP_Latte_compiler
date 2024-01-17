@@ -1272,9 +1272,9 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     tell $ [ALabel name]
     tell $ [AProlog]
 
-    printMesA $ "NAME IN |" ++ name ++ "|"
-    printMesA $ "boooodyyy"
-    printMesA $ (show body)
+    -- printMesA $ "NAME IN |" ++ name ++ "|"
+    -- printMesA $ "boooodyyy"
+    -- printMesA $ (show body)
 
     -- get size of params, subtract from the stack (probably iterate once again)
     -- clear store before function leave
