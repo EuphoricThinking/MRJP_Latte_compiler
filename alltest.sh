@@ -2,14 +2,11 @@ for file in `ls ../lattests/good/*lat`
 do
 	echo "$file"
 	./latc_x86_64 "$file" | grep -e "OK|ERROR"
-	echo "between"
-	./latc_x86_64 "$file"  #> "${file%.*}.new"
+	./latc_x86_64 "$file"
 
 	if [ -e "${file%.*}.input" ]; then
-		echo "     input"
 		cat "${file%.*}.input" | "${file%.*}" > "${file%.*}.new"
 	else
-		echo "without"
 		"${file%.*}" > "${file%.*}.new"
 	fi
 
