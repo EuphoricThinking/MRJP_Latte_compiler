@@ -442,7 +442,7 @@ allParamsTypeSizes (a@(ArgData ident valType) : args) sumParams =
         IntQ -> allParamsTypeSizes args (sumParams + intBytes)
         StringQ -> allParamsTypeSizes args (sumParams + strPointerBytes)
 
-subLocals 0 f = printMesA ("zerolocals" ++ (show f)) >> return ()
+subLocals 0 f = return () --printMesA ("zerolocals" ++ (show f)) >> return ()
 -- TODO fix it -> all params are saved in memory
 subLocals numLoc f@(FuncData name retType args locNum body numInts strVars strVarsNum numBools) = do 
     st <- get
@@ -456,19 +456,19 @@ subLocals numLoc f@(FuncData name retType args locNum body numInts strVars strVa
 
     -- printMesA $ "PARAMS " ++ (show args)
 
-    printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
-    -- -- printMesA $ "sum params: " ++ (show paramsSizes)
-    -- -- printMesA $ "sum locals: " ++ (show localsSize)
-    printMesA $ "numStrs: " ++ (show strVarsNum)
-    printMesA $ "numInts: " ++ (show numInts)
-    printMesA $ "numBools: " ++ (show numBools)
+    -- printMesA $ "sum locals params: " ++ (show sumLocalsAndParamsSizes)
+    -- -- -- printMesA $ "sum params: " ++ (show paramsSizes)
+    -- -- -- printMesA $ "sum locals: " ++ (show localsSize)
+    -- printMesA $ "numStrs: " ++ (show strVarsNum)
+    -- printMesA $ "numInts: " ++ (show numInts)
+    -- printMesA $ "numBools: " ++ (show numBools)
     --printMesA $ f
 
     let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
     updateRSP stackUpdate
 
     crsp <- gets (curRSP)
-    printMesA $ "rsp after locals " ++ (show crsp)
+    -- printMesA $ "rsp after locals " ++ (show crsp)
 
 
     -- tell $ [AAllocLocals localsSize] --[AAllocLocals numLoc]
@@ -522,7 +522,7 @@ safeguardRSP memsize = do
     if (rbpVal - memsize) < (-rspVal)
     then do
         let subt = rbpVal - memsize
-        printMesA $ "safeguard rbp: " ++ (show subt) ++ " rsp: " ++ (show (-rspVal))
+        -- printMesA $ "safeguard rbp: " ++ (show subt) ++ " rsp: " ++ (show (-rspVal))
         let newRSP = rspVal - memsize
         curState <- get
 
@@ -1269,9 +1269,9 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     tell $ [ALabel name]
     tell $ [AProlog]
 
-    printMesA $ "NAME IN |" ++ name ++ "|"
-    printMesA $ "boooodyyy"
-    printMesA $ (show body)
+    -- printMesA $ "NAME IN |" ++ name ++ "|"
+    -- printMesA $ "boooodyyy"
+    -- printMesA $ (show body)
 
     -- get size of params, subtract from the stack (probably iterate once again)
     -- clear store before function leave

@@ -254,7 +254,6 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     --print (show curFName
     env <- ask
     (envWithParams, numInts, numStrs, numBools) <- local (const env) (saveArgsToEnv args 0 0 0)
-    printMesQ $ "Args found int: " ++ (show numInts) ++ " strs: " ++ (show numStrs) ++ " bools: " ++ (show numBools)
 
     -- let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0 [] 0
     let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) (numInts + numStrs) [] numInts [] numStrs numBools
@@ -322,7 +321,6 @@ increaseBoolsNum fname fbody = do
     put curState {defFunc = Map.insert fname updatedNumBools (defFunc curState)}
 
 updateStringVarsNum fname curBody = do
-    printMesQ $ "update str " ++ fname
     curState <- get
     -- curFName <- gets curFuncName
     -- curBody
@@ -369,7 +367,6 @@ increaseNumLocTypesCur exprVal = do
             case exprVal of
                 (IntQVal _) -> do
                     -- updateLocalNumCur
-                    printMesQ $ "increase decl int " ++ (show exprVal)
 
                     let updatedNumInts = createIncreaseNumInts 1 fname curBody
                     put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
@@ -378,20 +375,17 @@ increaseNumLocTypesCur exprVal = do
                     case retType of
                         IntQ -> do 
                             -- updateLocalNumCur
-                            printMesQ $ "increase decl int varloc " ++ (show exprVal)
 
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
                         StringQ -> do
-                            printMesQ $ "increase decl str varloc " ++ (show exprVal)
                             updateStringVarsNum fname curBody
                             --printMesQ $ "upd " ++ (show t)
                             --printMesQ $ (show $ getFuncNumStrVars curBody)
                             return () --do
                             --printMesQ $ "STR " ++ (show t)
                         BoolQ -> do
-                            printMesQ $ "increase decl bool varloc " ++ (show exprVal)
                             increaseBoolsNum fname curBody
 
 
@@ -414,14 +408,12 @@ increaseNumLocTypesCur exprVal = do
                     -- let newBody = (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) ((getFuncNumStrVars fbody) + 1)
 
                     -- put curState {defFunc = Map.insert fname newBody (defFunc curState)}
-                    printMesQ $ "increase decl str " ++ (show exprVal)
 
                     updBothStrNumAndList strVal fname curBody
 
                 (BoolQVal b) -> do
                     -- let updatedNumBools = createIncreasedBoolNum fname curBody
                     -- put curState {defFunc = Map.insert fname updatedNumBools (defFunc curState)}
-                    printMesQ $ "increase decl bool " ++ (show exprVal)
 
                     increaseBoolsNum fname curBody
 
@@ -1021,7 +1013,6 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
 
     updateLocalNumCur
 
-    printMesQ $ "in add"
 
     curFName <- gets curFuncName
     resTmpName <- createTempVarName curFName
@@ -1031,14 +1022,12 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
             let locVar = QLoc resTmpName IntQ
             let newCode = code1 ++ code2 ++ [QAdd locVar val1 val2]
             increaseNumInts
-            printMesQ $ "inc int"
 
             return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
 
         StringQ -> do
             let concVar = QLoc resTmpName StringQ
             let newCode = code1 ++ code2 ++ [QConcat concVar val1 val2]
-            printMesQ $ "inc str"
 
             addToSpecialUncond concatStr
 -- is string literal
@@ -1047,11 +1036,9 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
                 Nothing -> throwError $ "Quad Concat error: no cur func"
                 Just curBody -> do
                 
-                    printMesQ $ "bod bef " ++ (show cfbody)
                     updated <- updateStringVarsNum curFName curBody -- for itermediate (or final) result
                     -- updateLocalNumCur
 
-                    printMesQ $ "bod aft " ++ (show cfbody)
 
                     updBothStrNumAndListTwoVals val1 val2 curFName updated --curBody -- checks if any of the arguments is a raw string, adds to string list (data section)
 
@@ -1144,7 +1131,6 @@ genCond e@(ERel pos expr1 operand expr2) lTrue lFalse = do
     --increaseNumInts
     increaseBoolsWihoutArgs
     updateLocalNumCur
-    printMesQ $ "gencond erel " ++ (show e)
 
     resTmpName <- createTempVarNameCurFuncExprs
 
