@@ -254,6 +254,7 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     --print (show curFName
     env <- ask
     (envWithParams, numInts, numStrs, numBools) <- local (const env) (saveArgsToEnv args 0 0 0)
+    printMesQ $ "Args found int: " ++ (show numInts) ++ " strs: " ++ (show numStrs) ++ " bools: " ++ (show numBools)
 
     -- let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0 [] 0
     let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) (numInts + numStrs) [] numInts [] numStrs numBools
@@ -301,6 +302,14 @@ updateStringVars strVal fname curBody = do
 
     put curState {defFunc = Map.insert fname updatedStringList (defFunc curState)} 
 
+increaseStringVarsNum :: QuadMonad ()
+increaseStringVarsNum = do
+    cfname <- gets curFuncName
+    cbody <- gets (Map.lookup cfname . defFunc)
+    case cbody of
+        Nothing -> throwError $ "No current function " ++ cfname ++ " in funcDef"
+        Just body -> updateStringVarsNum cfname body >> return ()
+
     -- return updatedStringList
 
 createIncreasedStrVarsNum fname fbody = FuncData fname (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (getFuncStringList fbody) ((getFuncNumStrVars fbody) + 1) (getFuncNumBools fbody)
@@ -313,6 +322,7 @@ increaseBoolsNum fname fbody = do
     put curState {defFunc = Map.insert fname updatedNumBools (defFunc curState)}
 
 updateStringVarsNum fname curBody = do
+    printMesQ $ "update str " ++ fname
     curState <- get
     -- curFName <- gets curFuncName
     -- curBody
@@ -359,6 +369,7 @@ increaseNumLocTypesCur exprVal = do
             case exprVal of
                 (IntQVal _) -> do
                     -- updateLocalNumCur
+                    printMesQ $ "increase decl int " ++ (show exprVal)
 
                     let updatedNumInts = createIncreaseNumInts 1 fname curBody
                     put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
@@ -367,17 +378,20 @@ increaseNumLocTypesCur exprVal = do
                     case retType of
                         IntQ -> do 
                             -- updateLocalNumCur
+                            printMesQ $ "increase decl int varloc " ++ (show exprVal)
 
                             let updatedNumInts = createIncreaseNumInts 1 fname curBody
                             put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
                         StringQ -> do
+                            printMesQ $ "increase decl str varloc " ++ (show exprVal)
                             updateStringVarsNum fname curBody
                             --printMesQ $ "upd " ++ (show t)
                             --printMesQ $ (show $ getFuncNumStrVars curBody)
                             return () --do
                             --printMesQ $ "STR " ++ (show t)
                         BoolQ -> do
+                            printMesQ $ "increase decl bool varloc " ++ (show exprVal)
                             increaseBoolsNum fname curBody
 
 
@@ -400,11 +414,15 @@ increaseNumLocTypesCur exprVal = do
                     -- let newBody = (getFuncRet fbody) (getFuncArgs fbody) (getFuncNumLoc fbody) (getFuncBody fbody) (getFuncBodyIntsNum fbody) (strVal : (getFuncStringList fbody)) ((getFuncNumStrVars fbody) + 1)
 
                     -- put curState {defFunc = Map.insert fname newBody (defFunc curState)}
+                    printMesQ $ "increase decl str " ++ (show exprVal)
+
                     updBothStrNumAndList strVal fname curBody
 
                 (BoolQVal b) -> do
                     -- let updatedNumBools = createIncreasedBoolNum fname curBody
                     -- put curState {defFunc = Map.insert fname updatedNumBools (defFunc curState)}
+                    printMesQ $ "increase decl bool " ++ (show exprVal)
+
                     increaseBoolsNum fname curBody
 
 updateLocalNumCur = do
@@ -488,11 +506,13 @@ addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = do
 
                     -- put curState {defFunc = Map.insert fname newBody (defFunc curState)}
                     updBothStrNumAndList s curFName body
+                    updateLocalNumCur
 
                     addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
 
         _ -> addParamsFromList rest (qcode ++ [QParam paramVal]) (max maxDepth depth)
 
+-- add for more than six variable? no, the stck clrears itself
 genParamCodeForExprList exprList isParam = do
     let genExpParams exp = genQExpr exp isParam
     valsCodes <- mapM genExpParams exprList --exprList isParam
@@ -611,14 +631,18 @@ createDecIncQCode ident qcode rest isDecrement = do
 createNegOrNotExpr expr isParam isNeg = do
     (val, code, depth) <- genQExpr expr isParam
 
+    updateLocalNumCur
+
     resTmpName <- createTempVarNameCurFuncExprs
     let locVar = QLoc resTmpName IntQ
 
     if isNeg then do
+        increaseNumInts
         let newCode = code ++ [QNeg locVar val]
 
         return ((LocQVal resTmpName IntQ), newCode, depth)
     else do
+        increaseBoolsWihoutArgs
         let newCode = code ++ [QNot locVar val]
 
         return ((LocQVal resTmpName IntQ), newCode, depth)
@@ -715,17 +739,14 @@ createCondGenJumpMode mode =
         (LTH _) -> QLTH
 
 increaseBoolsWihoutArgs = do
-    printMesQ $ "increasing"
     fname <- gets (curFuncName)
     body <- gets (Map.lookup fname . defFunc)
-    printMesQ $ "name: " ++ fname ++ " " ++ (show body)
     case body of
         Nothing -> throwError $ "No cur func in increase bool"
         Just fbody -> increaseBoolsNum fname fbody 
 
 
 changeExprToGenCond expr = do
-    printMesQ $ "Change to cond"
     --lTrue <- createTempVarNameCurFuncExprs
     lFalse <- createTempVarNameCurFuncExprs
     lEnd <- createTempVarNameCurFuncExprs
@@ -746,7 +767,6 @@ changeExprToGenCond expr = do
     return ((LocQVal resTmpName BoolQ), ifElseAssignCode, depth)
 
 singleValsGenCond expr lTrue lFalse = do
-    printMesQ $ "single " ++ (show expr)
     (val@(LocQVal callTmpName retType), code, depth) <- genQExpr expr JustLocal
 
     resTmpName <- createTempVarNameCurFuncExprs
@@ -764,6 +784,7 @@ singleValsGenCond expr lTrue lFalse = do
 eLitToGenCode expr lTrue lFalse = do
     resTmpName <- createTempVarNameCurFuncExprs
     let locVar = QLoc resTmpName BoolQ
+
     increaseBoolsWihoutArgs
     updateLocalNumCur
 
@@ -774,6 +795,14 @@ eLitToGenCode expr lTrue lFalse = do
 
     return (val, eLitCode, depth)
 -- first Ltrue label, not equal = ZF = 1 (`and` result)
+
+updateLocalEAppRetType retType = do
+    updateLocalNumCur
+    case retType of
+        VoidQ -> return ()
+        IntQ -> increaseNumInts
+        StringQ -> increaseStringVarsNum
+        BoolQ -> increaseBoolsWihoutArgs
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
@@ -951,6 +980,7 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
         addToSpecialUncond ident
         newTmpName <- createTempVarName ident
         let retType = getSpecialRetType ident
+        updateLocalEAppRetType retType
 
         callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
     else do
@@ -962,6 +992,8 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
             Nothing -> throwError $ ident ++ " function call error: no such function"
             Just appliedFuncData -> do
                 let retType = getFuncRet appliedFuncData
+                updateLocalEAppRetType retType
+
                 newTmpName <- createTempVarName ident -- move decl depending on param
                 callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
 
@@ -989,6 +1021,8 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
 
     updateLocalNumCur
 
+    printMesQ $ "in add"
+
     curFName <- gets curFuncName
     resTmpName <- createTempVarName curFName
 
@@ -997,12 +1031,14 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
             let locVar = QLoc resTmpName IntQ
             let newCode = code1 ++ code2 ++ [QAdd locVar val1 val2]
             increaseNumInts
+            printMesQ $ "inc int"
 
             return ((LocQVal resTmpName IntQ), newCode, (max depth1 depth2) + 1)
 
         StringQ -> do
             let concVar = QLoc resTmpName StringQ
             let newCode = code1 ++ code2 ++ [QConcat concVar val1 val2]
+            printMesQ $ "inc str"
 
             addToSpecialUncond concatStr
 -- is string literal
@@ -1010,12 +1046,16 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
             case cfbody of
                 Nothing -> throwError $ "Quad Concat error: no cur func"
                 Just curBody -> do
+                
+                    printMesQ $ "bod bef " ++ (show cfbody)
+                    updated <- updateStringVarsNum curFName curBody -- for itermediate (or final) result
+                    -- updateLocalNumCur
 
-                updateStringVarsNum curFName curBody -- for itermediate (or final) result
+                    printMesQ $ "bod aft " ++ (show cfbody)
 
-                updBothStrNumAndListTwoVals val1 val2 curFName curBody -- checks if any of the arguments is a raw string, adds to string list (data section)
+                    updBothStrNumAndListTwoVals val1 val2 curFName updated --curBody -- checks if any of the arguments is a raw string, adds to string list (data section)
 
-                return ((LocQVal resTmpName StringQ), newCode, (max depth1 depth2) + 1)
+                    return ((LocQVal resTmpName StringQ), newCode, (max depth1 depth2) + 1)
 
 
 genQExpr (EAdd pos expr1 (Minus posP) expr2) isParam = do
@@ -1035,7 +1075,7 @@ genQExpr (EAdd pos expr1 (Minus posP) expr2) isParam = do
 genQExpr (Neg pos expr) isParam = createNegOrNotExpr expr isParam True
     
 
-genQExpr exprNot@(Not pos expr) isParam = printMesQ "notting " >> changeExprToGenCond exprNot --createNegOrNotExpr expr isParam False
+genQExpr exprNot@(Not pos expr) isParam = changeExprToGenCond exprNot --createNegOrNotExpr expr isParam False
 
 genQExpr (EMul pos expr1 mulOperand expr2) isParam = do
     (val1, code1, depth1) <- genQExpr expr1 isParam
@@ -1068,6 +1108,9 @@ genQExpr (ERel pos expr1 operand expr2) isParam = do
     (val1, code1, depth1) <- genQExpr expr1 isParam
     (val2, code2, depth2) <- genQExpr expr2 isParam
 
+    increaseBoolsWihoutArgs
+    updateLocalNumCur
+
     resTmpName <- createTempVarNameCurFuncExprs
     let locVar = QLoc resTmpName BoolQ
     let newCode = code1 ++ code2 ++ (getRelOperandQuad operand locVar val1 val2)
@@ -1081,7 +1124,7 @@ genQExpr expr@(EAnd pos expr1 expr2) isParam = changeExprToGenCond expr
     
     --getAndOrExpr expr1 True expr2 isParam
 
-genQExpr expr@(EOr pos expr1 expr2) isParam = printMesQ "oring" >> changeExprToGenCond expr--getAndOrExpr expr1 False expr2 isParam
+genQExpr expr@(EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOrExpr expr1 False expr2 isParam
 
 genCond v@(EVar pos (Ident ident)) lTrue lFalse = singleValsGenCond v lTrue lFalse
 
@@ -1094,13 +1137,14 @@ genCond v@(EApp pos (Ident ident) exprList) lTrue lFalse = singleValsGenCond v l
     -- not equal - ZF = 1 -> true && true
 
 
-genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
+genCond e@(ERel pos expr1 operand expr2) lTrue lFalse = do
     (val1, code1, depth1) <- genQExpr expr1 JustLocal
     (val2, code2, depth2) <- genQExpr expr2 JustLocal
 
     --increaseNumInts
     increaseBoolsWihoutArgs
     updateLocalNumCur
+    printMesQ $ "gencond erel " ++ (show e)
 
     resTmpName <- createTempVarNameCurFuncExprs
 
@@ -1112,9 +1156,7 @@ genCond (ERel pos expr1 operand expr2) lTrue lFalse = do
     return ((LocQVal resTmpName BoolQ), newCode, (max depth1 depth2 ) + 1)
 
 genCond (EAnd pos expr1 expr2) lTrue lFalse = do
-    printMesQ $ "genconrig eand"
     resTmpName <- createTempVarNameCurFuncExprs
-    printMesQ $ "genAnd  " ++ resTmpName
 
     increaseBoolsWihoutArgs
     updateLocalNumCur
@@ -1131,7 +1173,6 @@ genCond (EAnd pos expr1 expr2) lTrue lFalse = do
     -- let codeAft2 = codeAft1 ++ code2 ++ [(QCondJMPAndOr locVar val1 val2 QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)] -- //(QTrueJMP lTrue), (QGoTo LFalse)]
     let codeAft2 = codeAft1 ++ code2 ++ [(QCond locVar val1 val2 QAND), (QJumpCMP QNE lTrue), (QGoTo lFalse)]
 
-    printMesQ $ "gencond origAnd " ++ resTmpName ++ " val1: " ++ (show val1) ++ " val2: " ++ (show val2)
     --return 
     return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
 
@@ -1153,7 +1194,7 @@ genCond (EOr pos expr1 expr2) lTrue lFalse = do
 
     return ((LocQVal resTmpName BoolQ), codeAft2, (max depth1 depth2 ) + 1)
 
-genCond (Not pos expr) lTrue lFalse = printMesQ "gennot" >> genCond expr lFalse lTrue --do
+genCond (Not pos expr) lTrue lFalse = genCond expr lFalse lTrue --do
     -- resTmpName <- createTempVarNameCurFuncExprs
     -- (val, code, depth) <- genCond expr lFalse lTrue
 

@@ -442,7 +442,7 @@ allParamsTypeSizes (a@(ArgData ident valType) : args) sumParams =
         IntQ -> allParamsTypeSizes args (sumParams + intBytes)
         StringQ -> allParamsTypeSizes args (sumParams + strPointerBytes)
 
-subLocals 0 _ = return ()
+subLocals 0 f = printMesA ("zerolocals" ++ (show f)) >> return ()
 -- TODO fix it -> all params are saved in memory
 subLocals numLoc f@(FuncData name retType args locNum body numInts strVars strVarsNum numBools) = do 
     st <- get
@@ -466,6 +466,9 @@ subLocals numLoc f@(FuncData name retType args locNum body numInts strVars strVa
 
     let stackUpdate = checkHowToUpdateRSP sumLocalsAndParamsSizes
     updateRSP stackUpdate
+
+    crsp <- gets (curRSP)
+    printMesA $ "rsp after locals " ++ (show crsp)
 
 
     -- tell $ [AAllocLocals localsSize] --[AAllocLocals numLoc]
@@ -516,10 +519,10 @@ safeguardRSP memsize = do
     rbpVal <- gets (lastAddrRBP)
     rspVal <- gets (curRSP)
 
-    printMesA $ "safguars rbp " ++ (show rbpVal) ++ " rsp " ++ (show rspVal) 
-
     if (rbpVal - memsize) < (-rspVal)
     then do
+        let subt = rbpVal - memsize
+        printMesA $ "safeguard rbp: " ++ (show subt) ++ " rsp: " ++ (show (-rspVal))
         let newRSP = rspVal - memsize
         curState <- get
 
@@ -530,12 +533,12 @@ safeguardRSP memsize = do
         return ()
 
 allocInt v = do
+    safeguardRSP intBytes
+
     curRBP <- gets lastAddrRBP
     let newRBPOffset = curRBP - intBytes
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
-
-    safeguardRSP intBytes
 
     let storageOffset = OffsetRBP newRBPOffset
     -- gen command
@@ -555,12 +558,12 @@ allocInt v = do
 --     curState <- get
 --     put curState {lastAddrRBP = newRBPOffset}
 allocVar v memSize = do
+    safeguardRSP memSize
+
     curRBP <- gets lastAddrRBP
     let newRBPOffset = curRBP - memSize
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
-
-    safeguardRSP memSize
 
     let storageOffset = OffsetRBP newRBPOffset
     --printMesA $ "ALLOC_VAR " ++ (show v)
@@ -579,12 +582,12 @@ allocVar v memSize = do
     return storageOffset
 
 allocBool b = do
+    safeguardRSP boolBytes
+
     curRBP <- gets lastAddrRBP
     let newRBPOffset = curRBP - boolBytes
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
-
-    safeguardRSP boolBytes
 
     let storageOffset = OffsetRBP newRBPOffset
 
@@ -595,12 +598,12 @@ allocBool b = do
     return storageOffset
 
 allocBoolFromMem memStorage = do
+    safeguardRSP boolBytes
+
     curRBP <- gets lastAddrRBP
     let newRBPOffset = curRBP - boolBytes
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
-
-    safeguardRSP boolBytes
 
     let storageOffset = OffsetRBP newRBPOffset
 
@@ -624,13 +627,13 @@ getMemSize valType =
         BoolQ -> boolBytes
 
 allocVarCopyFromMem memToBeCopied valType = do
-    curRBP <- gets lastAddrRBP
     let memSize = getMemSize valType
+    safeguardRSP memSize
+
+    curRBP <- gets lastAddrRBP
     let newRBPOffset = curRBP - memSize --(getMemSize valType)
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
-
-    safeguardRSP memSize
 
     let storageOffset = OffsetRBP newRBPOffset
    --printMesA $ "alllocVar " ++ (show memToBeCopied) ++ " " ++ (show valType) ++ " " ++ (show storageOffset)
@@ -641,12 +644,12 @@ allocVarCopyFromMem memToBeCopied valType = do
         
 
 getNewOffsetUpdRBP memSize = do
+    safeguardRSP memSize
+    
     curRBP <- gets lastAddrRBP
     let newRBPOffset = curRBP - memSize
     curState <- get
     put curState {lastAddrRBP = newRBPOffset}
-
-    safeguardRSP memSize
 
     return (OffsetRBP newRBPOffset)
 
@@ -895,7 +898,6 @@ extractLocQvarId (LocQVal id _) = id
 
 findAddr v@(LocQVal ident _) = do
     idData <- asks (Map.lookup ident)
-    printMesA $ "id " ++ ident ++ " " ++ (show idData)
     case idData of
         Nothing -> throwError $ ident ++ " var not found for address determination"
         Just (_, memStorage) -> return memStorage
@@ -1206,7 +1208,6 @@ boolCmpMovToR11D val1R11DAfterShow val2AfterShow = do
 -- EQU or NEQ
 -- fix jumpcond, if, and qconde
 performBoolComparison val1 val2 = do
-    printMesA $ "   COMPARE BOOL"
     if isBoolLiteral val1 && isBoolLiteral val2
     then do
         -- tell $ [AMovZX (show AR11D) (showBool val1)]
@@ -1889,7 +1890,6 @@ genStmtsAsm ((QGoTo label) : rest) = do
         genStmtsAsm rest
 
 genStmtsAsm ((QNot qvar@(QLoc ident valType) val) : rest) = do
-    printMesA $ "in not " ++ (show qvar)
     case val of
         (BoolQVal b) -> do
             boolAddr <- allocBool (not b)
@@ -1983,7 +1983,6 @@ genStmtsAsm (c@(QCond qvar@(QLoc ident valType) val1 val2 mode) : rest) = do
         else do
             addr1 <- findAddr val1
             addr2 <- findAddr val2
-            printMesA $ "addresses " ++ (show addr1) ++ " " ++ (show addr2)
             resAddr <- performAndOrEQ (createAddrBoolRBP addr1) (createAddrBoolRBP addr2) mode
 
             local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
@@ -2014,7 +2013,6 @@ genStmtsAsm (v@(QCondJMPAndOr qvar@(QLoc name valType) val1 val2 condType) : res
     -- printMesA $ "QCondJMPAndOr " ++ (show v)
     if isBoolLiteral val1 && isBoolLiteral val2
     then do
-        printMesA $ "QCondJMPAndOr " ++ (show v)
         boolOnlyMovAndOr (extractAndShowBool val1) (extractAndShowBool val2) condType
     else if isBoolLiteral val1 then do
         addr2 <- findAddr val2
