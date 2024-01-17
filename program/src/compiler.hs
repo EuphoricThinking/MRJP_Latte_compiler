@@ -702,11 +702,13 @@ moveStackParams ((ArgData ident valType): args) stackOffset = do
 
             local (Map.insert ident (var, offsetRBP)) (moveStackParams args (stackOffset + stackParamSize))
 
+-- from genParams to genParams; get code after params
 getQCallCode qcall@((QCall qvar ident numArgs) : rest) = qcall
 getQCallCode ((QParam val) : rest) = getQCallCode rest
 
+-- from genParams to genParams;
 paramsToStack qcall@((QCall qvar ident numArgs) : rest) accum = accum
-paramsToStack (qparam@(QParam val) : rest) accum = (qparam : accum)
+paramsToStack (qparam@(QParam val) : rest) accum = qparam : (paramsToStack rest accum)
 
 pushParams [] = return ()
 pushParams ((QParam val) : rest) = do
@@ -746,7 +748,8 @@ pushParams ((QParam val) : rest) = do
 genParams qcall@((QCall qvar ident numArgs) : rest) _ _ = genStmtsAsm qcall
 genParams [] _ _ = genStmtsAsm []
 genParams qcode [] _ = do
-    let qcallcode = getQCallCode qcode
+    let qcallcode  = getQCallCode qcode
+        -- (qcallcode, reverseParams)  = paramsToStack qcode [] -- getQCallCode qcode
     let reverseParams = paramsToStack qcode []
     pushParams reverseParams
 
@@ -1269,9 +1272,9 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     tell $ [ALabel name]
     tell $ [AProlog]
 
-    -- printMesA $ "NAME IN |" ++ name ++ "|"
-    -- printMesA $ "boooodyyy"
-    -- printMesA $ (show body)
+    printMesA $ "NAME IN |" ++ name ++ "|"
+    printMesA $ "boooodyyy"
+    printMesA $ (show body)
 
     -- get size of params, subtract from the stack (probably iterate once again)
     -- clear store before function leave
