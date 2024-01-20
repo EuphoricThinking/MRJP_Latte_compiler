@@ -74,7 +74,7 @@ Grammar
 	Expr6 -> Expr6 '.' Ident                           (55)
 	Expr6 -> '(' Type ')null'                          (56)
 	Expr6 -> 'new' Type                                (57)
-	Expr6 -> 'new' Type '[' Integer ']'                (58)
+	Expr6 -> 'new' Type '[' Expr ']'                   (58)
 	Expr6 -> String                                    (59)
 	Expr6 -> '(' Expr ')'                              (60)
 	Expr5 -> '-' Expr6                                 (61)
@@ -1287,7 +1287,7 @@ State 41
 State 42
 
 	Expr6 -> 'new' . Type                               (rule 57)
-	Expr6 -> 'new' . Type '[' Integer ']'               (rule 58)
+	Expr6 -> 'new' . Type '[' Expr ']'                  (rule 58)
 
 	'boolean'      shift, and enter state 8
 	'int'          shift, and enter state 10
@@ -1696,7 +1696,7 @@ State 61
 
 	Type -> Type . '[]'                                 (rule 43)
 	Expr6 -> 'new' Type .                               (rule 57)
-	Expr6 -> 'new' Type . '[' Integer ']'               (rule 58)
+	Expr6 -> 'new' Type . '[' Expr ']'                  (rule 58)
 
 	'!'            reduce using rule 57
 	'!='           reduce using rule 57
@@ -2888,11 +2888,28 @@ State 117
 
 State 118
 
-	Expr6 -> 'new' Type '[' . Integer ']'               (rule 58)
+	Expr6 -> 'new' Type '[' . Expr ']'                  (rule 58)
 
+	'!'            shift, and enter state 35
+	'('            shift, and enter state 36
+	'-'            shift, and enter state 37
+	'false'        shift, and enter state 39
+	'new'          shift, and enter state 42
+	'true'         shift, and enter state 44
+	L_Ident        shift, and enter state 2
 	L_integ        shift, and enter state 46
+	L_quoted       shift, and enter state 47
 
-	Integer        goto state 124
+	Ident          goto state 57
+	Integer        goto state 22
+	String         goto state 23
+	Expr6          goto state 58
+	Expr5          goto state 29
+	Expr4          goto state 30
+	Expr3          goto state 31
+	Expr2          goto state 32
+	Expr1          goto state 33
+	Expr           goto state 124
 
 State 119
 
@@ -2988,7 +3005,7 @@ State 123
 
 State 124
 
-	Expr6 -> 'new' Type '[' Integer . ']'               (rule 58)
+	Expr6 -> 'new' Type '[' Expr . ']'                  (rule 58)
 
 	']'            shift, and enter state 148
 
@@ -3496,7 +3513,7 @@ State 147
 
 State 148
 
-	Expr6 -> 'new' Type '[' Integer ']' .               (rule 58)
+	Expr6 -> 'new' Type '[' Expr ']' .                  (rule 58)
 
 	'!'            reduce using rule 58
 	'!='           reduce using rule 58

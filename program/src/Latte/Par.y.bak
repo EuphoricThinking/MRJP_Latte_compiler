@@ -120,6 +120,7 @@ Stmt
   | Block { (fst $1, Latte.Abs.BStmt (fst $1) (snd $1)) }
   | Type ListItem ';' { (fst $1, Latte.Abs.Decl (fst $1) (snd $1) (snd $2)) }
   | Ident '=' Expr ';' { (fst $1, Latte.Abs.Ass (fst $1) (snd $1) (snd $3)) }
+  | Ident '[' Expr ']' '=' Expr ';' { (fst $1, Latte.Abs.AssArr (fst $1) (snd $1) (snd $3) (snd $6)) }
   | Expr6 '.' Ident '=' Expr { (fst $1, Latte.Abs.AssClass (fst $1) (snd $1) (snd $3) (snd $5)) }
   | Ident '++' ';' { (fst $1, Latte.Abs.Incr (fst $1) (snd $1)) }
   | Expr6 '.' Ident '++' ';' { (fst $1, Latte.Abs.IncClass (fst $1) (snd $1) (snd $3)) }

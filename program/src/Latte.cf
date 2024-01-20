@@ -104,7 +104,7 @@ ENull.     Expr6 ::= "(" Type ")null" ;
 
 EClass.    Expr6 ::= "new" Type ;
 
-EArr.      Expr6 ::= "new" Type "[" Integer "]" ;
+EArr.      Expr6 ::= "new" Type "[" Expr "]" ;
 
 EString.   Expr6 ::= String ;
 

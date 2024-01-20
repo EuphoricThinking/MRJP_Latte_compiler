@@ -233,7 +233,7 @@ instance Print (Latte.Abs.Expr' a) where
     Latte.Abs.EAttr _ expr id_ -> prPrec i 6 (concatD [prt 6 expr, doc (showString "."), prt 0 id_])
     Latte.Abs.ENull _ type_ -> prPrec i 6 (concatD [doc (showString "("), prt 0 type_, doc (showString ")null")])
     Latte.Abs.EClass _ type_ -> prPrec i 6 (concatD [doc (showString "new"), prt 0 type_])
-    Latte.Abs.EArr _ type_ n -> prPrec i 6 (concatD [doc (showString "new"), prt 0 type_, doc (showString "["), prt 0 n, doc (showString "]")])
+    Latte.Abs.EArr _ type_ expr -> prPrec i 6 (concatD [doc (showString "new"), prt 0 type_, doc (showString "["), prt 0 expr, doc (showString "]")])
     Latte.Abs.EString _ str -> prPrec i 6 (concatD [printString str])
     Latte.Abs.Neg _ expr -> prPrec i 5 (concatD [doc (showString "-"), prt 6 expr])
     Latte.Abs.Not _ expr -> prPrec i 5 (concatD [doc (showString "!"), prt 6 expr])

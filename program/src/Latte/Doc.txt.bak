@@ -38,8 +38,8 @@ The reserved words used in Latte are the following:
 The symbols used in Latte are the following:
   | ( | ) | , | {
   | } | ; | = | .
-  | ++ | -- | : | []
-  | [ | ] | )null | -
+  | [ | ] | ++ | --
+  | : | [] | )null | -
   | ! | && | || | +
   | * | / | % | <
   | <= | > | >= | ==
@@ -71,6 +71,7 @@ All other symbols are terminals.
   |  |  **|**  | //Block//
   |  |  **|**  | //Type// //[Item]// ``;``
   |  |  **|**  | //Ident// ``=`` //Expr// ``;``
+  |  |  **|**  | //Ident// ``[`` //Expr// ``]`` ``=`` //Expr// ``;``
   |  |  **|**  | //Expr6// ``.`` //Ident// ``=`` //Expr//
   |  |  **|**  | //Ident// ``++`` ``;``
   |  |  **|**  | //Expr6// ``.`` //Ident// ``++`` ``;``

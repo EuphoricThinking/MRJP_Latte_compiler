@@ -89,7 +89,7 @@ data Expr' a
     | EAttr a (Expr' a) Ident
     | ENull a (Type' a)
     | EClass a (Type' a)
-    | EArr a (Type' a) Integer
+    | EArr a (Type' a) (Expr' a)
     | EString a String
     | Neg a (Expr' a)
     | Not a (Expr' a)
