@@ -6,15 +6,35 @@ Prog.   Program ::= [TopDef] ;
 
 FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
 
-ClassDef.  TopDef ::= "class" Ident Block ;
+ClassDef.  TopDef ::= "class" Ident ClassBody ;
 
-ClassExt.  TopDef ::= "class" Ident "extends" Ident Block ;
+ClassExt.  TopDef ::= "class" Ident "extends" Ident ClassBody ;
 
 separator nonempty TopDef "" ;
 
 Ar. 	   Arg ::= Type Ident;
 
 separator  Arg "," ;
+
+-- classes -------------------------------------------------
+
+CBlock. ClassBody ::= "{" [CStmt] "}" ;
+
+--separator  ClassStmt "" ;
+--ClassEmpty.    ClassStmt ::= ";" ;
+--ClassDecl.     ClassStmt ::= Type [ClassItem] ";" ;
+--ClassItem.     ClassItem ::= Ident;
+--separator nonempty ClassItem "," ;
+--ClassMethod.   ClassStmt ::= Type Ident "(" [Arg] ")" Block ;
+
+--CBlock.    CBlock ::= "{" [CStmt] "}" ;
+separator  CStmt "" ;
+CEmpty.    CStmt ::= ";" ;
+CDecl.     CStmt ::= Type [CItem] ";" ;
+ClassItem.     CItem ::= Ident;
+separator nonempty CItem "," ;
+CMethod.   CStmt ::= Type Ident "(" [Arg] ")" Block ;
+
 
 -- statements ----------------------------------------------
 

@@ -25,12 +25,27 @@ data Program' a = Prog a [TopDef' a]
 type TopDef = TopDef' BNFC'Position
 data TopDef' a
     = FnDef a (Type' a) Ident [Arg' a] (Block' a)
-    | ClassDef a Ident (Block' a)
-    | ClassExt a Ident Ident (Block' a)
+    | ClassDef a Ident (ClassBody' a)
+    | ClassExt a Ident Ident (ClassBody' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type Arg = Arg' BNFC'Position
 data Arg' a = Ar a (Type' a) Ident
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
+
+type ClassBody = ClassBody' BNFC'Position
+data ClassBody' a = CBlock a [CStmt' a]
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
+
+type CStmt = CStmt' BNFC'Position
+data CStmt' a
+    = CEmpty a
+    | CDecl a (Type' a) [CItem' a]
+    | CMethod a (Type' a) Ident [Arg' a] (Block' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
+
+type CItem = CItem' BNFC'Position
+data CItem' a = ClassItem a Ident
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type Block = Block' BNFC'Position
@@ -143,6 +158,20 @@ instance HasPosition TopDef where
 instance HasPosition Arg where
   hasPosition = \case
     Ar p _ _ -> p
+
+instance HasPosition ClassBody where
+  hasPosition = \case
+    CBlock p _ -> p
+
+instance HasPosition CStmt where
+  hasPosition = \case
+    CEmpty p -> p
+    CDecl p _ _ -> p
+    CMethod p _ _ _ _ -> p
+
+instance HasPosition CItem where
+  hasPosition = \case
+    ClassItem p _ -> p
 
 instance HasPosition Block where
   hasPosition = \case
