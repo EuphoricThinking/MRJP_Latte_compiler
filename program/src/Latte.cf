@@ -36,21 +36,19 @@ separator nonempty Item "," ;
 
 EClassNest. Construct ::= Ident "." ;
 
-Ass.       Stmt ::= [EClassNest] Ident "=" Expr  ";" ;
+Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
-Incr.      Stmt ::= [EClassNest] Ident "++"  ";" ;
+AssArr.    Stmt ::= Ident "[" Expr "]" "=" Expr ";" ;
 
-Decr.      Stmt ::= [Ident "."] Ident "--"  ";" ;
+AssClass.  Stmt ::= Expr6 "." Ident "=" Expr ;
 
--- Ass.       Stmt ::= Ident "=" Expr  ";" ;
+Incr.      Stmt ::= Ident "++"  ";" ;
 
--- Incr.      Stmt ::= Ident "++"  ";" ;
+IncClass.  Stmt ::= Expr6 "." Ident "++"  ";" ;
 
--- IncClass.  Stmt ::= [Ident "."] Ident "++" ";" ;
+DecClass.  Stmt ::= Expr6 "." Ident "--"  ";" ;
 
--- DecClass.  Stmt ::= [Ident "."] Ident "--" ";" ;
-
--- Decr.      Stmt ::= Ident "--"  ";" ;
+Decr.      Stmt ::= Ident "--"  ";" ;
 
 Ret.       Stmt ::= "return" Expr ";" ;
 
@@ -86,9 +84,9 @@ separator  Type "," ;
 
 -- Expressions ---------------------------------------------
 
--- EVar.      Expr6 ::= Ident ;
+EVar.      Expr6 ::= Ident ;
 
-EVar.      Expr6 ::= [Ident "." ] Ident ;
+EArrEl.    Expr6 ::= Ident "[" Expr "]" ;
 
 ELitInt.   Expr6 ::= Integer ;
 
@@ -96,17 +94,17 @@ ELitTrue.  Expr6 ::= "true" ;
 
 ELitFalse. Expr6 ::= "false" ;
 
--- EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
+EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
-EApp.      Expr6 ::= [Ident "."] Ident "(" [Expr] ")" ;
+EMethod.   Expr6 ::= Expr6 "." Ident "(" [Expr] ")" ;
+
+EAttr.     Expr6 ::= Expr6 "." Ident ;
 
 ENull.     Expr6 ::= "(" Type ")null" ;
 
--- EMethod.   Expr6 ::= Ident "." Ident "(" [Expr] ")" ;
-
--- EAttr.     Expr6 ::= Ident "." Ident ;
-
 EClass.    Expr6 ::= "new" Type ;
+
+EArr.      Expr6 ::= "new" Type "[" Integer "]" ;
 
 EString.   Expr6 ::= String ;
 
