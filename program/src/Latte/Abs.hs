@@ -34,18 +34,18 @@ data Arg' a = Ar a (Type' a) Ident
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type ClassBody = ClassBody' BNFC'Position
-data ClassBody' a = CBlock a [CStmt' a]
+data ClassBody' a = CBlock a [ClassStmt' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
-type CStmt = CStmt' BNFC'Position
-data CStmt' a
-    = CEmpty a
-    | CDecl a (Type' a) [CItem' a]
-    | CMethod a (Type' a) Ident [Arg' a] (Block' a)
+type ClassStmt = ClassStmt' BNFC'Position
+data ClassStmt' a
+    = ClassEmpty a
+    | ClassDecl a (Type' a) [ClassItem' a]
+    | ClassMethod a (Type' a) Ident [Arg' a] (Block' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
-type CItem = CItem' BNFC'Position
-data CItem' a = ClassItem a Ident
+type ClassItem = ClassItem' BNFC'Position
+data ClassItem' a = CItem a Ident
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type Block = Block' BNFC'Position
@@ -163,15 +163,15 @@ instance HasPosition ClassBody where
   hasPosition = \case
     CBlock p _ -> p
 
-instance HasPosition CStmt where
+instance HasPosition ClassStmt where
   hasPosition = \case
-    CEmpty p -> p
-    CDecl p _ _ -> p
-    CMethod p _ _ _ _ -> p
+    ClassEmpty p -> p
+    ClassDecl p _ _ -> p
+    ClassMethod p _ _ _ _ -> p
 
-instance HasPosition CItem where
+instance HasPosition ClassItem where
   hasPosition = \case
-    ClassItem p _ -> p
+    CItem p _ -> p
 
 instance HasPosition Block where
   hasPosition = \case

@@ -45,7 +45,7 @@ transCStmt x = case x of
 
 transCItem :: Show a => Latte.Abs.CItem' a -> Result
 transCItem x = case x of
-  Latte.Abs.CItem _ ident -> failure x
+  Latte.Abs.ClassItem _ ident -> failure x
 
 transBlock :: Show a => Latte.Abs.Block' a -> Result
 transBlock x = case x of

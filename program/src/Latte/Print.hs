@@ -166,23 +166,23 @@ instance Print [Latte.Abs.Arg' a] where
 
 instance Print (Latte.Abs.ClassBody' a) where
   prt i = \case
-    Latte.Abs.CBlock _ cstmts -> prPrec i 0 (concatD [doc (showString "{"), prt 0 cstmts, doc (showString "}")])
+    Latte.Abs.CBlock _ classstmts -> prPrec i 0 (concatD [doc (showString "{"), prt 0 classstmts, doc (showString "}")])
 
-instance Print [Latte.Abs.CStmt' a] where
+instance Print [Latte.Abs.ClassStmt' a] where
   prt _ [] = concatD []
   prt _ (x:xs) = concatD [prt 0 x, prt 0 xs]
 
-instance Print (Latte.Abs.CStmt' a) where
+instance Print (Latte.Abs.ClassStmt' a) where
   prt i = \case
-    Latte.Abs.CEmpty _ -> prPrec i 0 (concatD [doc (showString ";")])
-    Latte.Abs.CDecl _ type_ citems -> prPrec i 0 (concatD [prt 0 type_, prt 0 citems, doc (showString ";")])
-    Latte.Abs.CMethod _ type_ id_ args block -> prPrec i 0 (concatD [prt 0 type_, prt 0 id_, doc (showString "("), prt 0 args, doc (showString ")"), prt 0 block])
+    Latte.Abs.ClassEmpty _ -> prPrec i 0 (concatD [doc (showString ";")])
+    Latte.Abs.ClassDecl _ type_ classitems -> prPrec i 0 (concatD [prt 0 type_, prt 0 classitems, doc (showString ";")])
+    Latte.Abs.ClassMethod _ type_ id_ args block -> prPrec i 0 (concatD [prt 0 type_, prt 0 id_, doc (showString "("), prt 0 args, doc (showString ")"), prt 0 block])
 
-instance Print (Latte.Abs.CItem' a) where
+instance Print (Latte.Abs.ClassItem' a) where
   prt i = \case
-    Latte.Abs.ClassItem _ id_ -> prPrec i 0 (concatD [prt 0 id_])
+    Latte.Abs.CItem _ id_ -> prPrec i 0 (concatD [prt 0 id_])
 
-instance Print [Latte.Abs.CItem' a] where
+instance Print [Latte.Abs.ClassItem' a] where
   prt _ [] = concatD []
   prt _ [x] = concatD [prt 0 x]
   prt _ (x:xs) = concatD [prt 0 x, doc (showString ","), prt 0 xs]

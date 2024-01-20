@@ -56,15 +56,15 @@ All other symbols are terminals.
 
   | //Program// | -> | //[TopDef]//
   | //TopDef// | -> | //Type// //Ident// ``(`` //[Arg]// ``)`` //Block//
-  |  |  **|**  | ``class`` //Ident// //CBlock//
-  |  |  **|**  | ``class`` //Ident// ``extends`` //Ident// //CBlock//
+  |  |  **|**  | ``class`` //Ident// //ClassBody//
+  |  |  **|**  | ``class`` //Ident// ``extends`` //Ident// //ClassBody//
   | //[TopDef]// | -> | //TopDef//
   |  |  **|**  | //TopDef// //[TopDef]//
   | //Arg// | -> | //Type// //Ident//
   | //[Arg]// | -> | **eps**
   |  |  **|**  | //Arg//
   |  |  **|**  | //Arg// ``,`` //[Arg]//
-  | //CBlock// | -> | ``{`` //[CStmt]// ``}``
+  | //ClassBody// | -> | ``{`` //[CStmt]// ``}``
   | //[CStmt]// | -> | **eps**
   |  |  **|**  | //CStmt// //[CStmt]//
   | //CStmt// | -> | ``;``

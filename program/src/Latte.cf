@@ -18,22 +18,14 @@ separator  Arg "," ;
 
 -- classes -------------------------------------------------
 
-CBlock. ClassBody ::= "{" [CStmt] "}" ;
+CBlock. ClassBody ::= "{" [ClassStmt] "}" ;
 
---separator  ClassStmt "" ;
---ClassEmpty.    ClassStmt ::= ";" ;
---ClassDecl.     ClassStmt ::= Type [ClassItem] ";" ;
---ClassItem.     ClassItem ::= Ident;
---separator nonempty ClassItem "," ;
---ClassMethod.   ClassStmt ::= Type Ident "(" [Arg] ")" Block ;
-
---CBlock.    CBlock ::= "{" [CStmt] "}" ;
-separator  CStmt "" ;
-CEmpty.    CStmt ::= ";" ;
-CDecl.     CStmt ::= Type [CItem] ";" ;
-ClassItem.     CItem ::= Ident;
-separator nonempty CItem "," ;
-CMethod.   CStmt ::= Type Ident "(" [Arg] ")" Block ;
+separator  ClassStmt "" ;
+ClassEmpty.    ClassStmt ::= ";" ;
+ClassDecl.     ClassStmt ::= Type [ClassItem] ";" ;
+CItem.     ClassItem ::= Ident;
+separator nonempty ClassItem "," ;
+ClassMethod.   ClassStmt ::= Type Ident "(" [Arg] ")" Block ;
 
 
 -- statements ----------------------------------------------

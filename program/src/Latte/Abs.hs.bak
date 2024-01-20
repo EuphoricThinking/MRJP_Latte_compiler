@@ -45,7 +45,7 @@ data CStmt' a
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type CItem = CItem' BNFC'Position
-data CItem' a = CItem a Ident
+data CItem' a = ClassItem a Ident
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type Block = Block' BNFC'Position
@@ -171,7 +171,7 @@ instance HasPosition CStmt where
 
 instance HasPosition CItem where
   hasPosition = \case
-    CItem p _ -> p
+    ClassItem p _ -> p
 
 instance HasPosition Block where
   hasPosition = \case

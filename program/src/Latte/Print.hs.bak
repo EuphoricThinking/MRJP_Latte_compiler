@@ -180,7 +180,7 @@ instance Print (Latte.Abs.CStmt' a) where
 
 instance Print (Latte.Abs.CItem' a) where
   prt i = \case
-    Latte.Abs.CItem _ id_ -> prPrec i 0 (concatD [prt 0 id_])
+    Latte.Abs.ClassItem _ id_ -> prPrec i 0 (concatD [prt 0 id_])
 
 instance Print [Latte.Abs.CItem' a] where
   prt _ [] = concatD []

@@ -121,7 +121,7 @@ CStmt
   | Type Ident '(' ListArg ')' Block { (fst $1, Latte.Abs.CMethod (fst $1) (snd $1) (snd $2) (snd $4) (snd $6)) }
 
 CItem :: { (Latte.Abs.BNFC'Position, Latte.Abs.CItem) }
-CItem : Ident { (fst $1, Latte.Abs.CItem (fst $1) (snd $1)) }
+CItem : Ident { (fst $1, Latte.Abs.ClassItem (fst $1) (snd $1)) }
 
 ListCItem :: { (Latte.Abs.BNFC'Position, [Latte.Abs.CItem]) }
 ListCItem
