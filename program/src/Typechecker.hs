@@ -253,7 +253,9 @@ isClassUnprocessed (ClassType _) = False
 
 getClassCode (ClassCode ccode) = ccode
 
-getClassStmts (ClassDecl pos className classBody) = classBody
+getClassStmts (CBlock pos stmts) = stmts
+
+getClassBody (ClassDecl pos className classBody) = classBody
 
 getClassStmtsFromClassCode (ClassCode ccode) = getClassStmts ccode
 
