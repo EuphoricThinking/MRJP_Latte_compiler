@@ -45,7 +45,7 @@ display_tokens tokens =  do
       print parsed
 
 
-data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType | ClassType String Env | ClassCode ClassBody
+data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType | ClassType String | ClassCode ClassBody
              deriving (Eq)
 
 type IfElseRet = Bool
@@ -60,7 +60,7 @@ instance Show Value where
     show VoidT = "VoidT"
     show (FnDecl _ _ pos) = "FnDecl " ++ (show pos)
     show (FunT v) = "FunT " ++ (show v)
-    show (ClassType s _) = "ClassType " ++ s
+    show (ClassType s) = "ClassType " ++ s
 
 -- Store przechowuje wszystkie zmienne przez cały czas
 -- Env wskazuje na lokacje aktualnie widocznych zmiennych
@@ -72,7 +72,8 @@ data Store = Store {
     store :: Map.Map Loc (Value, Int), -- Int is blockDepth (probably)
     lastLoc :: Loc,
     curFunc :: CurFuncData,
-    classStruct :: Map.Map String (Map.Map String Value)
+    classStruct :: Map.Map String (Map.Map String Value),
+    classEnv :: Map.Map String Env
     --Env :: Map.Map String Loc -- env after checking topdefs
 } deriving (Show)
 
@@ -93,6 +94,14 @@ insertToStore val newloc = do
 insertNewClass className = do
     curState <- get
     put curState {classStruct = Map.insert className Map.empty (classStruct curState)}
+
+insertNewClassEnv className = do
+    curState <- get
+    put curState {classEnv = Map.insert className (Map.empty) (classEnv curState)}
+
+updateClassEnvInStore className newEnv = do
+    curState <- get
+    put curState {classEnv = Map.insert className newEnv (classEnv curState)}
 
 insertNewAttrMeth className attrMethModifiedMap = do
     curState <- get
@@ -124,7 +133,7 @@ executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty})--, basalEnv = Map.empty}) 
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty, classEnv = Map.empty})--, basalEnv = Map.empty}) 
 
 
 printSth mes = lift $ lift $ lift $ print mes
@@ -180,16 +189,12 @@ findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) = do --(CBlock posB
         
         Nothing -> do
 
-            -- classDecLoc <- alloc
-            -- -- let classValue = (ClassType className)
-            -- let classValue = (ClassCode cbody)
-            -- insertToStore (classValue, 0) classDecLoc
             insertNewClass className
 
             classDecLoc <- alloc
             -- classEnv <- saveOnlyAttrsMethods stmts className
-            -- let classValue = ClassType className classEnv
-            -- insertToStore (classValue, 0) classDecLoc
+            let classValue = ClassType className
+            insertToStore (classValue, 0) classDecLoc
 
             -- evalClassBody stmts className
 
@@ -206,8 +211,7 @@ saveClassInnerData ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : r
         
         Just foundLoc -> do
             classEnv <- saveOnlyAttrsMethods stmts className
-            let classValue = ClassType className classEnv
-            insertToStore (classValue, 0) foundLoc
+            updateClassEnvInStore className classEnv
 
             saveClassInnerData rest
 
@@ -309,7 +313,7 @@ isClass _ = False
 getClassName (Class _ (Ident name)) = name
 
 isClassUnprocessed (ClassCode _) = True
-isClassUnprocessed (ClassType _ _) = False
+isClassUnprocessed (ClassType _) = False
 
 getClassCode (ClassCode ccode) = ccode
 
@@ -412,22 +416,26 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             local (const envWithParams) (checkBody stmts 0 0 0) >> checkFunction rest
 
 checkFunction ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) = do --evalClassBody stmts className >> 
-    classLoc <- asks (Map.lookup className)
-    case classLoc of
-        Nothing -> throwError $ "checkFunction: the name of the class " ++ className ++ " should have been saved in env, but it is not " ++ (writePos pos)
-        Just loc -> do
-            classData <- gets (Map.lookup loc . store)
-            case classData of
-                Nothing -> throwError $ "checkFunction: no data for " ++ className ++ (writePos pos)
-                Just (cdata@(ClassType name classEnv), depth) ->
-                    if isClassUnprocessed cdata
-                    then do
-                        curEnv <- ask
-                        local (const curEnv) (evalClassBody stmts className)
+    -- classLoc <- asks (Map.lookup className)
+    -- case classLoc of
+    --     Nothing -> throwError $ "checkFunction: the name of the class " ++ className ++ " should have been saved in env, but it is not " ++ (writePos pos)
+    --     Just loc -> do
+    classDataEnv <- gets (Map.lookup className . classEnv)
+    case classDataEnv of
+        Nothing -> throwError $ "checkFunction: no env data for " ++ className ++ (writePos pos)
+        Just cEnv -> do
+            local (const cEnv) (evalClassBody stmts className)
 
-                        checkFunction rest
-                    else
-                        checkFunction rest
+            checkFunction rest
+
+                    -- if isClassUnprocessed cdata
+                    -- then do
+                    --     curEnv <- ask
+                    --     local (const curEnv) (evalClassBody stmts className)
+
+                    --     checkFunction rest
+                    -- else
+                    --     checkFunction rest
 
 checkIfStringsEqual :: String -> String -> Bool
 checkIfStringsEqual [] [] = True
