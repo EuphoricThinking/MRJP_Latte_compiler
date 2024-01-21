@@ -45,7 +45,7 @@ display_tokens tokens =  do
       print parsed
 
 
-data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType | ClassType String | ClassCode ClassBody
+data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType | ClassType String Env | ClassCode ClassBody
              deriving (Eq)
 
 type IfElseRet = Bool
@@ -174,13 +174,16 @@ findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) = do --(CBlock posB
         
         Nothing -> do
 
-            classDecLoc <- alloc
-            -- let classValue = (ClassType className)
-            let classValue = (ClassCode cbody)
-            insertToStore (classValue, 0) classDecLoc
+            -- classDecLoc <- alloc
+            -- -- let classValue = (ClassType className)
+            -- let classValue = (ClassCode cbody)
+            -- insertToStore (classValue, 0) classDecLoc
             insertNewClass className
 
-
+            classDecLoc <- alloc
+            classEnv <- saveOnlyAttrsMethods stmts className
+            let classValue = ClassType className classEnv
+            insertToStore (classValue, 0) classDecLoc
             -- evalClassBody stmts className
 
             local (Map.insert className classDecLoc) (findFuncDecl rest)
@@ -292,16 +295,35 @@ getClassBody (ClassDecl pos className classBody) = classBody
 
 getClassStmtsFromClassCode (ClassCode ccode) = getClassStmts ccode
 
-saveDeclClass 
-
 -- later check only if class exists and eval class methods, now only save their names
-saveOnlyAttrsMethods [] _ = return Success
+saveOnlyAttrsMethods :: [ClassStmt] -> String -> InterpreterMonad Env
+saveOnlyAttrsMethods [] _ = do
+    curEnv <- ask
+    return curEnv
+    --return Success
 
 saveOnlyAttrsMethods ((ClassEmpty _) : rest) className = evalClassBody rest className
 
 saveOnlyAttrsMethods ((ClassDecl pos declType items) : rest) className = do
-    saveDeclClass declType items className
+    updEnv <- evalClassDecl declType items className
 
+    local (const updatedEnv) (saveOnlyAttrsMethods rest className)
+
+saveOnlyAttrsMethods ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = do
+    classData <- getClassMethodsAttrs className pos
+    let foundMethod = Map.lookup ident classData
+
+    case foundMethod of
+        Just meth -> throwError $ "Multiple method or attribute declaration: " ++ ident ++ " in class: " ++ className ++ " at " ++ (writePos pos)
+        Nothing -> do
+            let methodData = (FnDecl retType args pos)
+            let inserted = Map.insert ident methodData classData
+            insertNewAttrMeth className inserted
+
+            methodLoc <- alloc
+            insertToStore (methodData, 0) methodLoc
+
+            local (Map.insert ident methodLoc) (saveOnlyAttrsMethods rest className)
 -- getClassData className
 
 isInt (Int a) = True
