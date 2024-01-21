@@ -89,6 +89,10 @@ insertToStore val newloc = do
     cur_state <- get
     put cur_state {store = Map.insert newloc val (store cur_state)}
 
+insertNewClass className = do
+    curState <- get
+    put curState {classStruct = Map.insert className Map.empty (classStruct curState)}
+
 evalMaybe :: String -> Maybe a -> InterpreterMonad a
 evalMaybe s Nothing = throwError s
 evalMaybe s (Just a) = return a
@@ -162,24 +166,45 @@ findFuncDecl ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) =
             classDecLoc <- alloc
             let classValue = (ClassType className)
             insertToStore (classValue, 0) classDecLoc
+            insertNewClass className
 
             evalClassBody stmts className
 
             local (Map.insert className classDecLoc) (findFuncDecl rest)
 
-
+evalClassBody :: [ClassStmt] -> String -> InterpreterMonad Value
 evalClassBody [] _ = return Success
 
 evalClassBody ((ClassEmpty _) : rest) className = evalClassBody rest className
 
-evalClassBody ((ClassDecl pos declType items) : rest) className = evalClassDecl declType items className >> evalClassBody rest className
+evalClassBody ((ClassDecl pos declType items) : rest) className = do
+    evalClassDecl declType items className
+
+    evalClassBody rest className
+
+evalClassDecl :: Type -> [ClassItem] -> String -> InterpreterMonad Value
+evalClassDecl _ [] _ = return Success
 
 evalClassDecl declType ((CItem pos (Ident ident)) : rest) className = do
-    classData <- getClassMethodsAttrs className pos
+    classData <- getClassMethodsAttrs className pos -- dict with class attrs and methods
 
-    let itemData = Map.lookup ident classData
+    let itemData = Map.lookup ident classData -- atrr/method or Nothing
 
-    evalClassDecl declType rest className
+    case itemData of
+        Just foundData -> throwError $ "Multiple attribute declaration: " ++ ident ++ " at " ++ (writePos pos)
+
+        Nothing -> do
+            let inserted = Map.insert ident (getTypeOriginal declType) classData
+
+            let itd = Map.lookup ident classData
+            printSth $ show itd
+
+            fd <- getClassMethodsAttrs className pos
+
+            let itd2 = Map.lookup ident fd
+            printSth $ show itd2
+
+            evalClassDecl declType rest className
 
 
 getClassMethodsAttrs className pos = do
