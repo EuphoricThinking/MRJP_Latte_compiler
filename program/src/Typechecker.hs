@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-module Typechecker where
+-- module Typechecker where
 
 import Latte.Abs
 import Latte.Lex
@@ -152,12 +152,12 @@ findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
 
             local (Map.insert ident funDecLoc) (findFuncDecl rest)
 
-findFuncDecl ((ClassDef pos className cbody) : rest) = do
-    prevLoc <- asks (Map.lookup ident)
+findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) = do
+    prevLoc <- asks (Map.lookup className)
     case prevLoc of
         Just founfLoc -> throwError $ "Multiple struct or not extended class declaration" ++ (writePos pos) -- checks if function and a class are named the same
         
-        Nothing -> do
+        -- Nothing -> do
 
 
 
