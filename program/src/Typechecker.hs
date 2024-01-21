@@ -60,7 +60,7 @@ instance Show Value where
     show VoidT = "VoidT"
     show (FnDecl _ _ pos) = "FnDecl " ++ (show pos)
     show (FunT v) = "FunT " ++ (show v)
-    show (ClassType s) = "ClassType " ++ s
+    show (ClassType s _) = "ClassType " ++ s
 
 -- Store przechowuje wszystkie zmienne przez cały czas
 -- Env wskazuje na lokacje aktualnie widocznych zmiennych
@@ -72,8 +72,8 @@ data Store = Store {
     store :: Map.Map Loc (Value, Int), -- Int is blockDepth (probably)
     lastLoc :: Loc,
     curFunc :: CurFuncData,
-    classStruct :: Map.Map String (Map.Map String Value),
-    basalEnv :: Map.Map String Loc -- env after checking topdefs
+    classStruct :: Map.Map String (Map.Map String Value)
+    --Env :: Map.Map String Loc -- env after checking topdefs
 } deriving (Show)
 
 type InterpreterMonad a = ReaderT Env (StateT Store (ExceptT String IO)) a 
@@ -124,21 +124,27 @@ executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty, basalEnv = Map.empty}) 
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty})--, basalEnv = Map.empty}) 
 
 
 printSth mes = lift $ lift $ lift $ print mes
 
-updateBasalEnv newEnv = do
-    curState <- get
-    put curState {basalEnv = newEnv}
+-- updateBasalEnv newEnv = do
+--     curState <- get
+--     put curState {basalEnv = newEnv}
 
 executeRightProgram :: Program -> InterpreterMonad Value  
 executeRightProgram (Prog pos topDefs) = 
     do
+        -- save functions and class name,
+        -- class data is not in store, only names in env
         envWithFuncDecl <- findFuncDecl topDefs
 
-        updateBasalEnv envWithFuncDecl
+        -- updateBasalEnv envWithFuncDecl
+
+        -- class attributes and method names are stored,
+        -- but not analyzed (whether delcared class exists or whether the given method is correct)
+        saveClassInnerData topDefs
     
         case Map.lookup "main" envWithFuncDecl of
             Nothing -> throwError $ "No main method defined"
@@ -181,13 +187,31 @@ findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) = do --(CBlock posB
             insertNewClass className
 
             classDecLoc <- alloc
-            classEnv <- saveOnlyAttrsMethods stmts className
-            let classValue = ClassType className classEnv
-            insertToStore (classValue, 0) classDecLoc
+            -- classEnv <- saveOnlyAttrsMethods stmts className
+            -- let classValue = ClassType className classEnv
+            -- insertToStore (classValue, 0) classDecLoc
+
             -- evalClassBody stmts className
 
             local (Map.insert className classDecLoc) (findFuncDecl rest)
 
+saveClassInnerData [] = return Success
+
+saveClassInnerData ((FnDef pos rettype (Ident ident) args stmts) : rest) = saveClassInnerData rest
+
+saveClassInnerData ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) = do --(CBlock posBlock stmts)) : rest) = do
+    prevLoc <- asks (Map.lookup className)
+    case prevLoc of
+        Nothing -> throwError $ className ++ " class not saved in environtment" ++ (writePos pos) -- checks if function and a class are named the same
+        
+        Just foundLoc -> do
+            classEnv <- saveOnlyAttrsMethods stmts className
+            let classValue = ClassType className classEnv
+            insertToStore (classValue, 0) foundLoc
+
+            saveClassInnerData rest
+
+            
 evalClassBody :: [ClassStmt] -> String -> InterpreterMonad Value
 evalClassBody [] _ = return Success
 
@@ -200,8 +224,8 @@ evalClassBody ((ClassDecl pos declType items) : rest) className = do
 
         local (const updatedEnv) (evalClassBody rest className)
     else do
-        envWithFuncClassDecl <- gets basalEnv
-        local (const envWithFuncClassDecl) (evalNestedClass declType)
+        -- envWithFuncClassDecl <- gets basalEnv
+        -- local (const envWithFuncClassDecl) (evalNestedClass declType)
 
         updEnv <- evalClassDecl declType items className
 
@@ -285,7 +309,7 @@ isClass _ = False
 getClassName (Class _ (Ident name)) = name
 
 isClassUnprocessed (ClassCode _) = True
-isClassUnprocessed (ClassType _) = False
+isClassUnprocessed (ClassType _ _) = False
 
 getClassCode (ClassCode ccode) = ccode
 
@@ -302,13 +326,14 @@ saveOnlyAttrsMethods [] _ = do
     return curEnv
     --return Success
 
-saveOnlyAttrsMethods ((ClassEmpty _) : rest) className = evalClassBody rest className
+saveOnlyAttrsMethods ((ClassEmpty _) : rest) className = saveOnlyAttrsMethods rest className
 
 saveOnlyAttrsMethods ((ClassDecl pos declType items) : rest) className = do
-    updEnv <- evalClassDecl declType items className
+    updatedEnv <- evalClassDecl declType items className
 
     local (const updatedEnv) (saveOnlyAttrsMethods rest className)
 
+-- methods available in any order?
 saveOnlyAttrsMethods ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = do
     classData <- getClassMethodsAttrs className pos
     let foundMethod = Map.lookup ident classData
@@ -324,7 +349,7 @@ saveOnlyAttrsMethods ((ClassMethod pos retType (Ident ident) args (Blk _ stmts))
             insertToStore (methodData, 0) methodLoc
 
             local (Map.insert ident methodLoc) (saveOnlyAttrsMethods rest className)
--- getClassData className
+-- getClassData className 
 
 isInt (Int a) = True
 isInt _ = False
@@ -394,7 +419,7 @@ checkFunction ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) 
             classData <- gets (Map.lookup loc . store)
             case classData of
                 Nothing -> throwError $ "checkFunction: no data for " ++ className ++ (writePos pos)
-                Just (cdata, depth) ->
+                Just (cdata@(ClassType name classEnv), depth) ->
                     if isClassUnprocessed cdata
                     then do
                         curEnv <- ask
