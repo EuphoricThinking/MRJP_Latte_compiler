@@ -93,6 +93,11 @@ insertNewClass className = do
     curState <- get
     put curState {classStruct = Map.insert className Map.empty (classStruct curState)}
 
+insertNewAttrMeth className attrMethModifiedMap = do
+    curState <- get
+
+    put curState {classStruct = Map.insert className attrMethModifiedMap (classStruct curState)}
+
 evalMaybe :: String -> Maybe a -> InterpreterMonad a
 evalMaybe s Nothing = throwError s
 evalMaybe s (Just a) = return a
@@ -195,6 +200,7 @@ evalClassDecl declType ((CItem pos (Ident ident)) : rest) className = do
 
         Nothing -> do
             let inserted = Map.insert ident (getTypeOriginal declType) classData
+            insertNewAttrMeth className inserted
 
             let itd = Map.lookup ident classData
             printSth $ show itd
@@ -233,6 +239,7 @@ getTypeOriginal (Bool _) = BoolT
 getTypeOriginal (Str _)  = StringT
 getTypeOriginal (Void _) = VoidT
 getTypeOriginal (Fun _ t _) =  FunT (getTypeOriginal t)
+getTypeOriginal (Class _ (Ident ident)) = ClassType ident
 
 checkArgs [] = do
     curEnv <- ask
