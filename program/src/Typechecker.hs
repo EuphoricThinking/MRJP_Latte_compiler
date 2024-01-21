@@ -152,16 +152,41 @@ findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
 
             local (Map.insert ident funDecLoc) (findFuncDecl rest)
 
-findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) = do
+findFuncDecl ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) = do
     prevLoc <- asks (Map.lookup className)
     case prevLoc of
         Just founfLoc -> throwError $ "Multiple struct or not extended class declaration" ++ (writePos pos) -- checks if function and a class are named the same
         
-        -- Nothing -> do
+        Nothing -> do
+
+            classDecLoc <- alloc
+            let classValue = (ClassType className)
+            insertToStore (classValue, 0) classDecLoc
+
+            evalClassBody stmts className
+
+            local (Map.insert className classDecLoc) (findFuncDecl rest)
 
 
+evalClassBody [] _ = return Success
+
+evalClassBody ((ClassEmpty _) : rest) className = evalClassBody rest className
+
+evalClassBody ((ClassDecl pos declType items) : rest) className = evalClassDecl declType items className >> evalClassBody rest className
+
+evalClassDecl declType ((CItem pos (Ident ident)) : rest) className = do
+    classData <- getClassMethodsAttrs className pos
+
+    let itemData = Map.lookup ident classData
+
+    evalClassDecl declType rest className
 
 
+getClassMethodsAttrs className pos = do
+    classData <- gets (Map.lookup className . classStruct)
+    case classData of
+        Nothing -> throwError $ "Class or struct undeclared: " ++ className ++ " " ++ (writePos pos)
+        Just dataDict -> return dataDict
 
 isInt (Int a) = True
 isInt _ = False
