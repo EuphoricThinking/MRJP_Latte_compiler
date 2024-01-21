@@ -187,15 +187,13 @@ evalClassBody ((ClassEmpty _) : rest) className = evalClassBody rest className
 evalClassBody ((ClassDecl pos declType items) : rest) className = do
     if (not (isClass declType)) || ((getClassName declType) == className)
     then do
-        printSth $ "not class " ++ (writePos pos)
         evalClassDecl declType items className
     else do
-        printSth $ "isclass " ++ (writePos pos)
         evalNestedClass declType >> evalClassDecl declType items className
 
     evalClassBody rest className
 
-evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = printSth ("METHOD") >> return Success--do -- eval in local, but save in global
+evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = return Success--do -- eval in local, but save in global
 
 evalClassDecl :: Type -> [ClassItem] -> String -> InterpreterMonad Value
 evalClassDecl _ [] _ = return Success
@@ -204,9 +202,6 @@ evalClassDecl declType ((CItem pos (Ident ident)) : rest) className = do
     classData <- getClassMethodsAttrs className pos -- dict with class attrs and methods
 
     let itemData = Map.lookup ident classData -- atrr/method or Nothing
-    printSth $ show classData
-    printSth $ show rest
-    printSth $ show declType
 
     case itemData of
         Just foundData -> throwError $ "Multiple attribute declaration: " ++ ident ++ " at " ++ (writePos pos)
@@ -216,12 +211,10 @@ evalClassDecl declType ((CItem pos (Ident ident)) : rest) className = do
             insertNewAttrMeth className inserted
 
             -- let itd = Map.lookup ident classData
-            -- printSth $ show itd
 
             -- fd <- getClassMethodsAttrs className pos
 
             -- let itd2 = Map.lookup ident fd
-            -- printSth $ show itd2
 
             evalClassDecl declType rest className
 
@@ -243,11 +236,9 @@ evalNestedClass (Class pos (Ident ident)) = do
             case classData of
                 Nothing -> throwError $ "No data for the nested class " ++ ident ++ ": " ++ (writePos pos)
                 Just (cdata, depth) -> do
-                    printSth $ "in NESTED " ++ ident
                     if isClassUnprocessed cdata
                     then do
                         let classStmts = getClassStmtsFromClassCode cdata
-                        printSth $ show classStmts
                         evalClassBody classStmts ident
                     else
                         return Success
