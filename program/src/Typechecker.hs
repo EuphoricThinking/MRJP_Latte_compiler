@@ -185,15 +185,17 @@ evalClassBody [] _ = return Success
 evalClassBody ((ClassEmpty _) : rest) className = evalClassBody rest className
 
 evalClassBody ((ClassDecl pos declType items) : rest) className = do
-    if not (isClass declType)
-    then
+    if (not (isClass declType)) || ((getClassName declType) == className)
+    then do
+        printSth $ "not class " ++ (writePos pos)
         evalClassDecl declType items className
-    else
+    else do
+        printSth $ "isclass " ++ (writePos pos)
         evalNestedClass declType >> evalClassDecl declType items className
 
     evalClassBody rest className
 
--- evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) = do -- eval in local, but save in global
+evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = printSth ("METHOD") >> return Success--do -- eval in local, but save in global
 
 evalClassDecl :: Type -> [ClassItem] -> String -> InterpreterMonad Value
 evalClassDecl _ [] _ = return Success
@@ -202,6 +204,9 @@ evalClassDecl declType ((CItem pos (Ident ident)) : rest) className = do
     classData <- getClassMethodsAttrs className pos -- dict with class attrs and methods
 
     let itemData = Map.lookup ident classData -- atrr/method or Nothing
+    printSth $ show classData
+    printSth $ show rest
+    printSth $ show declType
 
     case itemData of
         Just foundData -> throwError $ "Multiple attribute declaration: " ++ ident ++ " at " ++ (writePos pos)
@@ -238,15 +243,19 @@ evalNestedClass (Class pos (Ident ident)) = do
             case classData of
                 Nothing -> throwError $ "No data for the nested class " ++ ident ++ ": " ++ (writePos pos)
                 Just (cdata, depth) -> do
+                    printSth $ "in NESTED " ++ ident
                     if isClassUnprocessed cdata
                     then do
                         let classStmts = getClassStmtsFromClassCode cdata
+                        printSth $ show classStmts
                         evalClassBody classStmts ident
                     else
                         return Success
 
 isClass (Class _ _) = True
 isClass _ = False
+
+getClassName (Class _ (Ident name)) = name
 
 isClassUnprocessed (ClassCode _) = True
 isClassUnprocessed (ClassType _) = False
