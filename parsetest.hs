@@ -1,1 +1,1 @@
-./src/Latte/Test ../playground/base.lat
+./src/Latte/Test ../playground/extStage.lat
