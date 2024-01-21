@@ -72,7 +72,8 @@ data Store = Store {
     store :: Map.Map Loc (Value, Int), -- Int is blockDepth (probably)
     lastLoc :: Loc,
     curFunc :: CurFuncData,
-    classStruct :: Map.Map String (Map.Map String Value)
+    classStruct :: Map.Map String (Map.Map String Value),
+    basalEnv :: Map.Map String Loc -- env after checking topdefs
 } deriving (Show)
 
 type InterpreterMonad a = ReaderT Env (StateT Store (ExceptT String IO)) a 
@@ -123,16 +124,21 @@ executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty}) 
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty, basalEnv = Map.empty}) 
 
 
 printSth mes = lift $ lift $ lift $ print mes
+
+updateBasalEnv newEnv = do
+    curState <- get
+    put curState {basalEnv = newEnv}
 
 executeRightProgram :: Program -> InterpreterMonad Value  
 executeRightProgram (Prog pos topDefs) = 
     do
         envWithFuncDecl <- findFuncDecl topDefs
 
+        updateBasalEnv envWithFuncDecl
     
         case Map.lookup "main" envWithFuncDecl of
             Nothing -> throwError $ "No main method defined"
@@ -193,7 +199,22 @@ evalClassBody ((ClassDecl pos declType items) : rest) className = do
 
     evalClassBody rest className
 
-evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = return Success--do -- eval in local, but save in global
+evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = do --do -- eval in local, but save in global
+    classData <- getClassMethodsAttrs className pos
+    let foundMethod = Map.lookup ident classData
+
+    case foundMethod of
+        Just meth -> throwError $ "Multiple method or attribute declaration: " ++ ident ++ " in class: " ++ className ++ " at " ++ (writePos pos)
+        Nothing -> do
+            let methodData = (FnDecl retType args pos)
+            let inserted = Map.insert ident methodData classData
+            insertNewAttrMeth className inserted
+
+            envWithFuncClassDecl <- gets basalEnv -- environment with funcs (not needed) and class declarations
+            local (const envWithFuncClassDecl) (checkBody stmts 0 0 0)
+
+            evalClassBody rest className
+            -- local (const Map.empty) ()
 
 evalClassDecl :: Type -> [ClassItem] -> String -> InterpreterMonad Value
 evalClassDecl _ [] _ = return Success
