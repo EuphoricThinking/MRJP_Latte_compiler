@@ -193,11 +193,16 @@ evalClassBody ((ClassEmpty _) : rest) className = evalClassBody rest className
 evalClassBody ((ClassDecl pos declType items) : rest) className = do
     if (not (isClass declType)) || ((getClassName declType) == className)
     then do
-        evalClassDecl declType items className
-    else do
-        evalNestedClass declType >> evalClassDecl declType items className
+        updatedEnv <- evalClassDecl declType items className
 
-    evalClassBody rest className
+        local (const updatedEnv) (evalClassBody rest className)
+    else do
+        envWithFuncClassDecl <- gets basalEnv
+        local (const envWithFuncClassDecl) (evalNestedClass declType)
+
+        updEnv <- evalClassDecl declType items className
+
+        local (const updEnv) (evalClassBody rest className)
 
 evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = do --do -- eval in local, but save in global
     classData <- getClassMethodsAttrs className pos
@@ -210,14 +215,18 @@ evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest
             let inserted = Map.insert ident methodData classData
             insertNewAttrMeth className inserted
 
-            envWithFuncClassDecl <- gets basalEnv -- environment with funcs (not needed) and class declarations
-            local (const envWithFuncClassDecl) (checkBody stmts 0 0 0)
+            --envWithFuncClassDecl <- gets basalEnv -- environment with funcs (not needed) and class declarations
+            curEnv <- ask
+            local (const curEnv) (checkBody stmts 0 0 0)
 
             evalClassBody rest className
             -- local (const Map.empty) ()
 
-evalClassDecl :: Type -> [ClassItem] -> String -> InterpreterMonad Value
-evalClassDecl _ [] _ = return Success
+evalClassDecl :: Type -> [ClassItem] -> String -> InterpreterMonad Env
+evalClassDecl _ [] _ = do
+    curEnv <- ask
+    return curEnv
+    --return Success
 
 evalClassDecl declType ((CItem pos (Ident ident)) : rest) className = do
     classData <- getClassMethodsAttrs className pos -- dict with class attrs and methods
@@ -231,13 +240,16 @@ evalClassDecl declType ((CItem pos (Ident ident)) : rest) className = do
             let inserted = Map.insert ident (getTypeOriginal declType) classData
             insertNewAttrMeth className inserted
 
+            itemLoc <- alloc
+            insertToStore ((getTypeOriginal declType), 0) itemLoc -- TODO check if depth is needed
+
             -- let itd = Map.lookup ident classData
 
             -- fd <- getClassMethodsAttrs className pos
 
             -- let itd2 = Map.lookup ident fd
 
-            evalClassDecl declType rest className
+            local (Map.insert ident itemLoc) (evalClassDecl declType rest className)
 
 
 getClassMethodsAttrs className pos = do
@@ -279,6 +291,16 @@ getClassStmts (CBlock pos stmts) = stmts
 getClassBody (ClassDecl pos className classBody) = classBody
 
 getClassStmtsFromClassCode (ClassCode ccode) = getClassStmts ccode
+
+saveDeclClass 
+
+-- later check only if class exists and eval class methods, now only save their names
+saveOnlyAttrsMethods [] _ = return Success
+
+saveOnlyAttrsMethods ((ClassEmpty _) : rest) className = evalClassBody rest className
+
+saveOnlyAttrsMethods ((ClassDecl pos declType items) : rest) className = do
+    saveDeclClass declType items className
 
 -- getClassData className
 
@@ -352,8 +374,11 @@ checkFunction ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) 
                 Nothing -> throwError $ "checkFunction: no data for " ++ className ++ (writePos pos)
                 Just (cdata, depth) ->
                     if isClassUnprocessed cdata
-                    then
-                        evalClassBody stmts className >> checkFunction rest
+                    then do
+                        curEnv <- ask
+                        local (const curEnv) (evalClassBody stmts className)
+
+                        checkFunction rest
                     else
                         checkFunction rest
 
