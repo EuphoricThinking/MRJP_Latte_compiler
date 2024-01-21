@@ -45,7 +45,7 @@ display_tokens tokens =  do
       print parsed
 
 
-data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType
+data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType | ClassType String
              deriving (Eq)
 
 type IfElseRet = Bool
@@ -60,6 +60,7 @@ instance Show Value where
     show VoidT = "VoidT"
     show (FnDecl _ _ pos) = "FnDecl " ++ (show pos)
     show (FunT v) = "FunT " ++ (show v)
+    show (ClassType s) = "ClassType " ++ s
 
 -- Store przechowuje wszystkie zmienne przez cały czas
 -- Env wskazuje na lokacje aktualnie widocznych zmiennych
@@ -70,7 +71,8 @@ type Env = Map.Map String Loc
 data Store = Store {
     store :: Map.Map Loc (Value, Int), -- Int is blockDepth (probably)
     lastLoc :: Loc,
-    curFunc :: CurFuncData
+    curFunc :: CurFuncData,
+    classStruct :: Map.Map String (Map.Map String Value)
 } deriving (Show)
 
 type InterpreterMonad a = ReaderT Env (StateT Store (ExceptT String IO)) a 
@@ -112,7 +114,7 @@ executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False)}) 
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty}) 
 
 
 printSth mes = lift $ lift $ lift $ print mes
@@ -149,6 +151,16 @@ findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
             insertToStore (funDeclData, 0) funDecLoc
 
             local (Map.insert ident funDecLoc) (findFuncDecl rest)
+
+findFuncDecl ((ClassDef pos className cbody) : rest) = do
+    prevLoc <- asks (Map.lookup ident)
+    case prevLoc of
+        Just founfLoc -> throwError $ "Multiple struct or not extended class declaration" ++ (writePos pos) -- checks if function and a class are named the same
+        
+        Nothing -> do
+
+
+
 
 
 isInt (Int a) = True
