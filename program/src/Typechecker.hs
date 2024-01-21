@@ -45,7 +45,7 @@ display_tokens tokens =  do
       print parsed
 
 
-data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType | ClassType String
+data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType | ClassType String | ClassCode ClassBody
              deriving (Eq)
 
 type IfElseRet = Bool
@@ -161,7 +161,7 @@ findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
 
             local (Map.insert ident funDecLoc) (findFuncDecl rest)
 
-findFuncDecl ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) = do
+findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) = do --(CBlock posBlock stmts)) : rest) = do
     prevLoc <- asks (Map.lookup className)
     case prevLoc of
         Just founfLoc -> throwError $ "Multiple struct or not extended class declaration" ++ (writePos pos) -- checks if function and a class are named the same
@@ -169,11 +169,13 @@ findFuncDecl ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) =
         Nothing -> do
 
             classDecLoc <- alloc
-            let classValue = (ClassType className)
+            -- let classValue = (ClassType className)
+            let classValue = (ClassCode cbody)
             insertToStore (classValue, 0) classDecLoc
             insertNewClass className
 
-            evalClassBody stmts className
+
+            -- evalClassBody stmts className
 
             local (Map.insert className classDecLoc) (findFuncDecl rest)
 
@@ -183,9 +185,15 @@ evalClassBody [] _ = return Success
 evalClassBody ((ClassEmpty _) : rest) className = evalClassBody rest className
 
 evalClassBody ((ClassDecl pos declType items) : rest) className = do
-    evalClassDecl declType items className
+    if not (isClass declType)
+    then
+        evalClassDecl declType items className
+    else
+        evalNestedClass declType >> evalClassDecl declType items className
 
     evalClassBody rest className
+
+-- evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) = do -- eval in local, but save in global
 
 evalClassDecl :: Type -> [ClassItem] -> String -> InterpreterMonad Value
 evalClassDecl _ [] _ = return Success
@@ -202,13 +210,13 @@ evalClassDecl declType ((CItem pos (Ident ident)) : rest) className = do
             let inserted = Map.insert ident (getTypeOriginal declType) classData
             insertNewAttrMeth className inserted
 
-            let itd = Map.lookup ident classData
-            printSth $ show itd
+            -- let itd = Map.lookup ident classData
+            -- printSth $ show itd
 
-            fd <- getClassMethodsAttrs className pos
+            -- fd <- getClassMethodsAttrs className pos
 
-            let itd2 = Map.lookup ident fd
-            printSth $ show itd2
+            -- let itd2 = Map.lookup ident fd
+            -- printSth $ show itd2
 
             evalClassDecl declType rest className
 
@@ -218,6 +226,38 @@ getClassMethodsAttrs className pos = do
     case classData of
         Nothing -> throwError $ "Class or struct undeclared: " ++ className ++ " " ++ (writePos pos)
         Just dataDict -> return dataDict
+
+evalNestedClass (Class pos (Ident ident)) = do
+    classLoc <- asks (Map.lookup ident)
+    case classLoc of
+        -- if the className exists
+        Nothing -> throwError $ "Evaluation of the nested class " ++ ident ++ ": no such class " ++ (writePos pos) -- at least name should have been saved, but it is not
+        Just loc -> do
+            classData <- gets (Map.lookup loc . store)
+
+            case classData of
+                Nothing -> throwError $ "No data for the nested class " ++ ident ++ ": " ++ (writePos pos)
+                Just (cdata, depth) -> do
+                    if isClassUnprocessed cdata
+                    then do
+                        let classStmts = getClassStmtsFromClassCode cdata
+                        evalClassBody classStmts ident
+                    else
+                        return Success
+
+isClass (Class _ _) = True
+isClass _ = False
+
+isClassUnprocessed (ClassCode _) = True
+isClassUnprocessed (ClassType _) = False
+
+getClassCode (ClassCode ccode) = ccode
+
+getClassStmts (ClassDecl pos className classBody) = classBody
+
+getClassStmtsFromClassCode (ClassCode ccode) = getClassStmts ccode
+
+-- getClassData className
 
 isInt (Int a) = True
 isInt _ = False
@@ -278,6 +318,21 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             envWithParams <- checkArgs args
 
             local (const envWithParams) (checkBody stmts 0 0 0) >> checkFunction rest
+
+checkFunction ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) = do --evalClassBody stmts className >> 
+    classLoc <- asks (Map.lookup className)
+    case classLoc of
+        Nothing -> throwError $ "checkFunction: the name of the class " ++ className ++ " should have been saved in env, but it is not " ++ (writePos pos)
+        Just loc -> do
+            classData <- gets (Map.lookup loc . store)
+            case classData of
+                Nothing -> throwError $ "checkFunction: no data for " ++ className ++ (writePos pos)
+                Just (cdata, depth) ->
+                    if isClassUnprocessed cdata
+                    then
+                        evalClassBody stmts className >> checkFunction rest
+                    else
+                        checkFunction rest
 
 checkIfStringsEqual :: String -> String -> Bool
 checkIfStringsEqual [] [] = True
