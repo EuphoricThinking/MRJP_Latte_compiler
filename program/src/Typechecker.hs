@@ -221,19 +221,21 @@ evalClassBody [] _ = return Success
 
 evalClassBody ((ClassEmpty _) : rest) className = evalClassBody rest className
 
-evalClassBody ((ClassDecl pos declType items) : rest) className = do
-    if (not (isClass declType)) || ((getClassName declType) == className)
-    then do
-        updatedEnv <- evalClassDecl declType items className
+-- already evaluated
+evalClassBody ((ClassDecl pos declType items) : rest) className = evalClassBody rest className
+    -- do
+    -- if (not (isClass declType)) || ((getClassName declType) == className)
+    -- then do
+    --     updatedEnv <- evalClassDecl declType items className
 
-        local (const updatedEnv) (evalClassBody rest className)
-    else do
-        -- envWithFuncClassDecl <- gets basalEnv
-        -- local (const envWithFuncClassDecl) (evalNestedClass declType)
+    --     local (const updatedEnv) (evalClassBody rest className)
+    -- else do
+    --     -- envWithFuncClassDecl <- gets basalEnv
+    --     -- local (const envWithFuncClassDecl) (evalNestedClass declType)
 
-        updEnv <- evalClassDecl declType items className
+    --     updEnv <- evalClassDecl declType items className
 
-        local (const updEnv) (evalClassBody rest className)
+    --     local (const updEnv) (evalClassBody rest className)
 
 evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = do --do -- eval in local, but save in global
     classData <- getClassMethodsAttrs className pos
@@ -333,9 +335,20 @@ saveOnlyAttrsMethods [] _ = do
 saveOnlyAttrsMethods ((ClassEmpty _) : rest) className = saveOnlyAttrsMethods rest className
 
 saveOnlyAttrsMethods ((ClassDecl pos declType items) : rest) className = do
-    updatedEnv <- evalClassDecl declType items className
+    if isClass declType
+    then do
+        let declClassName = getClassName declType
+        classLoc <- asks (Map.lookup declClassName)
+        case classLoc of
+            Nothing -> throwError $ "Attempt to declare instance of a non-existing class or struct " ++ declClassName ++ " at " ++ (writePos pos)
+            Just loc -> do
+                updatedEnv <- evalClassDecl declType items className
 
-    local (const updatedEnv) (saveOnlyAttrsMethods rest className)
+                local (const updatedEnv) (saveOnlyAttrsMethods rest className)
+    else do
+        updatedEnv <- evalClassDecl declType items className
+
+        local (const updatedEnv) (saveOnlyAttrsMethods rest className)
 
 -- methods available in any order?
 saveOnlyAttrsMethods ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = do
