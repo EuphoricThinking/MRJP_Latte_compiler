@@ -141,6 +141,8 @@ executeProgram program =
 
 printSth mes = lift $ lift $ lift $ print mes
 
+fromJust (Just sth) = sth
+
 -- updateBasalEnv newEnv = do
 --     curState <- get
 --     put curState {basalEnv = newEnv}
@@ -177,6 +179,10 @@ getFuncRettype (Just ((FnDecl rettype args _), _)) = rettype
 getFuncArgs (Just ((FnDecl rettype args _), _)) = args
 
 getFuncPos (Just ((FnDecl _ _ pos), _)) = pos
+
+getFuncArgsWithoutJust (FnDecl rettype args _) = args
+
+getFuncRetTypeWithoutJust (FnDecl rettype args _) = rettype
 
 findFuncDecl [] = do
     curEnv <- ask
@@ -263,6 +269,7 @@ evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest
 
             --envWithFuncClassDecl <- gets basalEnv -- environment with funcs (not needed) and class declarations
     -- env from dict
+    printMes $ "classmeth " ++ ident ++ (show stmts)
 
     initCurFuncData ident retType pos
 
@@ -335,6 +342,8 @@ getClassName (Class _ (Ident name)) = name
 
 isClassUnprocessed (ClassCode _) = True
 isClassUnprocessed (ClassType _) = False
+
+getClassTypeName (ClassType name) = name
 
 getClassCode (ClassCode ccode) = ccode
 
@@ -430,6 +439,8 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
         put curState {curFunc = (CurFuncData ident False False rettype pos)}
         setIsClass False
 
+        printMes $ ident
+
         if (ident == mainName)
         then do
             if not (isInt rettype)
@@ -454,6 +465,7 @@ checkFunction ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) 
     -- case classLoc of
     --     Nothing -> throwError $ "checkFunction: the name of the class " ++ className ++ " should have been saved in env, but it is not " ++ (writePos pos)
     --     Just loc -> do
+    printMes $ className
     classDataEnv <- gets (Map.lookup className . classEnv)
     setIsClass True
     case classDataEnv of
@@ -534,12 +546,39 @@ exprWithoutBDepth (Just (BoolT, _)) = (Just BoolT)
 exprWithoutBDepth (Just (VoidT, _)) = (Just VoidT)
 exprWithoutBDepth (Just ((FunT _), _)) = (Just FunRetType)
 exprWithoutBDepth (Just ((FnDecl _ _ _), _)) = (Just FunRetType)
+exprWithoutBDepth (Just (classT, _)) = (Just classT)
 
 getBlockDepth (Just (IntT, d)) = d
 getBlockDepth (Just (StringT, d)) = d
 getBlockDepth (Just (BoolT, d)) = d
 getBlockDepth (Just (VoidT, d)) = d
 getBlockDepth (Just (FnDecl _ _ _, d)) = d
+
+-- classes
+
+getExprType (EClass pos (Class posName (Ident className))) = return (Just (ClassType className))
+
+getExprType (EMethod pos var@(EVar posV (Ident classInstanceName)) (Ident methodName) exprs) = do
+    -- checkIfVar exists
+    -- check if class has method
+    -- return method type
+    varClassType <- getExprType var
+    let className = getClassTypeName $ fromJust varClassType
+    classMethodsAttrs <- getClassMethodsAttrs className pos
+
+    let method = Map.lookup methodName classMethodsAttrs
+
+    case method of
+        Nothing -> throwError $ "Method " ++ methodName ++ " not found for class " ++ className ++ " at " ++ (writePos pos)
+
+        Just methodData -> do
+            exprTypes <- mapM getExprType exprs
+
+            let funcArgs = getFuncArgsWithoutJust methodData
+            let funcRet = getFuncRetTypeWithoutJust methodData
+
+            checkArgsCall methodName pos funcRet funcArgs exprTypes
+--
 
 getExprType (EVar pos (Ident name)) = do
     typeLoc <- asks (Map.lookup name)
@@ -790,6 +829,7 @@ checkBody ((Empty pos) : rest) depth ifdepth blockDepth = checkBody rest depth i
 
 checkBody ((Decl pos vartype items) : rest) depth ifdepth blockDepth = do
     updatedEnv <- checkDecl vartype items blockDepth
+    printMes $ "declared " ++ (show rest)
     local (const updatedEnv) (checkBody rest depth ifdepth blockDepth)
 
 checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth blockDepth = do
@@ -900,6 +940,8 @@ retVoidOrValUpd justType pos rest depth ifdepth blockDepth = do
         checkBody rest depth ifdepth blockDepth
 
 extractRettypeWrapJust (Just (FnDecl rettype args pos)) = Just rettype
+
+wrapInJust sth = (Just sth)
 
 getFuncNameFromCurFunc (CurFuncData name _ _ _ _) = name
 getFuncIfElseRetCurFunc (CurFuncData _ ifElse _ _ _) = ifElse
