@@ -82,6 +82,8 @@ data Store = Store {
 
 type InterpreterMonad a = ReaderT Env (StateT Store (ExceptT String IO)) a 
 
+selfClassEntity = "self"
+
 -- Allocate new location in store and return new location
 alloc :: InterpreterMonad Loc
 alloc = do
@@ -96,7 +98,10 @@ insertToStore val newloc = do
 
 insertNewClass className = do
     curState <- get
-    put curState {classStruct = Map.insert className Map.empty (classStruct curState)}
+
+    let mapWithSelf = Map.insert selfClassEntity (ClassType className) Map.empty -- instead of an empty map
+
+    put curState {classStruct = Map.insert className mapWithSelf (classStruct curState)}
 
 insertNewClassEnv className = do
     curState <- get
@@ -228,8 +233,12 @@ saveClassInnerData ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : r
         Nothing -> throwError $ className ++ " class not saved in environtment" ++ (writePos pos) -- checks if function and a class are named the same
         
         Just foundLoc -> do
-            curEnv <- ask
-            classEnv <- local (const curEnv) (saveOnlyAttrsMethods stmts className)
+            --curEnv <- ask
+            -- let insertedSelf = Map.insert 
+            selfLoc <- alloc
+            insertToStore ((ClassType className), 0) selfLoc
+
+            classEnv <- local (Map.insert selfClassEntity selfLoc) (saveOnlyAttrsMethods stmts className) -- instead of (const curEnv)
             updateClassEnvInStore className classEnv
 
             saveClassInnerData rest
