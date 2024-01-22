@@ -50,7 +50,9 @@ data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | 
 
 type IfElseRet = Bool
 type FreeRet = Bool
-data CurFuncData = CurFuncData String IfElseRet FreeRet deriving (Show)
+type RetType = Type
+type Pos = BNFC'Position
+data CurFuncData = CurFuncData String IfElseRet FreeRet RetType Pos deriving (Show)
 
 instance Show Value where
     show Success = "Success"
@@ -74,7 +76,7 @@ data Store = Store {
     curFunc :: CurFuncData,
     classStruct :: Map.Map String (Map.Map String Value),
     classEnv :: Map.Map String Env,
-    isClass :: Bool
+    isInClass :: Bool
     --Env :: Map.Map String Loc -- env after checking topdefs
 } deriving (Show)
 
@@ -134,7 +136,7 @@ executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty, classEnv = Map.empty, isClass = False})--, basalEnv = Map.empty}) 
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False})--, basalEnv = Map.empty}) 
 
 
 printSth mes = lift $ lift $ lift $ print mes
@@ -163,11 +165,11 @@ executeRightProgram (Prog pos topDefs) =
 
 setIsClass boolVal = do
     curState <- get
-    put curState {isClass = boolVal}
+    put curState {isInClass = boolVal}
 
-initCurFuncData funcName = do
+initCurFuncData funcName retType pos = do
     curState <- get
-    put curState {curFunc = (CurFuncData funcName False False)}
+    put curState {curFunc = (CurFuncData funcName False False retType pos)}
 
 
 getFuncRettype (Just ((FnDecl rettype args _), _)) = rettype
@@ -262,7 +264,7 @@ evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest
             --envWithFuncClassDecl <- gets basalEnv -- environment with funcs (not needed) and class declarations
     -- env from dict
 
-    initCurFuncData ident
+    initCurFuncData ident retType pos
 
     curEnv <- ask
 
@@ -425,7 +427,7 @@ checkFunction [] = return Success -- (StringV "OK")
 checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
         -- it is enough to replace the current function once
         curState <- get
-        put curState {curFunc = (CurFuncData ident False False)}
+        put curState {curFunc = (CurFuncData ident False False rettype pos)}
         setIsClass False
 
         if (ident == mainName)
@@ -757,30 +759,30 @@ checkBody [] depth ifdepth blockDepth = do
 
         let ident = getFuncNameFromCurFunc curFunD
         
-        funLoc <- asks (Map.lookup ident)
+        -- funLoc <- asks (Map.lookup ident)
 
-        case funLoc of
-            Nothing -> throwError $ "Function " ++ ident ++ " is undeclared (internal error)"
-            Just loc -> do
-                -- check arguments
-                funcData <- gets (Map.lookup loc . store)
+        -- case funLoc of
+        --     Nothing -> throwError $ "Function " ++ ident ++ " is undeclared (internal error)"
+        --     Just loc -> do
+        --         -- check arguments
+        --         funcData <- gets (Map.lookup loc . store)
 
-                if (matchTypesOrigEval (Just VoidT) (wrapOrigTypeInJust (getFuncRettype funcData)))
-                then
-                    -- no need to check in void type
-                    return Success
-                else do
-                    -- return types must have been matched before
-                    let freeRetCur = getFuncFreeRetCurFunc curFunD
-                    let ifElseRetCur = getFuncIfElseRetCurFunc curFunD
+        if (matchTypesOrigEval (Just VoidT) (wrapOrigTypeInJust (getFuncRetTypeCurFunc curFunD)))--(getFuncRettype funcData)))
+        then
+            -- no need to check in void type
+            return Success
+        else do
+            -- return types must have been matched before
+            let freeRetCur = getFuncFreeRetCurFunc curFunD
+            let ifElseRetCur = getFuncIfElseRetCurFunc curFunD
 
 
 
-                    if freeRetCur || ifElseRetCur
-                    then
-                        return Success
-                    else do
-                        throwError $ ident ++ " lacks return statement" ++ (writePos (getFuncPos funcData))
+            if freeRetCur || ifElseRetCur
+            then
+                return Success
+            else do
+                throwError $ ident ++ " lacks return statement" ++ (writePos (getFuncPosCurFunc curFunD)) --(getFuncPos funcData))
     else
         return Success
 
@@ -836,8 +838,10 @@ checkBody ((CondElse pos condExpr stm1 stm2): rest) depth ifdepth blockDepth = d
 
         let name = getFuncNameFromCurFunc curFunUpd
         let isFreeRetFound = getFuncFreeRetCurFunc curFunUpd
+        let curFuncRetType = getFuncRetTypeCurFunc curFunUpd
+        let curFuncPos = getFuncPosCurFunc curFunUpd
 
-        put curState {curFunc = (CurFuncData name True isFreeRetFound)}
+        put curState {curFunc = (CurFuncData name True isFreeRetFound curFuncRetType curFuncPos)}
 
         
         checkBody rest depth ifdepth blockDepth
@@ -868,36 +872,40 @@ checkBody ((Ret pos expr) : rest) depth ifdepth blockDepth = do
 retVoidOrValUpd justType pos rest depth ifdepth blockDepth = do
     -- check functio tupe depth == 0
     curFunD <- gets curFunc
-    let ident = getFuncNameFromCurFunc curFunD
-    funLoc <- asks (Map.lookup ident)
+    -- let ident = getFuncNameFromCurFunc curFunD
+    -- funLoc <- asks (Map.lookup ident)
 
-    case funLoc of
-        Nothing -> throwError $ "Function " ++ ident ++ " is undeclared (internal error)" ++ (writePos pos)
-        Just loc -> do
-            -- check arguments
-            funcData <- gets (Map.lookup loc . store)
+    -- case funLoc of
+    --     Nothing -> throwError $ "Function " ++ ident ++ " is undeclared (internal error)" ++ (writePos pos)
+    --     Just loc -> do
+    --         -- check arguments
+    --         funcData <- gets (Map.lookup loc . store)
 
-            if not (matchTypesOrigEval justType (wrapOrigTypeInJust (getFuncRettype funcData)))
-            then 
-                throwError $ "Mismatched return value" ++ (writePos pos)
-            else if depth == 0 && ifdepth == 0
-            then do
-                curState <- get
+    if not (matchTypesOrigEval justType (wrapOrigTypeInJust (getFuncRetTypeCurFunc curFunD))) --(getFuncRettype funcData)))
+    then 
+        throwError $ "Mismatched return value" ++ (writePos pos)
+    else if depth == 0 && ifdepth == 0
+    then do
+        curState <- get
 
-                let name = getFuncNameFromCurFunc curFunD
-                let ifElse = getFuncIfElseRetCurFunc curFunD
+        let name = getFuncNameFromCurFunc curFunD
+        let ifElse = getFuncIfElseRetCurFunc curFunD
+        let curFuncRetType = getFuncRetTypeCurFunc curFunD
+        let curFuncPos = getFuncPosCurFunc curFunD
 
-                put curState {curFunc = (CurFuncData name ifElse True)}
+        put curState {curFunc = (CurFuncData name ifElse True curFuncRetType curFuncPos)}
 
-                checkBody rest depth ifdepth blockDepth
-            else
-                checkBody rest depth ifdepth blockDepth
+        checkBody rest depth ifdepth blockDepth
+    else
+        checkBody rest depth ifdepth blockDepth
 
 extractRettypeWrapJust (Just (FnDecl rettype args pos)) = Just rettype
 
-getFuncNameFromCurFunc (CurFuncData name _ _) = name
-getFuncIfElseRetCurFunc (CurFuncData _ ifElse _) = ifElse
-getFuncFreeRetCurFunc (CurFuncData _ _ frRet) = frRet
+getFuncNameFromCurFunc (CurFuncData name _ _ _ _) = name
+getFuncIfElseRetCurFunc (CurFuncData _ ifElse _ _ _) = ifElse
+getFuncFreeRetCurFunc (CurFuncData _ _ frRet _ _) = frRet
+getFuncRetTypeCurFunc (CurFuncData _ _ _ retType _) = retType
+getFuncPosCurFunc (CurFuncData _ _ _ _ pos) = pos
 
 checkRet ((Ret pos expr) : _) = True
 checkRet ((VRet pos) : _) = True
