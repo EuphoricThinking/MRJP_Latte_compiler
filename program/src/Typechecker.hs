@@ -613,8 +613,6 @@ getExprType (EMethod pos var@(EVar posV (Ident classInstanceName)) (Ident method
 getExprType (ENull pos classType) = return (Just (getTypeOriginal classType))
 
 getExprType (EAttr pos var (Ident attrName)) = checkExprAttrOrMethod pos var attrName [] False
-
-
 --
 
 getExprType (EVar pos (Ident name)) = do
@@ -827,6 +825,21 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) blockDepth = do
                 local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
             else
                 throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
+
+-- classes and structs
+
+checkBody ((AssClass pos classVar (Ident attrName) expr) : rest) depth ifdepth blockDepth = do
+    classExprType <- checkExprAttrOrMethod pos classVar attrName [] False
+    exprType <- getExprType expr
+
+    if not (matchTypesOrigEval classExprType exprType)
+    then
+        throwError $ "Incompatible types for an attribute assignment: " ++ (writePos pos)
+    else
+        checkBody rest depth ifdepth blockDepth
+
+--
+
 
 checkBody [] depth ifdepth blockDepth = do
     if depth == 0 && ifdepth == 0 && blockDepth == 0
