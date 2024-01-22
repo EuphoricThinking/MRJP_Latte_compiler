@@ -73,7 +73,8 @@ data Store = Store {
     lastLoc :: Loc,
     curFunc :: CurFuncData,
     classStruct :: Map.Map String (Map.Map String Value),
-    classEnv :: Map.Map String Env
+    classEnv :: Map.Map String Env,
+    isClass :: Bool
     --Env :: Map.Map String Loc -- env after checking topdefs
 } deriving (Show)
 
@@ -133,7 +134,7 @@ executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty, classEnv = Map.empty})--, basalEnv = Map.empty}) 
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False), classStruct = Map.empty, classEnv = Map.empty, isClass = False})--, basalEnv = Map.empty}) 
 
 
 printSth mes = lift $ lift $ lift $ print mes
@@ -158,7 +159,16 @@ executeRightProgram (Prog pos topDefs) =
         case Map.lookup "main" envWithFuncDecl of
             Nothing -> throwError $ "No main method defined"
             _ ->  local (const envWithFuncDecl) (checkFunction topDefs)
-    
+
+
+setIsClass boolVal = do
+    curState <- get
+    put curState {isClass = boolVal}
+
+initCurFuncData funcName = do
+    curState <- get
+    put curState {curFunc = (CurFuncData funcName False False)}
+
 
 getFuncRettype (Just ((FnDecl rettype args _), _)) = rettype
 
@@ -250,8 +260,14 @@ evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest
     --         insertNewAttrMeth className inserted
 
             --envWithFuncClassDecl <- gets basalEnv -- environment with funcs (not needed) and class declarations
+    -- env from dict
+
+    initCurFuncData ident
+
     curEnv <- ask
-    local (const curEnv) (checkBody stmts 0 0 0)
+
+    envWithParams <- local (const curEnv) (checkArgs args)
+    local (const envWithParams) (checkBody stmts 0 0 0)
 
     evalClassBody rest className
             -- local (const Map.empty) ()
@@ -410,6 +426,8 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
         -- it is enough to replace the current function once
         curState <- get
         put curState {curFunc = (CurFuncData ident False False)}
+        setIsClass False
+
         if (ident == mainName)
         then do
             if not (isInt rettype)
@@ -435,6 +453,7 @@ checkFunction ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) 
     --     Nothing -> throwError $ "checkFunction: the name of the class " ++ className ++ " should have been saved in env, but it is not " ++ (writePos pos)
     --     Just loc -> do
     classDataEnv <- gets (Map.lookup className . classEnv)
+    setIsClass True
     case classDataEnv of
         Nothing -> throwError $ "checkFunction: no env data for " ++ className ++ (writePos pos)
         Just cEnv -> do
