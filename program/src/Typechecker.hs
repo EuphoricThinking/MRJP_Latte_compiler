@@ -362,6 +362,27 @@ getClassBody (ClassDecl pos className classBody) = classBody
 
 getClassStmtsFromClassCode (ClassCode ccode) = getClassStmts ccode
 
+checkExprAttrOrMethod pos var methodAttrName exprs isMethod = do
+    varClassType <- getExprType var
+    let className = getClassTypeName $ fromJust varClassType
+    classMethodsAttrs <- getClassMethodsAttrs className pos
+
+    let method = Map.lookup methodAttrName classMethodsAttrs
+
+    case method of
+        Nothing -> throwError $ "Method or attribute" ++ methodAttrName ++ " not found for class " ++ className ++ " at " ++ (writePos pos)
+
+        Just methodAttrData -> do
+            if isMethod
+            then do
+                exprTypes <- mapM getExprType exprs
+
+                let funcArgs = getFuncArgsWithoutJust methodAttrData
+                let funcRet = getFuncRetTypeWithoutJust methodAttrData
+
+                checkArgsCall methodAttrName pos funcRet funcArgs exprTypes
+            else do
+                return (Just methodAttrData)
 -- later check only if class exists and eval class methods, now only save their names
 saveOnlyAttrsMethods :: [ClassStmt] -> String -> InterpreterMonad Env
 saveOnlyAttrsMethods [] _ = do
@@ -448,7 +469,7 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
         put curState {curFunc = (CurFuncData ident False False rettype pos)}
         setIsClass False
 
-        printMes $ ident
+        printMes $ ident ++ (show stmts)
 
         if (ident == mainName)
         then do
@@ -563,32 +584,37 @@ getBlockDepth (Just (BoolT, d)) = d
 getBlockDepth (Just (VoidT, d)) = d
 getBlockDepth (Just (FnDecl _ _ _, d)) = d
 
--- classes
+-- classes and structs
 
 getExprType (EClass pos (Class posName (Ident className))) = return (Just (ClassType className))
 
-getExprType (EMethod pos var@(EVar posV (Ident classInstanceName)) (Ident methodName) exprs) = do
+getExprType (EMethod pos var@(EVar posV (Ident classInstanceName)) (Ident methodName) exprs) = checkExprAttrOrMethod pos var methodName exprs True --do
     -- checkIfVar exists
     -- check if class has method
     -- return method type
-    varClassType <- getExprType var
-    let className = getClassTypeName $ fromJust varClassType
-    classMethodsAttrs <- getClassMethodsAttrs className pos
 
-    let method = Map.lookup methodName classMethodsAttrs
+    -- varClassType <- getExprType var
+    -- let className = getClassTypeName $ fromJust varClassType
+    -- classMethodsAttrs <- getClassMethodsAttrs className pos
 
-    case method of
-        Nothing -> throwError $ "Method " ++ methodName ++ " not found for class " ++ className ++ " at " ++ (writePos pos)
+    -- let method = Map.lookup methodName classMethodsAttrs
 
-        Just methodData -> do
-            exprTypes <- mapM getExprType exprs
+    -- case method of
+    --     Nothing -> throwError $ "Method " ++ methodName ++ " not found for class " ++ className ++ " at " ++ (writePos pos)
 
-            let funcArgs = getFuncArgsWithoutJust methodData
-            let funcRet = getFuncRetTypeWithoutJust methodData
+    --     Just methodData -> do
+    --         exprTypes <- mapM getExprType exprs
 
-            checkArgsCall methodName pos funcRet funcArgs exprTypes
+    --         let funcArgs = getFuncArgsWithoutJust methodData
+    --         let funcRet = getFuncRetTypeWithoutJust methodData
+
+    --         checkArgsCall methodName pos funcRet funcArgs exprTypes
 
 getExprType (ENull pos classType) = return (Just (getTypeOriginal classType))
+
+getExprType (EAttr pos var (Ident attrName)) = checkExprAttrOrMethod pos var attrName [] False
+
+
 --
 
 getExprType (EVar pos (Ident name)) = do
