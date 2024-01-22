@@ -578,6 +578,8 @@ getExprType (EMethod pos var@(EVar posV (Ident classInstanceName)) (Ident method
             let funcRet = getFuncRetTypeWithoutJust methodData
 
             checkArgsCall methodName pos funcRet funcArgs exprTypes
+
+getExprType (ENull pos classType) = return (Just (getTypeOriginal classType))
 --
 
 getExprType (EVar pos (Ident name)) = do
