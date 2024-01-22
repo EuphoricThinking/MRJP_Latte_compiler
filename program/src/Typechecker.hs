@@ -153,7 +153,7 @@ executeRightProgram (Prog pos topDefs) =
 
         -- class attributes and method names are stored,
         -- but not analyzed (whether delcared class exists or whether the given method is correct)
-        saveClassInnerData topDefs
+        local (const envWithFuncDecl) (saveClassInnerData topDefs)
     
         case Map.lookup "main" envWithFuncDecl of
             Nothing -> throwError $ "No main method defined"
@@ -210,7 +210,8 @@ saveClassInnerData ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : r
         Nothing -> throwError $ className ++ " class not saved in environtment" ++ (writePos pos) -- checks if function and a class are named the same
         
         Just foundLoc -> do
-            classEnv <- saveOnlyAttrsMethods stmts className
+            curEnv <- ask
+            classEnv <- local (const curEnv) (saveOnlyAttrsMethods stmts className)
             updateClassEnvInStore className classEnv
 
             saveClassInnerData rest
@@ -238,21 +239,21 @@ evalClassBody ((ClassDecl pos declType items) : rest) className = evalClassBody 
     --     local (const updEnv) (evalClassBody rest className)
 
 evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest) className = do --do -- eval in local, but save in global
-    classData <- getClassMethodsAttrs className pos
-    let foundMethod = Map.lookup ident classData
+    -- classData <- getClassMethodsAttrs className pos
+    -- let foundMethod = Map.lookup ident classData
 
-    case foundMethod of
-        Just meth -> throwError $ "Multiple method or attribute declaration: " ++ ident ++ " in class: " ++ className ++ " at " ++ (writePos pos)
-        Nothing -> do
-            let methodData = (FnDecl retType args pos)
-            let inserted = Map.insert ident methodData classData
-            insertNewAttrMeth className inserted
+    -- case foundMethod of
+    --     Just meth -> throwError $ "Multiple method or attribute declaration: " ++ ident ++ " in class: " ++ className ++ " at " ++ (writePos pos)
+    --     Nothing -> do
+    --         let methodData = (FnDecl retType args pos)
+    --         let inserted = Map.insert ident methodData classData
+    --         insertNewAttrMeth className inserted
 
             --envWithFuncClassDecl <- gets basalEnv -- environment with funcs (not needed) and class declarations
-            curEnv <- ask
-            local (const curEnv) (checkBody stmts 0 0 0)
+    curEnv <- ask
+    local (const curEnv) (checkBody stmts 0 0 0)
 
-            evalClassBody rest className
+    evalClassBody rest className
             -- local (const Map.empty) ()
 
 evalClassDecl :: Type -> [ClassItem] -> String -> InterpreterMonad Env
