@@ -84,6 +84,7 @@ data Store = Store {
 type InterpreterMonad a = ReaderT Env (StateT Store (ExceptT String IO)) a 
 
 selfClassEntity = "self"
+arrLengthAttr = "length"
 
 -- Allocate new location in store and return new location
 alloc :: InterpreterMonad Loc
@@ -366,25 +367,35 @@ getClassStmtsFromClassCode (ClassCode ccode) = getClassStmts ccode
 checkExprAttrOrMethod pos var methodAttrName exprs isMethod = do
     varClassType <- getExprType var
     printMes $ (show var) ++ " " ++ (show varClassType)
-    let className = getClassTypeName $ fromJust varClassType
-    classMethodsAttrs <- getClassMethodsAttrs className pos
+    if isArrayType varClassType
+    then do
+        printMes $ "arr"
+        return (Just IntT)
+        if methodAttrName /= arrLengthAttr
+        then 
+            throwError $ "Array s do not have an atttribute " ++ methodAttrName ++ " " ++ (writePos pos)
+        else
+            return (Just (getArrayElemType $ fromJust varClassType))
+    else do
+        let className = getClassTypeName $ fromJust varClassType
+        classMethodsAttrs <- getClassMethodsAttrs className pos
 
-    let method = Map.lookup methodAttrName classMethodsAttrs
+        let method = Map.lookup methodAttrName classMethodsAttrs
 
-    case method of
-        Nothing -> throwError $ "Method or attribute" ++ methodAttrName ++ " not found for class " ++ className ++ " at " ++ (writePos pos)
+        case method of
+            Nothing -> throwError $ "Method or attribute" ++ methodAttrName ++ " not found for class " ++ className ++ " at " ++ (writePos pos)
 
-        Just methodAttrData -> do
-            if isMethod
-            then do
-                exprTypes <- mapM getExprType exprs
+            Just methodAttrData -> do
+                if isMethod
+                then do
+                    exprTypes <- mapM getExprType exprs
 
-                let funcArgs = getFuncArgsWithoutJust methodAttrData
-                let funcRet = getFuncRetTypeWithoutJust methodAttrData
+                    let funcArgs = getFuncArgsWithoutJust methodAttrData
+                    let funcRet = getFuncRetTypeWithoutJust methodAttrData
 
-                checkArgsCall methodAttrName pos funcRet funcArgs exprTypes
-            else do
-                return (Just methodAttrData)
+                    checkArgsCall methodAttrName pos funcRet funcArgs exprTypes
+                else do
+                    return (Just methodAttrData)
 -- later check only if class exists and eval class methods, now only save their names
 saveOnlyAttrsMethods :: [ClassStmt] -> String -> InterpreterMonad Env
 saveOnlyAttrsMethods [] _ = do
@@ -453,6 +464,8 @@ getTypeOriginal (Void _) = VoidT
 getTypeOriginal (Fun _ t _) =  FunT (getTypeOriginal t)
 getTypeOriginal (Class _ (Ident ident)) = ClassType ident
 getTypeOriginal (Array _ t) = ArrayType (getTypeOriginal t)
+
+getArrayElemType (ArrayType t) = t
 
 checkArgs [] = do
     curEnv <- ask
@@ -624,7 +637,7 @@ getExprType (EAttr pos var (Ident attrName)) = checkExprAttrOrMethod pos var att
 -- a new array
 getExprType (EArr pos typeT sizeSpecifier) = do
     sizeType <- getExprType sizeSpecifier
-    if not (matchTypesOrigEval (Just IntT) (sizeType))
+    if not (isIntType sizeType)
     then
         throwError $ "Incorrect size specifier for an array " ++ (writePos pos)
     else do
@@ -858,6 +871,32 @@ checkBody ((AssClass pos classVar (Ident attrName) expr) : rest) depth ifdepth b
     else
         checkBody rest depth ifdepth blockDepth
 
+
+checkBody ((AssArr pos (Ident arrName) exprElemNum exprToAssign) : rest) depth ifdepth blockDepth = do
+    arrLoc <- asks (Map.lookup arrName)
+    case arrLoc of
+        Nothing -> throwError $ "Variable " ++ arrName ++ " undeclared " ++ (writePos pos)
+        Just loc -> do
+            arrType <- gets (Map.lookup loc . store)
+            case arrType of
+                Nothing -> throwError $ "Variable " ++ arrName ++ " not in store " ++ (writePos pos)
+                Just (varType, depth) -> do
+                    if not (isArrayType (Just varType))
+                    then
+                        throwError $ "Array assignment applied to a non-array variable: " ++ arrName ++ (writePos pos)
+                    else do
+                        numElemType <- getExprType exprElemNum
+                        if not (isIntType numElemType)
+                        then
+                            throwError $ "Non-integer value applied as the element number specifier in " ++ arrName ++ " array " ++ (writePos pos)
+                        else do
+                            toAssignType <- getExprType exprToAssign
+
+                            if not (matchTypesOrigEval toAssignType (Just varType))
+                            then
+                                throwError $ "Mismatch in array " ++ arrName ++ " elements type and value to be assigned type " ++ (writePos pos)
+                            else
+                                checkBody rest depth ifdepth blockDepth
 --
 
 
