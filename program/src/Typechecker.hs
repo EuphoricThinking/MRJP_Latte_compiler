@@ -280,7 +280,6 @@ evalClassBody ((ClassMethod pos retType (Ident ident) args (Blk _ stmts)) : rest
 
             --envWithFuncClassDecl <- gets basalEnv -- environment with funcs (not needed) and class declarations
     -- env from dict
-    printMes $ "classmeth " ++ ident ++ (show stmts)
 
     initCurFuncData ident retType pos
 
@@ -366,10 +365,8 @@ getClassStmtsFromClassCode (ClassCode ccode) = getClassStmts ccode
 
 checkExprAttrOrMethod pos var methodAttrName exprs isMethod = do
     varClassType <- getExprType var
-    printMes $ (show var) ++ " " ++ (show varClassType)
     if isArrayType varClassType
     then do
-        printMes $ "arr"
         return (Just IntT)
         if methodAttrName /= arrLengthAttr
         then 
@@ -488,8 +485,6 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
         put curState {curFunc = (CurFuncData ident False False rettype pos)}
         setIsClass False
 
-        printMes $ ident ++ (show stmts)
-
         if (ident == mainName)
         then do
             if not (isInt rettype)
@@ -514,7 +509,6 @@ checkFunction ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) 
     -- case classLoc of
     --     Nothing -> throwError $ "checkFunction: the name of the class " ++ className ++ " should have been saved in env, but it is not " ++ (writePos pos)
     --     Just loc -> do
-    printMes $ className
     classDataEnv <- gets (Map.lookup className . classEnv)
     setIsClass True
     case classDataEnv of
@@ -641,9 +635,6 @@ getExprType (EArr pos typeT sizeSpecifier) = do
     then
         throwError $ "Incorrect size specifier for an array " ++ (writePos pos)
     else do
-        printMes $ (show typeT)
-        printMes $ show $ (getTypeOriginal typeT)
-        printMes $ (show typeT)
         return (Just (ArrayType (getTypeOriginal typeT)))
 
 -- an array element
@@ -912,8 +903,6 @@ checkBody ((AssArr pos (Ident arrName) exprElemNum exprToAssign) : rest) depth i
                         else do
                             toAssignType <- getExprType exprToAssign
 
-                            printMes $ (show toAssignType) ++ " arr: " ++ (show varType) 
-
                             if not (matchTypesOrigEval toAssignType (Just (getArrayElemType varType)))
                             then
                                 throwError $ "Mismatch in array " ++ arrName ++ " elements type and value to be assigned type " ++ (writePos pos)
@@ -1001,9 +990,7 @@ checkBody [] depth ifdepth blockDepth = do
 checkBody ((Empty pos) : rest) depth ifdepth blockDepth = checkBody rest depth ifdepth blockDepth
 
 checkBody ((Decl pos vartype items) : rest) depth ifdepth blockDepth = do
-    printMes $ (show vartype)
     updatedEnv <- checkDecl vartype items blockDepth
-    printMes $ "declared " ++ (show rest)
     local (const updatedEnv) (checkBody rest depth ifdepth blockDepth)
 
 checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth blockDepth = do
@@ -1030,7 +1017,6 @@ checkBody ((Incr pos (Ident ident)) : rest) depth ifdepth blockDepth = checkBody
 checkBody ((Decr pos (Ident ident)) : rest) depth ifdepth blockDepth = checkBodyIncDec pos ident rest "Decrementation" depth ifdepth blockDepth
 
 checkBody ((While pos condExpr stmt) : rest) depth ifdepth blockDepth = do
-    printMes $ "WHILE"
     condType <- getExprType condExpr
 
     if not (isBoolType condType)
