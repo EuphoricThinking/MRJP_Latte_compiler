@@ -646,6 +646,26 @@ getExprType (EArr pos typeT sizeSpecifier) = do
         printMes $ (show typeT)
         return (Just (ArrayType (getTypeOriginal typeT)))
 
+-- an array element
+getExprType (EArrEl pos (Ident arrayIdent) exprElemNum) = do
+    elemNumType <- getExprType exprElemNum
+    if not (isIntType elemNumType)
+    then
+        throwError $ "Attempt to index an object " ++ arrayIdent ++ " with a non-numeric value " ++ (writePos pos)
+    else do
+        arrLoc <- asks (Map.lookup arrayIdent)
+        case arrLoc of
+            Nothing -> throwError $ "Variable " ++ arrayIdent ++ " not in environment " ++ (writePos pos)
+            Just loc -> do
+                arrData <- gets (Map.lookup loc . store)
+                case arrData of
+                    Nothing -> throwError $ "No data in store for " ++ arrayIdent ++ " " ++ (writePos pos)
+                    Just (arrType, depth) -> do
+                        if not (isArrayType $ wrapInJust arrType)
+                        then
+                            throwError $ "Indexing an entity which is not an array " ++ arrayIdent ++ " " ++ (writePos pos)
+                        else do
+                            return (Just (getArrayElemType arrType))
 --
 
 getExprType (EVar pos (Ident name)) = do
