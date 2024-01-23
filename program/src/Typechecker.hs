@@ -892,7 +892,9 @@ checkBody ((AssArr pos (Ident arrName) exprElemNum exprToAssign) : rest) depth i
                         else do
                             toAssignType <- getExprType exprToAssign
 
-                            if not (matchTypesOrigEval toAssignType (Just varType))
+                            printMes $ (show toAssignType) ++ " arr: " ++ (show varType) 
+
+                            if not (matchTypesOrigEval toAssignType (Just (getArrayElemType varType)))
                             then
                                 throwError $ "Mismatch in array " ++ arrName ++ " elements type and value to be assigned type " ++ (writePos pos)
                             else
