@@ -243,6 +243,8 @@ instance Show StoragePlace where
 
 type AsmCode = [Asm]
 
+-- qvar ident valType
+
 -- LocQVal ident -> ident : (qvar, memAddr) ; StringQVal s -> s : (_, label (data section or code section))
 type AsmEnv = Map.Map String (QVar, StoragePlace)
 type AsmMonad a = ReaderT AsmEnv (StateT AStore (ExceptT String (WriterT AsmCode IO))) a 
