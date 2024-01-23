@@ -45,7 +45,7 @@ display_tokens tokens =  do
       print parsed
 
 
-data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType | ClassType String | ClassCode ClassBody
+data Value = FnDecl Type [Arg] BNFC'Position | IntT | StringT | BoolT | VoidT | FunT Value | Success | FunRetType | ClassType String | ClassCode ClassBody | ArrayType Value
              deriving (Eq)
 
 type IfElseRet = Bool
@@ -63,6 +63,7 @@ instance Show Value where
     show (FnDecl _ _ pos) = "FnDecl " ++ (show pos)
     show (FunT v) = "FunT " ++ (show v)
     show (ClassType s) = "ClassType " ++ s
+    show (ArrayType t) = "ArrayType " ++ (show t)
 
 -- Store przechowuje wszystkie zmienne przez cały czas
 -- Env wskazuje na lokacje aktualnie widocznych zmiennych
@@ -364,6 +365,7 @@ getClassStmtsFromClassCode (ClassCode ccode) = getClassStmts ccode
 
 checkExprAttrOrMethod pos var methodAttrName exprs isMethod = do
     varClassType <- getExprType var
+    printMes $ (show var) ++ " " ++ (show varClassType)
     let className = getClassTypeName $ fromJust varClassType
     classMethodsAttrs <- getClassMethodsAttrs className pos
 
@@ -438,6 +440,9 @@ isStrType _ = False
 isBoolType (Just BoolT) = True
 isBoolType _ = False
 
+isArrayType (Just (ArrayType _)) = True
+isArrayType _ = False
+
 getPos (Just pos) = pos
 
 getTypeOriginal :: Type -> Value
@@ -447,6 +452,7 @@ getTypeOriginal (Str _)  = StringT
 getTypeOriginal (Void _) = VoidT
 getTypeOriginal (Fun _ t _) =  FunT (getTypeOriginal t)
 getTypeOriginal (Class _ (Ident ident)) = ClassType ident
+getTypeOriginal (Array _ t) = ArrayType (getTypeOriginal t)
 
 checkArgs [] = do
     curEnv <- ask
@@ -613,6 +619,20 @@ getExprType (EMethod pos var@(EVar posV (Ident classInstanceName)) (Ident method
 getExprType (ENull pos classType) = return (Just (getTypeOriginal classType))
 
 getExprType (EAttr pos var (Ident attrName)) = checkExprAttrOrMethod pos var attrName [] False
+-- arrays 
+
+-- a new array
+getExprType (EArr pos typeT sizeSpecifier) = do
+    sizeType <- getExprType sizeSpecifier
+    if not (matchTypesOrigEval (Just IntT) (sizeType))
+    then
+        throwError $ "Incorrect size specifier for an array " ++ (writePos pos)
+    else do
+        printMes $ (show typeT)
+        printMes $ show $ (getTypeOriginal typeT)
+        printMes $ (show typeT)
+        return (Just (ArrayType (getTypeOriginal typeT)))
+
 --
 
 getExprType (EVar pos (Ident name)) = do
@@ -878,6 +898,7 @@ checkBody [] depth ifdepth blockDepth = do
 checkBody ((Empty pos) : rest) depth ifdepth blockDepth = checkBody rest depth ifdepth blockDepth
 
 checkBody ((Decl pos vartype items) : rest) depth ifdepth blockDepth = do
+    printMes $ (show vartype)
     updatedEnv <- checkDecl vartype items blockDepth
     printMes $ "declared " ++ (show rest)
     local (const updatedEnv) (checkBody rest depth ifdepth blockDepth)
@@ -906,6 +927,7 @@ checkBody ((Incr pos (Ident ident)) : rest) depth ifdepth blockDepth = checkBody
 checkBody ((Decr pos (Ident ident)) : rest) depth ifdepth blockDepth = checkBodyIncDec pos ident rest "Decrementation" depth ifdepth blockDepth
 
 checkBody ((While pos condExpr stmt) : rest) depth ifdepth blockDepth = do
+    printMes $ "WHILE"
     condType <- getExprType condExpr
 
     if not (isBoolType condType)
