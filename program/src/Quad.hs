@@ -32,7 +32,7 @@ data QStore = QStore {
     -- add label map?
 } deriving (Show)
 
-data ValType = IntQ | StringQ | BoolQ | VoidQ deriving (Eq, Show)
+data ValType = IntQ | StringQ | BoolQ | VoidQ | ArrayQ ValType deriving (Eq, Show)
 
 data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show)
 
@@ -88,6 +88,7 @@ data Quad = QLabel String --FuncData
     -- | QTrueJMP String
     | QCmp Val Val
     | QJumpCMP CondType String
+    | QArrNew QVar Val -- qvar valType size
 
     deriving (Show)
 
@@ -129,6 +130,7 @@ getOrigQType (Int _) = IntQ
 getOrigQType (Str _) = StringQ
 getOrigQType (Void _) = VoidQ
 getOrigQType (Bool _) = BoolQ
+getOrigQType (Array _ t) = ArrayQ (getOrigQType t)
 
 alloc :: QuadMonad Loc
 alloc = do
@@ -387,6 +389,10 @@ increaseNumLocTypesCur exprVal = do
                             --printMesQ $ "STR " ++ (show t)
                         BoolQ -> do
                             increaseBoolsNum fname curBody
+
+                        (ArrayQ _) -> do
+                            updateStringVarsNum fname curBody -- should be in a new array generation
+                            return ()
 
 
 
@@ -1113,6 +1119,21 @@ genQExpr expr@(EAnd pos expr1 expr2) isParam = changeExprToGenCond expr
 
 genQExpr expr@(EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOrExpr expr1 False expr2 isParam
 
+-- arrays
+-- a new array
+genQExpr (EArr pos elemType sizeExpr) isParam = do
+    (val, code, depth) <- genQExpr sizeExpr JustLocal
+
+    resTempName <- createTempVarNameCurFuncExprs
+    let arrType = (ArrayQ (getOrigQType elemType))
+    let locVar = QLoc resTempName arrType
+    let newCode = code ++ [QArrNew locVar val]
+
+    return ((LocQVal resTempName arrType), newCode, depth + 1)
+
+
+
+
 genCond v@(EVar pos (Ident ident)) lTrue lFalse = singleValsGenCond v lTrue lFalse
 
     --printMesQ ("var " ++ ident) >> genQExpr v JustLocal
@@ -1185,3 +1206,4 @@ genCond (Not pos expr) lTrue lFalse = genCond expr lFalse lTrue --do
     -- (val, code, depth) <- genCond expr lFalse lTrue
 
     -- let locVar = QLoc resTmpName BoolQ
+

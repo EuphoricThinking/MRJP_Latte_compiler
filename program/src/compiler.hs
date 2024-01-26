@@ -137,6 +137,25 @@ data Asm = AGlobl
 -- xor     eax, 1 -- negate
 -- test    al, al -- move check if zero (for branching)
 
+
+
+-- arrays
+-- call    malme   ; alloc struct with array and length
+-- mov     QWORD PTR -16[rbp], rax  ; save addr from rax (returned pointer to struct)
+-- mov     rax, QWORD PTR -16[rbp]
+-- mov     eax, DWORD PTR 8[rax]  ; addr in rax, [rax + 8] -> a->length addr
+-- mov     edi, eax
+-- call    printInt  ; printInt(a->length)
+-- mov     rax, QWORD PTR -16[rbp]  ; move pointer addr to rax
+
+-- in [rbp-16] we have a pointer to the struct, now in rax; value in rax is the address, where the first element of the struct is stored - an array; rax + 8 -> and address of the second element - the length
+
+-- mov     rax, QWORD PTR [rax]  ; extract value at the address in rax, that is - the address of the first element of the struct, that is - the array
+-- add     rax, 20     ; 5 * (4 bytes for int - array of ints); address = [rax + 20]
+-- mov     eax, DWORD PTR [rax]
+-- mov     edi, eax
+-- call    printInt   ; printInt(a->array[5])
+
 instance Show Asm where
     show AGlobl = "\tglobal main"
     show SectText = "section .text"
@@ -2057,3 +2076,8 @@ genStmtsAsm (c@(QCmp val1 val2) : rest) = do
         performBoolComparison val1 val2
 
     genStmtsAsm rest
+
+
+-- arrays
+genStmtsAsm ((QArrNew qvar@(QLoc ident (ArrayQ arrType)) sizeVal) : rest) = do
+    -- generate place

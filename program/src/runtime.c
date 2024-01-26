@@ -3,6 +3,10 @@
 #include <string.h>
 
 // gcc runtime.c -c -o ../lib/runtime.o
+typedef struct arr {
+    void* a;
+    int len;
+} arr;
 
 void printInt(int a) {
     printf("%d\n", a);
@@ -48,4 +52,12 @@ char* ___concatenateStrings(char* s1, char* s2) {
     memcpy(result + l1, s2, l2 + 1);
 
     return result;
+}
+
+arr* allocArray(size_t elemSize, int numElems) {
+    arr* newArr = malloc(sizeof(arr));
+    newArr->a = malloc(elemSize*numElems);
+    newArr->len = numElems;
+
+    return newArr;
 }

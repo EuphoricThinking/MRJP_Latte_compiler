@@ -137,7 +137,7 @@ checkError resWrapped = do
     res <- runExceptT $ resWrapped
     case res of
         Left mes -> printError mes >> exitFailure
-        Right _ -> printOK >> exitSuccess
+        Right classData -> printOK >> exitSuccess -- return classData--
 
 executeProgram :: Either String Program -> IO ()
 executeProgram program = 
@@ -984,8 +984,10 @@ checkBody [] depth ifdepth blockDepth = do
                 return Success
             else do
                 throwError $ ident ++ " lacks return statement" ++ (writePos (getFuncPosCurFunc curFunD)) --(getFuncPos funcData))
-    else
+    else do
         return Success
+        --curClasses <- gets classStruct
+        --return curClasses
 
 checkBody ((Empty pos) : rest) depth ifdepth blockDepth = checkBody rest depth ifdepth blockDepth
 
