@@ -646,6 +646,7 @@ getMemSize valType =
         IntQ -> intBytes
         StringQ -> strPointerBytes
         BoolQ -> boolBytes
+        (ArrayQ _) -> strPointerBytes
 
 allocVarCopyFromMem memToBeCopied valType = do
     let memSize = getMemSize valType
@@ -832,6 +833,9 @@ assignResToRegister var@(QLoc varTmpId varType) =
             offsetRBP <- getNewOffsetUpdRBP boolBytes
             tell $ [AMov (createAddrBoolRBP offsetRBP) (show AAL)]
             return (var, offsetRBP) --(Register AAL))
+        (ArrayQ arrType) -> do
+            resAddr <- allocVar ARAX strPointerBytes
+            return (var, resAddr)
 
 increaseStrLblCounterByOne curStrLblCnt = do
     curState <- get
@@ -952,6 +956,7 @@ createMemAddr memStorage locType =
                 IntQ -> "dword " ++ (createRelAddrRBP offset)
                 StringQ -> "qword " ++ (createRelAddrRBP offset)
                 BoolQ -> "byte " ++ (createRelAddrRBP offset)
+                (ArrayQ _) -> "qword " ++ (createRelAddrRBP offset)
 
         Register reg -> show reg
         ProgLabel l -> l
@@ -974,6 +979,9 @@ moveTempToR11 memStorageAddr valType =
             --printMesA $ "MOVER11 " ++ (show memStorageAddr)
             tell $ [AMov (show AR11B) memStorageAddr]
             return AR11B
+        (ArrayQ _) -> do
+            tell $ [AMov (show AR11) memStorageAddr]
+            return AR11
 
 -- movVarToR11 varLoc isLoc32bit = do
 --     addr <- findAddr varLoc
