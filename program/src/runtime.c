@@ -54,7 +54,7 @@ char* ___concatenateStrings(char* s1, char* s2) {
     return result;
 }
 
-arr* allocArray(size_t elemSize, int numElems) {
+arr* ___allocArray(size_t elemSize, int numElems) {
     arr* newArr = malloc(sizeof(arr));
     newArr->a = malloc(elemSize*numElems);
     newArr->len = numElems;

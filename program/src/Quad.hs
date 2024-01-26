@@ -100,6 +100,7 @@ tmpInfix = "_tmp_"
 printInt = "printInt"
 exprInfix = "_expr_"
 concatStr = "___concatenateStrings"
+allocArr = "___allocArray"
 
 -- genQuadcode :: Program -> Quadcode
 genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
@@ -472,7 +473,7 @@ evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
         (Int _) -> evalDecl declType ((Init posIn (Ident ident) (ELitInt posIn 0)) : rest) qcode
         (Str _) -> evalDecl declType ((Init posIn (Ident ident) (EString posIn "")) : rest) qcode
 
-specialFuncsList = ["printInt", "printString", "error", "readInt", "readString", concatStr]
+specialFuncsList = ["printInt", "printString", "error", "readInt", "readString", concatStr, allocArr]
 isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
 
 -- generateParams (e:exprs) qcode = do
@@ -1123,6 +1124,8 @@ genQExpr expr@(EOr pos expr1 expr2) isParam = changeExprToGenCond expr--getAndOr
 -- a new array
 genQExpr (EArr pos elemType sizeExpr) isParam = do
     (val, code, depth) <- genQExpr sizeExpr JustLocal
+
+    addToSpecialUncond allocArr
 
     resTempName <- createTempVarNameCurFuncExprs
     let arrType = (ArrayQ (getOrigQType elemType))

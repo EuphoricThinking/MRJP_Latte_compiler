@@ -2080,4 +2080,8 @@ genStmtsAsm (c@(QCmp val1 val2) : rest) = do
 
 -- arrays
 genStmtsAsm ((QArrNew qvar@(QLoc ident (ArrayQ arrType)) sizeVal) : rest) = do
-    -- generate place
+    -- generate place -- elemSize numElems
+    let elemSize = getMemSize arrType
+    let newCode = (QParam (IntQVal elemSize)) : (QParam sizeVal) : (QCall qvar allocArr 2) : rest
+
+    genStmtsAsm newCode
