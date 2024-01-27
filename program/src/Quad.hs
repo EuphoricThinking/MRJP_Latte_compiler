@@ -32,7 +32,8 @@ data QStore = QStore {
     -- add label map?
 } deriving (Show)
 
-data ValType = IntQ | StringQ | BoolQ | VoidQ | ArrayQ ValType deriving (Eq, Show)
+data ValType = IntQ | StringQ | BoolQ | VoidQ | ArrayQ ValType 
+                deriving (Eq, Show)
 
 data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show)
 
@@ -89,6 +90,7 @@ data Quad = QLabel String --FuncData
     | QCmp Val Val
     | QJumpCMP CondType String
     | QArrNew QVar Val -- qvar valType size
+    | QAttr QVar Val String -- string -> the attribute name
 
     deriving (Show)
 
@@ -594,6 +596,10 @@ getValType val =
         (ParamQVal _ vtype) -> vtype
         (StrQVal _) -> StringQ
         (BoolQVal _) -> BoolQ
+
+isArray (ArrayQ _) = True
+isArray _ = False
+
 
 isRawString (StrQVal _) = True
 isRawString _ = False
@@ -1134,7 +1140,27 @@ genQExpr (EArr pos elemType sizeExpr) isParam = do
 
     return ((LocQVal resTempName arrType), newCode, depth + 1)
 
+-- ident := classStructArrName
+genQExpr (EAttr pos expr (Ident attrName)) isParam = do
+    -- evar.evar.evar.IDENT
+    (val, code, depth) <- genQExpr expr JustLocal
 
+    resTempName <- createTempVarNameCurFuncExprs
+
+    -- printMesQ (show val)
+
+    -- return ((LocQVal resTempName IntQ), [], depth + 1)
+    if isArray (getValType val)
+    then do
+        let locVal = QLoc resTempName IntQ
+        let newCode = [QAttr locVal val attrName]
+
+        return ((LocQVal resTempName IntQ), newCode, depth+1)
+    else do
+        printMesQ $ "not an array"
+        let locVal = QLoc resTempName IntQ
+        let newCode = [QAttr locVal val attrName]
+        return ((LocQVal resTempName IntQ), newCode, depth+1)
 
 
 genCond v@(EVar pos (Ident ident)) lTrue lFalse = singleValsGenCond v lTrue lFalse

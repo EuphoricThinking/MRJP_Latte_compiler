@@ -335,7 +335,8 @@ main = do
                         Right _ -> do
                             printOK
                             (eitherQuad, quadcode) <- genQuadcode p
-                            -- print $ (show eitherQuad)
+
+                            print $ (show eitherQuad)
                             -- print $ "After quad "
                             -- print $ (show quadcode)
                             let ftuple = splitExtension filename
@@ -525,6 +526,11 @@ createAddrBoolRBP memStorage =
     case memStorage of
         OffsetRBP offset -> "byte " ++ (createRelAddrRBP offset)
         Register reg -> show reg
+
+createLengthArrAddr arrStorage = 
+    case memStorage of
+        OffsetRBP offset -> "dword " ++ (createRelAddrRBP (offset + strPointerBytes))
+        Register reg -> "dword [" ++ (show reg) ++ " + " ++ (show strPointerBytes) ++ "]"
 
 getValToMov (IntQVal val) = val
 
@@ -2093,3 +2099,17 @@ genStmtsAsm ((QArrNew qvar@(QLoc ident (ArrayQ arrType)) sizeVal) : rest) = do
     let newCode = (QParam (IntQVal elemSize)) : (QParam sizeVal) : (QCall qvar allocArr 2) : rest
 
     genStmtsAsm newCode
+
+genStmtsAsm ((QAttr qvar@(QLoc ident valType) objVarExpr attrIdent) : rest) = do
+    case objVarExpr of
+        (LocQVal varName varType) -> do
+            if isArray varType
+            then do
+                -- address of the
+                arrStorage <- findAddr varName
+                createLengthArrAddr arrStorage
+                -- alloc new space for this, pass ident, storage in local
+
+            else do
+
+                genStmtsAsm rest
