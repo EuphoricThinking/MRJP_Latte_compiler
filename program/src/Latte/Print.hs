@@ -200,7 +200,7 @@ instance Print (Latte.Abs.Stmt' a) where
     Latte.Abs.Empty _ -> prPrec i 0 (concatD [doc (showString ";")])
     Latte.Abs.BStmt _ block -> prPrec i 0 (concatD [prt 0 block])
     Latte.Abs.Decl _ type_ items -> prPrec i 0 (concatD [prt 0 type_, prt 0 items, doc (showString ";")])
-    Latte.Abs.Ass _ id_ expr -> prPrec i 0 (concatD [prt 0 id_, doc (showString "="), prt 0 expr, doc (showString ";")])
+    Latte.Abs.Ass _ expr1 expr2 -> prPrec i 0 (concatD [prt 0 expr1, doc (showString "="), prt 0 expr2, doc (showString ";")])
     Latte.Abs.AssClass _ expr1 id_ expr2 -> prPrec i 0 (concatD [prt 6 expr1, doc (showString "."), prt 0 id_, doc (showString "="), prt 0 expr2])
     Latte.Abs.Incr _ id_ -> prPrec i 0 (concatD [prt 0 id_, doc (showString "++"), doc (showString ";")])
     Latte.Abs.IncClass _ expr id_ -> prPrec i 0 (concatD [prt 6 expr, doc (showString "."), prt 0 id_, doc (showString "++"), doc (showString ";")])

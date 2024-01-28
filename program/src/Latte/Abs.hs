@@ -57,7 +57,7 @@ data Stmt' a
     = Empty a
     | BStmt a (Block' a)
     | Decl a (Type' a) [Item' a]
-    | Ass a Ident (Expr' a)
+    | Ass a (Expr' a) (Expr' a)
     | AssClass a (Expr' a) Ident (Expr' a)
     | Incr a Ident
     | IncClass a (Expr' a) Ident

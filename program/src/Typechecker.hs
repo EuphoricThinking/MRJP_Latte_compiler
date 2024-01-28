@@ -1008,18 +1008,20 @@ checkBody ((BStmt pos (Blk posB stmts)) : rest) depth ifdepth blockDepth = do
 
 checkBody ((SExp pos expr) : rest) depth ifdepth blockDepth = getExprType expr >> checkBody rest depth ifdepth blockDepth
 
-checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth blockDepth = do
-    varloc <- asks (Map.lookup ident)
-    case varloc of
-        Nothing -> throwError $ "Unknown variable " ++ ident ++ (writePos pos)
-        Just loc -> do
-            exprType <- getExprType expr
-            varType <- gets (Map.lookup loc . store)
-            if not (matchTypesOrigEval (exprWithoutBDepth varType) exprType)
-            then
-                throwError $ "Incompatible types for assignment: " ++ (writePos pos)
-            else
-                checkBody rest depth ifdepth blockDepth
+checkBody ((Ass pos exprVar expr) : rest) depth ifdepth blockDepth = do
+    -- varloc <- asks (Map.lookup ident)
+    -- case varloc of
+    --     Nothing -> throwError $ "Unknown variable " ++ ident ++ (writePos pos)
+    --     Just loc -> do
+    exprVarType <- getExprType exprVar
+    exprType <- getExprType expr
+
+    -- varType <- gets (Map.lookup loc . store)
+    if not (matchTypesOrigEval exprVarType exprType)
+    then
+        throwError $ "Incompatible types for assignment: " ++ (writePos pos)
+    else
+        checkBody rest depth ifdepth blockDepth
 
 checkBody ((Incr pos (Ident ident)) : rest) depth ifdepth blockDepth = checkBodyIncDec pos ident rest "Incrementation" depth ifdepth blockDepth
 
