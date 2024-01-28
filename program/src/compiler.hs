@@ -2132,3 +2132,9 @@ genStmtsAsm ((QAttr qvar@(QLoc ident valType) objVarExpr attrIdent) : rest) = do
             else do
 
                 genStmtsAsm rest
+
+-- genStmtsAsm ((QArrAss elemNum elemVal) : rest) = do
+--     -- eleNum int
+--     -- elemVal -- locQVal or raw value
+--     case elemNum of
+--         (IntQVal ival)

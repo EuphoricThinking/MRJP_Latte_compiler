@@ -38,8 +38,8 @@ The reserved words used in Latte are the following:
 The symbols used in Latte are the following:
   | ( | ) | , | {
   | } | ; | = | .
-  | [ | ] | ++ | --
-  | : | [] | )null | -
+  | ++ | -- | : | []
+  | [ | ] | )null | -
   | ! | && | || | +
   | * | / | % | <
   | <= | > | >= | ==
@@ -64,15 +64,15 @@ All other symbols are terminals.
   | //[Arg]// | -> | **eps**
   |  |  **|**  | //Arg//
   |  |  **|**  | //Arg// ``,`` //[Arg]//
-  | //ClassBody// | -> | ``{`` //[CStmt]// ``}``
-  | //[CStmt]// | -> | **eps**
-  |  |  **|**  | //CStmt// //[CStmt]//
-  | //CStmt// | -> | ``;``
-  |  |  **|**  | //Type// //[CItem]// ``;``
+  | //ClassBody// | -> | ``{`` //[ClassStmt]// ``}``
+  | //[ClassStmt]// | -> | **eps**
+  |  |  **|**  | //ClassStmt// //[ClassStmt]//
+  | //ClassStmt// | -> | ``;``
+  |  |  **|**  | //Type// //[ClassItem]// ``;``
   |  |  **|**  | //Type// //Ident// ``(`` //[Arg]// ``)`` //Block//
-  | //CItem// | -> | //Ident//
-  | //[CItem]// | -> | //CItem//
-  |  |  **|**  | //CItem// ``,`` //[CItem]//
+  | //ClassItem// | -> | //Ident//
+  | //[ClassItem]// | -> | //ClassItem//
+  |  |  **|**  | //ClassItem// ``,`` //[ClassItem]//
   | //Block// | -> | ``{`` //[Stmt]// ``}``
   | //[Stmt]// | -> | **eps**
   |  |  **|**  | //Stmt// //[Stmt]//
@@ -80,7 +80,6 @@ All other symbols are terminals.
   |  |  **|**  | //Block//
   |  |  **|**  | //Type// //[Item]// ``;``
   |  |  **|**  | //Ident// ``=`` //Expr// ``;``
-  |  |  **|**  | //Ident// ``[`` //Expr// ``]`` ``=`` //Expr// ``;``
   |  |  **|**  | //Expr6// ``.`` //Ident// ``=`` //Expr//
   |  |  **|**  | //Ident// ``++`` ``;``
   |  |  **|**  | //Expr6// ``.`` //Ident// ``++`` ``;``
@@ -108,7 +107,7 @@ All other symbols are terminals.
   |  |  **|**  | //Type//
   |  |  **|**  | //Type// ``,`` //[Type]//
   | //Expr6// | -> | //Ident//
-  |  |  **|**  | //Ident// ``[`` //Expr// ``]``
+  |  |  **|**  | //Expr// ``[`` //Expr// ``]``
   |  |  **|**  | //Integer//
   |  |  **|**  | ``true``
   |  |  **|**  | ``false``

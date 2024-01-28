@@ -107,26 +107,26 @@ ListArg
 
 ClassBody :: { (Latte.Abs.BNFC'Position, Latte.Abs.ClassBody) }
 ClassBody
-  : '{' ListCStmt '}' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.CBlock (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  : '{' ListClassStmt '}' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.CBlock (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
 
-ListCStmt :: { (Latte.Abs.BNFC'Position, [Latte.Abs.CStmt]) }
-ListCStmt
+ListClassStmt :: { (Latte.Abs.BNFC'Position, [Latte.Abs.ClassStmt]) }
+ListClassStmt
   : {- empty -} { (Latte.Abs.BNFC'NoPosition, []) }
-  | CStmt ListCStmt { (fst $1, (:) (snd $1) (snd $2)) }
+  | ClassStmt ListClassStmt { (fst $1, (:) (snd $1) (snd $2)) }
 
-CStmt :: { (Latte.Abs.BNFC'Position, Latte.Abs.CStmt) }
-CStmt
-  : ';' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.CEmpty (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1))) }
-  | Type ListCItem ';' { (fst $1, Latte.Abs.CDecl (fst $1) (snd $1) (snd $2)) }
-  | Type Ident '(' ListArg ')' Block { (fst $1, Latte.Abs.CMethod (fst $1) (snd $1) (snd $2) (snd $4) (snd $6)) }
+ClassStmt :: { (Latte.Abs.BNFC'Position, Latte.Abs.ClassStmt) }
+ClassStmt
+  : ';' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.ClassEmpty (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1))) }
+  | Type ListClassItem ';' { (fst $1, Latte.Abs.ClassDecl (fst $1) (snd $1) (snd $2)) }
+  | Type Ident '(' ListArg ')' Block { (fst $1, Latte.Abs.ClassMethod (fst $1) (snd $1) (snd $2) (snd $4) (snd $6)) }
 
-CItem :: { (Latte.Abs.BNFC'Position, Latte.Abs.CItem) }
-CItem : Ident { (fst $1, Latte.Abs.ClassItem (fst $1) (snd $1)) }
+ClassItem :: { (Latte.Abs.BNFC'Position, Latte.Abs.ClassItem) }
+ClassItem : Ident { (fst $1, Latte.Abs.CItem (fst $1) (snd $1)) }
 
-ListCItem :: { (Latte.Abs.BNFC'Position, [Latte.Abs.CItem]) }
-ListCItem
-  : CItem { (fst $1, (:[]) (snd $1)) }
-  | CItem ',' ListCItem { (fst $1, (:) (snd $1) (snd $3)) }
+ListClassItem :: { (Latte.Abs.BNFC'Position, [Latte.Abs.ClassItem]) }
+ListClassItem
+  : ClassItem { (fst $1, (:[]) (snd $1)) }
+  | ClassItem ',' ListClassItem { (fst $1, (:) (snd $1) (snd $3)) }
 
 Block :: { (Latte.Abs.BNFC'Position, Latte.Abs.Block) }
 Block
@@ -143,7 +143,6 @@ Stmt
   | Block { (fst $1, Latte.Abs.BStmt (fst $1) (snd $1)) }
   | Type ListItem ';' { (fst $1, Latte.Abs.Decl (fst $1) (snd $1) (snd $2)) }
   | Ident '=' Expr ';' { (fst $1, Latte.Abs.Ass (fst $1) (snd $1) (snd $3)) }
-  | Ident '[' Expr ']' '=' Expr ';' { (fst $1, Latte.Abs.AssArr (fst $1) (snd $1) (snd $3) (snd $6)) }
   | Expr6 '.' Ident '=' Expr { (fst $1, Latte.Abs.AssClass (fst $1) (snd $1) (snd $3) (snd $5)) }
   | Ident '++' ';' { (fst $1, Latte.Abs.Incr (fst $1) (snd $1)) }
   | Expr6 '.' Ident '++' ';' { (fst $1, Latte.Abs.IncClass (fst $1) (snd $1) (snd $3)) }
@@ -189,7 +188,7 @@ ListType
 Expr6 :: { (Latte.Abs.BNFC'Position, Latte.Abs.Expr) }
 Expr6
   : Ident { (fst $1, Latte.Abs.EVar (fst $1) (snd $1)) }
-  | Ident '[' Expr ']' { (fst $1, Latte.Abs.EArrEl (fst $1) (snd $1) (snd $3)) }
+  | Expr '[' Expr ']' { (fst $1, Latte.Abs.EArrEl (fst $1) (snd $1) (snd $3)) }
   | Integer { (fst $1, Latte.Abs.ELitInt (fst $1) (snd $1)) }
   | 'true' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.ELitTrue (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'false' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.ELitFalse (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1))) }

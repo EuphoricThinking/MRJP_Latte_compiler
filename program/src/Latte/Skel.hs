@@ -57,7 +57,6 @@ transStmt x = case x of
   Latte.Abs.BStmt _ block -> failure x
   Latte.Abs.Decl _ type_ items -> failure x
   Latte.Abs.Ass _ ident expr -> failure x
-  Latte.Abs.AssArr _ ident expr1 expr2 -> failure x
   Latte.Abs.AssClass _ expr1 ident expr2 -> failure x
   Latte.Abs.Incr _ ident -> failure x
   Latte.Abs.IncClass _ expr ident -> failure x
@@ -93,7 +92,7 @@ transType x = case x of
 transExpr :: Show a => Latte.Abs.Expr' a -> Result
 transExpr x = case x of
   Latte.Abs.EVar _ ident -> failure x
-  Latte.Abs.EArrEl _ ident expr -> failure x
+  Latte.Abs.EArrEl _ expr1 expr2 -> failure x
   Latte.Abs.ELitInt _ integer -> failure x
   Latte.Abs.ELitTrue _ -> failure x
   Latte.Abs.ELitFalse _ -> failure x

@@ -91,6 +91,7 @@ data Quad = QLabel String --FuncData
     | QJumpCMP CondType String
     | QArrNew QVar Val -- qvar valType size
     | QAttr QVar Val String -- string -> the attribute name
+    | QArrAss Val Val -- elemNum elemVal
 
     deriving (Show)
 
@@ -961,6 +962,13 @@ genQStmt ((While pos condExpr stmt) : rest) qcode = do
     let codeAfterCondExpr = codeCond ++ code ++ [QLabel labelEnd]
 
     genQStmt rest codeAfterCondExpr
+
+genQStmt ((AssArr pos exprElemNum exprElemVal) : rest) qcode = do
+    (val1, code1, depth1) <- genQExpr exprElemNum JustLocal
+    (val2, code2, depth2) <- genQExpr exprElemVal JustLocal
+
+    genQStmt rest (qcode ++ code1 ++ code2 ++ [QArrAss val1 val2])
+
 
 
 

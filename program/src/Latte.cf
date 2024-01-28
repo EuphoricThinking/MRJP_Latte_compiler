@@ -50,7 +50,7 @@ EClassNest. Construct ::= Ident "." ;
 
 Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
-AssArr.    Stmt ::= Ident "[" Expr "]" "=" Expr ";" ;
+-- AssArr.    Stmt ::= Ident "[" Expr "]" "=" Expr ";" ;
 
 AssClass.  Stmt ::= Expr6 "." Ident "=" Expr ;
 
@@ -98,7 +98,7 @@ separator  Type "," ;
 
 EVar.      Expr6 ::= Ident ;
 
-EArrEl.    Expr6 ::= Ident "[" Expr "]" ;
+EArrEl.    Expr6 ::= Expr6 "[" Expr "]" ;
 
 ELitInt.   Expr6 ::= Integer ;
 

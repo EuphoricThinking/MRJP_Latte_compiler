@@ -35,17 +35,17 @@ transArg x = case x of
 
 transClassBody :: Show a => Latte.Abs.ClassBody' a -> Result
 transClassBody x = case x of
-  Latte.Abs.CBlock _ cstmts -> failure x
+  Latte.Abs.CBlock _ classstmts -> failure x
 
-transCStmt :: Show a => Latte.Abs.CStmt' a -> Result
-transCStmt x = case x of
-  Latte.Abs.CEmpty _ -> failure x
-  Latte.Abs.CDecl _ type_ citems -> failure x
-  Latte.Abs.CMethod _ type_ ident args block -> failure x
+transClassStmt :: Show a => Latte.Abs.ClassStmt' a -> Result
+transClassStmt x = case x of
+  Latte.Abs.ClassEmpty _ -> failure x
+  Latte.Abs.ClassDecl _ type_ classitems -> failure x
+  Latte.Abs.ClassMethod _ type_ ident args block -> failure x
 
-transCItem :: Show a => Latte.Abs.CItem' a -> Result
-transCItem x = case x of
-  Latte.Abs.ClassItem _ ident -> failure x
+transClassItem :: Show a => Latte.Abs.ClassItem' a -> Result
+transClassItem x = case x of
+  Latte.Abs.CItem _ ident -> failure x
 
 transBlock :: Show a => Latte.Abs.Block' a -> Result
 transBlock x = case x of
