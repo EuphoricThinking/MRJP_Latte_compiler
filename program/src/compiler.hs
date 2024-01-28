@@ -565,22 +565,27 @@ getAddrInRegTyped reg typeVal =
 
 getArrElemOffset arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum = do
     case elemNum of
-        (IntQVal ival) -> return (show ((getArrOffsetSize at) * elemNum))
+        (IntQVal ival) -> return (show ((getArrOffsetSize at) * ival))
         (LocQVal ident _) -> do
             numAddr <- findAddr elemNum
-            tell $ [AMov AR11D (createAddrIntRBP numAddr)]
-            tell $ [AImul AR11D (show (getArrOffsetSize at))]
-            resAddr <- allocInt AR11D
+            -- should zero upper half of eax
+            tell $ [AMov (show AEAX) (createAddrIntRBP numAddr)]
+            tell $ [AImul (show AEAX) (show (getArrOffsetSize at))]
+            --resAddr <- allocInt AR11D
+            --tell $ [AMov (show AEAX) (show AR11D)]
 
-            return (createAddrIntRBP resAddr)
+            return (show ARAX)
+
+            --return (createAddrIntRBP resAddr)
 -- TODO boolean table
 -- get arr elem
 getArrElemAddr arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum = do
     arrAddr <- findAddr arrVar
-    tell $ [AMov (show AR11) (createAddrPtrRBP arrAddr)] -- get struct addr
     --tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get array addr
     offsetToAdd <- getArrElemOffset arrVar elemNum
+    tell $ [AMov (show AR11) (createAddrPtrRBP arrAddr)] -- get struct addr
     tell $ [AAdd (show AR11) offsetToAdd]
+
 
     return AR11
 
@@ -983,6 +988,7 @@ extractBoolVal (BoolQVal b) = b
 
 extractLocQvarId (LocQVal id _) = id
 
+findAddr :: Val -> AsmMonad StoragePlace
 findAddr v@(LocQVal ident _) = do
     idData <- asks (Map.lookup ident)
     case idData of
@@ -992,7 +998,7 @@ findAddr v@(LocQVal ident _) = do
 
 getAddrOrLiteral val =
     case val of
-        (IntQVal v) -> show val
+        (IntQVal v) -> return (show val)
         qvar@(LocQVal i q) -> do
             valAddr <- findAddr qvar
             case q of
@@ -2180,19 +2186,22 @@ genStmtsAsm ((QArrAss arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum elemVal
     -- eleNum int
     -- elemVal -- locQVal or raw value
     arrElemAddrR11 <- getArrElemAddr arrVar elemNum
-    let r11AddrTyped = getAddrInRegTyped reg at
+    let r11AddrTyped = getAddrInRegTyped arrElemAddrR11 at
 
     case elemVal of
         qvar@(LocQVal i q) -> do
             valAddr <- findAddr qvar
             case q of
-                IntQ -> tell $ [AMov (show AEAX) (createAddrIntRBP valAddr)]
+                IntQ -> do
+                    tell $ [AMov (show AEAX) (createAddrIntRBP valAddr)]
                     tell $ [AMov r11AddrTyped (show AEAX)]
 
-                BoolQ -> tell $ [AMov (show AAL) (createAddrBoolRBP valAddr)]
+                BoolQ -> do
+                    tell $ [AMov (show AAL) (createAddrBoolRBP valAddr)]
                     tell $ [AMov r11AddrTyped (show AAL)]
 
-                _ -> tell $ [AMov (show ARAX) (createAddrPtrRBP valAddr)]
+                _ -> do
+                    tell $ [AMov (show ARAX) (createAddrPtrRBP valAddr)]
                     tell $ [AMov r11AddrTyped (show ARAX)]
 
         (IntQVal ival) -> do
