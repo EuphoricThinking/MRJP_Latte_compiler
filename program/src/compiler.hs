@@ -527,6 +527,8 @@ createAddrBoolRBP memStorage =
         OffsetRBP offset -> "byte " ++ (createRelAddrRBP offset)
         Register reg -> show reg
 
+
+-- arrays 
 createLengthArrAddr arrStorage = 
     case arrStorage of
         OffsetRBP offset -> do
@@ -546,6 +548,42 @@ plusOrMinus isToAdd =
 
 createLeaAddr reg isToAdd valToAdd = 
     "[" ++ (show reg) ++ (plusOrMinus isToAdd) ++ (show valToAdd) ++ "]"
+
+getArrOffsetSize arrElemType =
+    case arrElemType of
+        IntQ -> intBytes
+        BoolQ -> boolBytes
+        _ -> strPointerBytes
+
+getValAtAddrInReg reg = "[" ++ (show reg) ++ "]"
+
+getAddrInRegTyped reg typeVal =
+    case typeVal of
+        IntQ -> "dword " ++ (getValAtAddrInReg reg)
+        BoolQ -> "byte " ++ (getValAtAddrInReg reg)
+        _ -> "qword " ++ (getValAtAddrInReg reg)
+
+getArrElemOffset arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum = do
+    case elemNum of
+        (IntQVal ival) -> return (show ((getArrOffsetSize at) * elemNum))
+        (LocQVal ident _) -> do
+            numAddr <- findAddr elemNum
+            tell $ [AMov AR11D (createAddrIntRBP numAddr)]
+            tell $ [AImul AR11D (show (getArrOffsetSize at))]
+            resAddr <- allocInt AR11D
+
+            return (createAddrIntRBP resAddr)
+-- TODO boolean table
+-- get arr elem
+getArrElemAddr arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum = do
+    arrAddr <- findAddr arrVar
+    tell $ [AMov (show AR11) (createAddrPtrRBP arrAddr)] -- get struct addr
+    --tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get array addr
+    offsetToAdd <- getArrElemOffset arrVar elemNum
+    tell $ [AAdd (show AR11) offsetToAdd]
+
+    return AR11
+
 
 getValToMov (IntQVal val) = val
 
@@ -952,11 +990,16 @@ findAddr v@(LocQVal ident _) = do
         Just (_, memStorage) -> return memStorage
 
 
--- getAddrOrLiteral val =
---     case val of
---         (IntQVal v) -> show val
---         (LocQVal _ _) -> do
---             valAddr <-
+getAddrOrLiteral val =
+    case val of
+        (IntQVal v) -> show val
+        qvar@(LocQVal i q) -> do
+            valAddr <- findAddr qvar
+            case q of
+                IntQ -> return (createAddrIntRBP valAddr)
+                BoolQ -> return (createAddrBoolRBP valAddr)
+                _ -> return (createAddrPtrRBP valAddr)
+
 -- TODO extension if others on stack, a simplified version
 --numParamsStack numArgs = numArgs - numRegisterParams
 clearStackParamsAndAlignment numArgs toDealloc = do
@@ -2133,8 +2176,29 @@ genStmtsAsm ((QAttr qvar@(QLoc ident valType) objVarExpr attrIdent) : rest) = do
 
                 genStmtsAsm rest
 
--- genStmtsAsm ((QArrAss elemNum elemVal) : rest) = do
---     -- eleNum int
---     -- elemVal -- locQVal or raw value
---     case elemNum of
---         (IntQVal ival)
+genStmtsAsm ((QArrAss arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum elemVal) : rest) = do
+    -- eleNum int
+    -- elemVal -- locQVal or raw value
+    arrElemAddrR11 <- getArrElemAddr arrVar elemNum
+    let r11AddrTyped = getAddrInRegTyped reg at
+
+    case elemVal of
+        qvar@(LocQVal i q) -> do
+            valAddr <- findAddr qvar
+            case q of
+                IntQ -> tell $ [AMov (show AEAX) (createAddrIntRBP valAddr)]
+                    tell $ [AMov r11AddrTyped (show AEAX)]
+
+                BoolQ -> tell $ [AMov (show AAL) (createAddrBoolRBP valAddr)]
+                    tell $ [AMov r11AddrTyped (show AAL)]
+
+                _ -> tell $ [AMov (show ARAX) (createAddrPtrRBP valAddr)]
+                    tell $ [AMov r11AddrTyped (show ARAX)]
+
+        (IntQVal ival) -> do
+            tell $ [AMov r11AddrTyped (show ival)]
+
+        (BoolQVal bval) -> do
+            tell $ [AMov r11AddrTyped (show bval)]
+
+    genStmtsAsm rest
