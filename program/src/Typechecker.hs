@@ -890,32 +890,38 @@ checkBody ((AssClass pos classVar (Ident attrName) expr) : rest) depth ifdepth b
         checkBody rest depth ifdepth blockDepth
 
 
--- checkBody ((AssArr pos (Ident arrName) exprElemNum exprToAssign) : rest) depth ifdepth blockDepth = do
---     arrLoc <- asks (Map.lookup arrName)
---     case arrLoc of
---         Nothing -> throwError $ "Variable " ++ arrName ++ " undeclared " ++ (writePos pos)
---         Just loc -> do
---             arrType <- gets (Map.lookup loc . store)
---             case arrType of
---                 Nothing -> throwError $ "Variable " ++ arrName ++ " not in store " ++ (writePos pos)
---                 Just (varType, depth) -> do
---                     if not (isArrayType (Just varType))
---                     then
---                         throwError $ "Array assignment applied to a non-array variable: " ++ arrName ++ (writePos pos)
---                     else do
---                         numElemType <- getExprType exprElemNum
---                         if not (isIntType numElemType)
---                         then
---                             throwError $ "Non-integer value applied as the element number specifier in " ++ arrName ++ " array " ++ (writePos pos)
---                         else do
---                             toAssignType <- getExprType exprToAssign
+checkBody ((AssArr pos exprVar exprElemNum exprToAssign) : rest) depth ifdepth blockDepth = do
+    -- arrLoc <- asks (Map.lookup arrName)
+    -- case arrLoc of
+    --     Nothing -> throwError $ "Variable " ++ arrName ++ " undeclared " ++ (writePos pos)
+    --     Just loc -> do
+    --         arrType <- gets (Map.lookup loc . store)
+    --         case arrType of
+    --             Nothing -> throwError $ "Variable " ++ arrName ++ " not in store " ++ (writePos pos)
+    --             Just (varType, depth) -> do
+    --                 if not (isArrayType (Just varType))
+    --                 then
+    --                     throwError $ "Array assignment applied to a non-array variable: " ++ arrName ++ (writePos pos)
+    --                 else do
+    arrVarType <- getExprType exprVar
+    numElemType <- getExprType exprElemNum
 
---                             if not (matchTypesOrigEval toAssignType (Just (getArrayElemType varType)))
---                             then
---                                 throwError $ "Mismatch in array " ++ arrName ++ " elements type and value to be assigned type " ++ (writePos pos)
---                             else
---                                 checkBody rest depth ifdepth blockDepth
---
+    if not (isIntType numElemType)
+    then
+        throwError $ "Non-integer value applied as the element number specifier " ++ (writePos pos)
+    else do
+        if not (isArrayType arrVarType)
+        then do
+            throwError $ "Assignment to a non-array object " ++ (writePos pos)
+        else do
+            toAssignType <- getExprType exprToAssign
+
+            if not (matchTypesOrigEval toAssignType (Just (getArrayElemType $ fromJust arrVarType)))
+            then
+                throwError $ "Mismatch in array elements type and value to be assigned type " ++ (writePos pos)
+            else
+                checkBody rest depth ifdepth blockDepth
+
 
 -- shadow x -> run in local
 checkBody ((For pos iType (Ident iIdent) (Ident arrayIdent) stmts) : rest) depth ifdepth blockDepth = do

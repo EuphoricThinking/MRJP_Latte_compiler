@@ -50,7 +50,7 @@ EClassNest. Construct ::= Ident "." ;
 
 Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
--- AssArr.    Stmt ::= Ident "[" Expr "]" "=" Expr ";" ;
+AssArr.    Stmt ::= Expr6 "[" Expr "]" "=" Expr ";" ;
 
 AssClass.  Stmt ::= Expr6 "." Ident "=" Expr ;
 

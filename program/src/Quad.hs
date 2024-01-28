@@ -91,7 +91,7 @@ data Quad = QLabel String --FuncData
     | QJumpCMP CondType String
     | QArrNew QVar Val -- qvar valType size
     | QAttr QVar Val String -- string -> the attribute name
-    | QArrAss Val Val -- elemNum elemVal
+    | QArrAss Val Val Val -- array elemNum elemVal
 
     deriving (Show)
 
@@ -325,6 +325,14 @@ increaseBoolsNum fname fbody = do
     curState <- get
     let updatedNumBools = createIncreasedBoolNum fname fbody
     put curState {defFunc = Map.insert fname updatedNumBools (defFunc curState)}
+
+-- increasePtrsNumWithoutArgs :: QuadMonad
+-- increasePtrsNumWithoutArgs = do
+--     curName <- gets curFuncName
+--     body <- gets (Map.lookup curName . defFunc)
+--     case body of
+--         Nothing -> throwError $ "No cur unc to increase ptrs number"
+--         Just fbody -> updateStringVarsNum curName fbody >> return ()
 
 updateStringVarsNum fname curBody = do
     curState <- get
@@ -963,11 +971,12 @@ genQStmt ((While pos condExpr stmt) : rest) qcode = do
 
     genQStmt rest codeAfterCondExpr
 
--- genQStmt ((AssArr pos exprElemNum exprElemVal) : rest) qcode = do
---     (val1, code1, depth1) <- genQExpr exprElemNum JustLocal
---     (val2, code2, depth2) <- genQExpr exprElemVal JustLocal
+genQStmt ((AssArr pos exprArrVar exprElemNum exprElemVal) : rest) qcode = do
+    (val1, code1, depth1) <- genQExpr exprArrVar JustLocal
+    (val2, code2, depth2) <- genQExpr exprElemNum JustLocal
+    (val3, code3, depth3) <- genQExpr exprElemVal JustLocal
 
---     genQStmt rest (qcode ++ code1 ++ code2 ++ [QArrAss val1 val2])
+    genQStmt rest (qcode ++ code1 ++ code2 ++ [QArrAss val1 val2 val3])
 
 
 
@@ -1140,6 +1149,10 @@ genQExpr (EArr pos elemType sizeExpr) isParam = do
     (val, code, depth) <- genQExpr sizeExpr JustLocal
 
     addToSpecialUncond allocArr
+
+    updateLocalNumCur
+    increaseStringVarsNum
+
 
     resTempName <- createTempVarNameCurFuncExprs
     let arrType = (ArrayQ (getOrigQType elemType))
