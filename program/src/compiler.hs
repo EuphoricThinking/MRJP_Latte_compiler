@@ -584,7 +584,7 @@ getArrElemAddr arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum = do
     --tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get array addr
     offsetToAdd <- getArrElemOffset arrVar elemNum
     tell $ [AMov (show AR11) (createAddrPtrRBP arrAddr)] -- get struct addr
-    tell $ [AAdd (show AR11) offsetToAdd]
+    tell $ [AAdd (getValAtAddrInReg AR11) offsetToAdd]
 
 
     return AR11
