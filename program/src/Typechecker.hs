@@ -638,25 +638,32 @@ getExprType (EArr pos typeT sizeSpecifier) = do
         return (Just (ArrayType (getTypeOriginal typeT)))
 
 -- an array element
-getExprType (EArrEl pos (Ident arrayIdent) exprElemNum) = do
+getExprType (EArrEl pos exprArrVar exprElemNum) = do
     elemNumType <- getExprType exprElemNum
+    arrVarType <- getExprType exprArrVar
+
     if not (isIntType elemNumType)
     then
-        throwError $ "Attempt to index an object " ++ arrayIdent ++ " with a non-numeric value " ++ (writePos pos)
+        throwError $ "Attempt to index an object with a non-numeric value " ++ (writePos pos)
     else do
-        arrLoc <- asks (Map.lookup arrayIdent)
-        case arrLoc of
-            Nothing -> throwError $ "Variable " ++ arrayIdent ++ " not in environment " ++ (writePos pos)
-            Just loc -> do
-                arrData <- gets (Map.lookup loc . store)
-                case arrData of
-                    Nothing -> throwError $ "No data in store for " ++ arrayIdent ++ " " ++ (writePos pos)
-                    Just (arrType, depth) -> do
-                        if not (isArrayType $ wrapInJust arrType)
-                        then
-                            throwError $ "Indexing an entity which is not an array " ++ arrayIdent ++ " " ++ (writePos pos)
-                        else do
-                            return (Just (getArrayElemType arrType))
+        if not (isArrayType arrVarType)
+        then do
+            throwError $ "Accessing element of non-array object " ++ (writePos pos)
+        else do
+            return (Just (getArrayElemType $ fromJust arrVarType))
+        -- arrLoc <- asks (Map.lookup arrayIdent)
+        -- case arrLoc of
+        --     Nothing -> throwError $ "Variable " ++ arrayIdent ++ " not in environment " ++ (writePos pos)
+        --     Just loc -> do
+        --         arrData <- gets (Map.lookup loc . store)
+        --         case arrData of
+        --             Nothing -> throwError $ "No data in store for " ++ arrayIdent ++ " " ++ (writePos pos)
+        --             Just (arrType, depth) -> do
+        --                 if not (isArrayType $ wrapInJust arrType)
+        --                 then
+        --                     throwError $ "Indexing an entity which is not an array " ++ arrayIdent ++ " " ++ (writePos pos)
+        --                 else do
+        --                     return (Just (getArrayElemType arrType))
 --
 
 getExprType (EVar pos (Ident name)) = do
@@ -883,31 +890,31 @@ checkBody ((AssClass pos classVar (Ident attrName) expr) : rest) depth ifdepth b
         checkBody rest depth ifdepth blockDepth
 
 
-checkBody ((AssArr pos (Ident arrName) exprElemNum exprToAssign) : rest) depth ifdepth blockDepth = do
-    arrLoc <- asks (Map.lookup arrName)
-    case arrLoc of
-        Nothing -> throwError $ "Variable " ++ arrName ++ " undeclared " ++ (writePos pos)
-        Just loc -> do
-            arrType <- gets (Map.lookup loc . store)
-            case arrType of
-                Nothing -> throwError $ "Variable " ++ arrName ++ " not in store " ++ (writePos pos)
-                Just (varType, depth) -> do
-                    if not (isArrayType (Just varType))
-                    then
-                        throwError $ "Array assignment applied to a non-array variable: " ++ arrName ++ (writePos pos)
-                    else do
-                        numElemType <- getExprType exprElemNum
-                        if not (isIntType numElemType)
-                        then
-                            throwError $ "Non-integer value applied as the element number specifier in " ++ arrName ++ " array " ++ (writePos pos)
-                        else do
-                            toAssignType <- getExprType exprToAssign
+-- checkBody ((AssArr pos (Ident arrName) exprElemNum exprToAssign) : rest) depth ifdepth blockDepth = do
+--     arrLoc <- asks (Map.lookup arrName)
+--     case arrLoc of
+--         Nothing -> throwError $ "Variable " ++ arrName ++ " undeclared " ++ (writePos pos)
+--         Just loc -> do
+--             arrType <- gets (Map.lookup loc . store)
+--             case arrType of
+--                 Nothing -> throwError $ "Variable " ++ arrName ++ " not in store " ++ (writePos pos)
+--                 Just (varType, depth) -> do
+--                     if not (isArrayType (Just varType))
+--                     then
+--                         throwError $ "Array assignment applied to a non-array variable: " ++ arrName ++ (writePos pos)
+--                     else do
+--                         numElemType <- getExprType exprElemNum
+--                         if not (isIntType numElemType)
+--                         then
+--                             throwError $ "Non-integer value applied as the element number specifier in " ++ arrName ++ " array " ++ (writePos pos)
+--                         else do
+--                             toAssignType <- getExprType exprToAssign
 
-                            if not (matchTypesOrigEval toAssignType (Just (getArrayElemType varType)))
-                            then
-                                throwError $ "Mismatch in array " ++ arrName ++ " elements type and value to be assigned type " ++ (writePos pos)
-                            else
-                                checkBody rest depth ifdepth blockDepth
+--                             if not (matchTypesOrigEval toAssignType (Just (getArrayElemType varType)))
+--                             then
+--                                 throwError $ "Mismatch in array " ++ arrName ++ " elements type and value to be assigned type " ++ (writePos pos)
+--                             else
+--                                 checkBody rest depth ifdepth blockDepth
 --
 
 -- shadow x -> run in local

@@ -963,11 +963,11 @@ genQStmt ((While pos condExpr stmt) : rest) qcode = do
 
     genQStmt rest codeAfterCondExpr
 
-genQStmt ((AssArr pos exprElemNum exprElemVal) : rest) qcode = do
-    (val1, code1, depth1) <- genQExpr exprElemNum JustLocal
-    (val2, code2, depth2) <- genQExpr exprElemVal JustLocal
+-- genQStmt ((AssArr pos exprElemNum exprElemVal) : rest) qcode = do
+--     (val1, code1, depth1) <- genQExpr exprElemNum JustLocal
+--     (val2, code2, depth2) <- genQExpr exprElemVal JustLocal
 
-    genQStmt rest (qcode ++ code1 ++ code2 ++ [QArrAss val1 val2])
+--     genQStmt rest (qcode ++ code1 ++ code2 ++ [QArrAss val1 val2])
 
 
 
