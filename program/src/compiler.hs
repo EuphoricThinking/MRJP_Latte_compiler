@@ -88,7 +88,7 @@ data Asm = AGlobl
     | SecStr String
     | SecData
     | StrLabel String String
-    | ALea String String String
+    | ALea String String --String
     | AAdd String String
     | ASub String String
     | ANeg String
@@ -177,7 +177,7 @@ instance Show Asm where
     show (SecStr s) = "\tdb " ++ (show s) ++ ", 0" -- in order to preserve ""
     show SecData = "section .data"
     show (StrLabel lbl valStr) = "\t" ++ lbl ++ ": db " ++ (show valStr) ++ ", 0"
-    show (ALea r addr1 addr2) = "\tlea " ++ r ++ ", [" ++ addr1 ++ " + " ++ addr2 ++ "]"
+    show (ALea r computation) = "\tlea " ++ r ++ ", " ++ computation --[" ++ addr1 ++ " + " ++ addr2 ++ "]"
     show (AAdd v1 v2) = "\tadd " ++ v1 ++ ", " ++ v2
     show (ASub v1 v2) = "\tsub " ++ v1 ++ ", " ++ v2
     show (ANeg mem) = "\tneg " ++ mem
@@ -528,9 +528,24 @@ createAddrBoolRBP memStorage =
         Register reg -> show reg
 
 createLengthArrAddr arrStorage = 
-    case memStorage of
-        OffsetRBP offset -> "dword " ++ (createRelAddrRBP (offset + strPointerBytes))
-        Register reg -> "dword [" ++ (show reg) ++ " + " ++ (show strPointerBytes) ++ "]"
+    case arrStorage of
+        OffsetRBP offset -> do
+            tell $ [AMov (show AR11) ("qword " ++ (createRelAddrRBP (offset)))]
+            tell $ [AMov (show AR11D) ("dword " ++ (createLeaAddr AR11 True strPointerBytes))]
+
+            return AR11D
+        Register reg -> do
+            tell $ [AMov (show AR11D) ("dword " ++ (createLeaAddr reg True strPointerBytes))]
+
+            return AR11D
+
+plusOrMinus isToAdd =
+    case isToAdd of
+        True -> " + "
+        False -> " - "
+
+createLeaAddr reg isToAdd valToAdd = 
+    "[" ++ (show reg) ++ (plusOrMinus isToAdd) ++ (show valToAdd) ++ "]"
 
 getValToMov (IntQVal val) = val
 
@@ -2106,9 +2121,13 @@ genStmtsAsm ((QAttr qvar@(QLoc ident valType) objVarExpr attrIdent) : rest) = do
             if isArray varType
             then do
                 -- address of the
-                arrStorage <- findAddr varName
-                createLengthArrAddr arrStorage
+                arrStorage <- findAddr objVarExpr
+                r11 <- createLengthArrAddr arrStorage
                 -- alloc new space for this, pass ident, storage in local
+                addrLen <- allocInt r11
+
+                local (Map.insert ident (qvar, addrLen)) (genStmtsAsm rest)
+
 
             else do
 

@@ -1155,6 +1155,10 @@ genQExpr (EAttr pos expr (Ident attrName)) isParam = do
         let locVal = QLoc resTempName IntQ
         let newCode = [QAttr locVal val attrName]
 
+        increaseNumInts
+        updateLocalNumCur
+        -- increase local var num types according to evaluation in leafs
+
         return ((LocQVal resTempName IntQ), newCode, depth+1)
     else do
         printMesQ $ "not an array"
