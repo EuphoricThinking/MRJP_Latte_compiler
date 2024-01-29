@@ -92,6 +92,7 @@ data Quad = QLabel String --FuncData
     | QArrNew QVar Val -- qvar valType size
     | QAttr QVar Val String -- string -> the attribute name
     | QArrAss Val Val Val -- array elemNum elemVal
+    | QArrElem QVar Val Val -- array ident elemNum
 
     deriving (Show)
 
@@ -818,6 +819,8 @@ updateLocalEAppRetType retType = do
         StringQ -> increaseStringVarsNum
         BoolQ -> increaseBoolsWihoutArgs
 
+getArrElemType (LocQVal _ (ArrayQ t)) = t
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -1174,7 +1177,7 @@ genQExpr (EAttr pos expr (Ident attrName)) isParam = do
     if isArray (getValType val)
     then do
         let locVal = QLoc resTempName IntQ
-        let newCode = [QAttr locVal val attrName]
+        let newCode = code ++ [QAttr locVal val attrName]
 
         increaseNumInts
         updateLocalNumCur
@@ -1184,8 +1187,21 @@ genQExpr (EAttr pos expr (Ident attrName)) isParam = do
     else do
         printMesQ $ "not an array"
         let locVal = QLoc resTempName IntQ
-        let newCode = [QAttr locVal val attrName]
+        let newCode = code ++ [QAttr locVal val attrName]
         return ((LocQVal resTempName IntQ), newCode, depth+1)
+
+genQExpr (EArrEl pos exprVar exprElemNum) isParam = do
+    (valVar, codeVar, depthVar) <- genQExpr exprVar isParam
+    (valNum, codeNum, depthNum) <- genQExpr exprElemNum isParam
+
+    resTempName <- createTempVarNameCurFuncExprs
+
+    let arrType = getArrElemType valVar
+    let locVal = QLoc resTempName arrType
+    let newCode = codeVar ++ codeNum ++ [QArrElem locVal valVar valNum]
+
+    return ((LocQVal resTempName arrType), newCode, (max depthVar depthNum) + 1)
+
 
 
 genCond v@(EVar pos (Ident ident)) lTrue lFalse = singleValsGenCond v lTrue lFalse

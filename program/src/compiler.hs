@@ -557,6 +557,12 @@ getArrOffsetSize arrElemType =
 
 getValAtAddrInReg reg = "[" ++ (show reg) ++ "]"
 
+getR11accType typeVal =
+    case typeVal of
+        IntQ -> AR11D
+        BoolQ -> AR11B
+        _ -> AR11
+
 getAddrInRegTyped reg typeVal =
     case typeVal of
         IntQ -> "dword " ++ (getValAtAddrInReg reg)
@@ -584,10 +590,13 @@ getArrElemAddr arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum = do
     --tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get array addr
     offsetToAdd <- getArrElemOffset arrVar elemNum
     tell $ [AMov (show AR11) (createAddrPtrRBP arrAddr)] -- get struct addr
-    tell $ [AAdd (getValAtAddrInReg AR11) offsetToAdd]
-
-
-    return AR11
+    if (isIntLiteral elemNum) && ((extractIntVal elemNum) == 0)
+    then do
+        return AR11
+    else do
+        tell $ [AAdd (getValAtAddrInReg AR11) offsetToAdd]
+        
+        return AR11
 
 
 getValToMov (IntQVal val) = val
@@ -708,9 +717,10 @@ showBool b = show $ getTrueOrFalseInt b
 getMemSize valType = 
     case valType of
         IntQ -> intBytes
-        StringQ -> strPointerBytes
+        -- StringQ -> strPointerBytes
         BoolQ -> boolBytes
-        (ArrayQ _) -> strPointerBytes
+        --(ArrayQ _) -> strPointerBytes
+        _ -> strPointerBytes
 
 allocVarCopyFromMem memToBeCopied valType = do
     let memSize = getMemSize valType
@@ -2211,3 +2221,12 @@ genStmtsAsm ((QArrAss arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum elemVal
             tell $ [AMov r11AddrTyped (show bval)]
 
     genStmtsAsm rest
+
+genStmtsAsm ((QArrElem qvar@(QLoc ident elemType) arrVar elemNum) : rest) = do
+    arrElemAddrR11 <- getArrElemAddr arrVar elemNum
+    let r11Typed = getR11accType elemType
+    tell $ [AMov (show r11Typed) (getAddrInRegTyped arrElemAddrR11 elemType)]
+
+    newRBPOffset <- allocVar r11Typed (getMemSize elemType)
+
+    local (Map.insert ident (qvar, newRBPOffset)) (genStmtsAsm rest)
