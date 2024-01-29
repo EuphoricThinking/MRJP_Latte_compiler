@@ -991,19 +991,34 @@ genQStmt ((For pos varType varIdent arrExpr stmts) : rest) qcode = do
 
     (updEnv, uCode) <- local (const updatedEnv) (evalDecl (Int pos) [(NoInit pos cntId)] updCode)
 
+    labelCond <- createTempVarNameCurFuncExprs
+    labelStart <- createTempVarNameCurFuncExprs
+    labelEnd <- createTempVarNameCurFuncExprs
+
+    let codeStart = uCode ++ [(QGoTo labelCond), (QLabel labelStart)]
+
     --(val, code, depth) <- genQExpr arrExpr JustLocal
 
     let cntEvar = (EVar pos cntId)
-
-    let condexpr = (ERel pos cntEvar (LTH pos) (EAttr pos arrExpr (Ident arrLenIdent)))
-
     let assCode = (Ass pos varIdent (EArrEl pos arrExpr cntEvar))
 
-    let stmsCode = assCode : stmts
-    let insCode = (While pos condexpr stmtsCode) : rest
-    --let updQCode = qcode ++ uCode
+    stmtsCode <- local (const updEnv) (genQStmt ((assCode) : [stmts]) codeStart)
 
-    local (const updEnv) (genQStmt insCode uCode) 
+    let codeCond = stmtsCode ++ [QLabel labelCond]
+
+    let condExpr = (ERel pos cntEvar (LTH pos) (EAttr pos arrExpr (Ident arrLenIdent)))
+
+    (val, code, depth) <- local (const updEnv) (genCond condExpr labelStart labelEnd)
+    let codeAfterCondExpr = codeCond ++ code ++ [QLabel labelEnd]
+
+    genQStmt rest codeAfterCondExpr
+
+
+    -- let stmsCode = assCode : stmts
+    -- let insCode = (While pos condexpr stmtsCode) : rest
+    -- --let updQCode = qcode ++ uCode
+
+    -- local (const updEnv) (genQStmt insCode uCode) 
 
 
 
