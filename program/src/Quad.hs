@@ -105,6 +105,7 @@ printInt = "printInt"
 exprInfix = "_expr_"
 concatStr = "___concatenateStrings"
 allocArr = "___allocArray"
+arrLenIdent = "length"
 
 -- genQuadcode :: Program -> Quadcode
 genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
@@ -982,7 +983,27 @@ genQStmt ((AssArr pos exprArrVar exprElemNum exprElemVal) : rest) qcode = do
     genQStmt rest (qcode ++ code1 ++ code2 ++ [QArrAss val1 val2 val3])
 
 
---genQStmt ((For pos varType varIdent ))
+genQStmt ((For pos varType varIdent arrExpr stmts) : rest) qcode = do
+    (updatedEnv, updCode) <- evalDecl varType [(NoInit pos varIdent)] qcode
+    
+    counterName <- createTempVarNameCurFuncExprs
+    let cntId = (Ident counterName)
+
+    (updEnv, uCode) <- local (const updatedEnv) (evalDecl (Int pos) [(NoInit pos cntId)] updCode)
+
+    --(val, code, depth) <- genQExpr arrExpr JustLocal
+
+    let cntEvar = (EVar pos cntId)
+
+    let condexpr = (ERel pos cntEvar (LTH pos) (EAttr pos arrExpr (Ident arrLenIdent)))
+
+    let assCode = (Ass pos varIdent (EArrEl pos arrExpr cntEvar))
+
+    let stmsCode = assCode : stmts
+    let insCode = (While pos condexpr stmtsCode) : rest
+    --let updQCode = qcode ++ uCode
+
+    local (const updEnv) (genQStmt insCode uCode) 
 
 
 
