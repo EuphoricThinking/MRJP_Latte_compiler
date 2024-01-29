@@ -888,6 +888,8 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs) = do
                             tell $ [AMov (show reg) (createAddrPtrRBP offset)]
                         BoolQ -> do
                             tell $ [AMovZX (show ereg) (createAddrBoolRBP offset)]
+                        _ -> do
+                            tell $ [AMov (show reg) (createAddrPtrRBP offset)]
 
         (StrQVal s) -> do
             findLbl <- asks (Map.lookup s)
@@ -1439,12 +1441,18 @@ genStmtsAsm ((QRet res) : rest) = do
                     if is32bit valType
                     then
                         movMemoryVals (Register AEAX) memStorageVar valType
-                    else if isString valType then do
-                        movMemoryVals (Register ARAX) memStorageVar valType
-                    else do
+                    -- else if isString valType then do
+                    --     movMemoryVals (Register ARAX) memStorageVar valType
+                    -- else do
+                    --     case memStorageVar of
+                    --         OffsetRBP offset -> tell $ [AMovZX (show AEAX) (createAddrBoolRBP memStorageVar)]
+                    --         Register r -> tell $ [AMovZX (show AEAX) (show r)]
+                    else if isBoolQ valType then do
                         case memStorageVar of
                             OffsetRBP offset -> tell $ [AMovZX (show AEAX) (createAddrBoolRBP memStorageVar)]
                             Register r -> tell $ [AMovZX (show AEAX) (show r)]
+                    else
+                        movMemoryVals (Register ARAX) memStorageVar valType
 
 
         (StrQVal s) -> do
