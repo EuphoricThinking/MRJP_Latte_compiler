@@ -822,6 +822,10 @@ updateLocalEAppRetType retType = do
 
 getArrElemType (LocQVal _ (ArrayQ t)) = t
 
+getIdentString (Ident i) = i
+
+getCurnamExprRet ((LocQVal curname _), _, _) = curname
+
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
 
@@ -1001,8 +1005,13 @@ genQStmt ((For pos varType varIdent arrExpr stmts) : rest) qcode = do
 
     let cntEvar = (EVar pos cntId)
     let assCode = (Ass pos varIdent (EArrEl pos arrExpr cntEvar))
+    let innerStmts = ((assCode) : [stmts]) ++ [Incr pos cntId]
 
-    stmtsCode <- local (const updEnv) (genQStmt ((assCode) : [stmts]) codeStart)
+    stmtsCode <- local (const updEnv) (genQStmt innerStmts codeStart)
+
+    -- newVarName <- createTempVarNameCurFuncExprs
+    -- let locVar = QLoc newVarName IntQ
+    -- let cntInc = [QInc locVar (getIdentString varIdent)]
 
     let codeCond = stmtsCode ++ [QLabel labelCond]
 
