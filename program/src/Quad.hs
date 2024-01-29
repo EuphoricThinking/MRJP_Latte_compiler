@@ -206,12 +206,15 @@ updateCurFuncBody body = do
 getArgData (Ar _ (Int _) (Ident ident)) = ArgData ident IntQ
 getArgData (Ar _ (Bool _) (Ident ident)) = ArgData ident BoolQ
 getArgData (Ar _ (Str _) (Ident ident)) = ArgData ident StringQ
+getArgData (Ar _ a@(Array _ t) (Ident ident)) = ArgData ident (getOrigQType a)
+
 
 updArgsNum numInts numStrs numBools valType =
     case valType of
         IntQ -> ((numInts + 1), numStrs, numBools)
         StringQ -> (numInts, (numStrs + 1), numBools)
         BoolQ -> (numInts, numStrs, (numBools + 1))
+        _ -> (numInts, (numStrs + 1), numBools)
 
 saveArgsToEnv [] numInts numStrs numBools = do
     env <- ask
@@ -819,6 +822,7 @@ updateLocalEAppRetType retType = do
         IntQ -> increaseNumInts
         StringQ -> increaseStringVarsNum
         BoolQ -> increaseBoolsWihoutArgs
+        _ -> increaseStringVarsNum
 
 getArrElemType (LocQVal _ (ArrayQ t)) = t
 

@@ -787,6 +787,11 @@ moveFromRegisters ((ArgData ident valType) : args) (reg : regs) (ereg : eregs) (
 
              local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
+        _ -> do
+            offsetRBP <- allocVar reg strPointerBytes
+
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+
 --moveParamsToLocal 
 moveStackParams [] _ = do
     curEnv <- ask
