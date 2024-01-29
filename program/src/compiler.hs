@@ -590,12 +590,15 @@ getArrElemAddr arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum = do
     --tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get array addr
     offsetToAdd <- getArrElemOffset arrVar elemNum
     tell $ [AMov (show AR11) (createAddrPtrRBP arrAddr)] -- get struct addr
+
+    tell $ [AMov (show AR11) (getValAtAddrInReg AR11)]
+
     if (isIntLiteral elemNum) && ((extractIntVal elemNum) == 0)
     then do
         return AR11
     else do
-        tell $ [AAdd (getValAtAddrInReg AR11) offsetToAdd]
-        
+        tell $ [AAdd (show AR11) offsetToAdd] -- (getValAtAddrInReg AR11)
+
         return AR11
 
 
