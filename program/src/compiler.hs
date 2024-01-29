@@ -336,7 +336,7 @@ main = do
                             printOK
                             (eitherQuad, quadcode) <- genQuadcode p
 
-                            print $ (show eitherQuad)
+                            -- print $ (show eitherQuad)
                             -- print $ "After quad "
                             -- print $ (show quadcode)
                             let ftuple = splitExtension filename
