@@ -315,6 +315,11 @@ extractAsmCode (Right (_, acode)) = acode
 prepareAsmStore qdata = AStore {curFuncNameAsm = "",
 funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0, strLabelsCounter = 0, labelsCounter = 0} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
 
+checkErr errm =
+    case errm of
+        (Left mes) -> printError mes >> exitFailure
+        Right p -> return ()
+
 main :: IO () 
 main = do
     args <- getArgs
@@ -336,7 +341,7 @@ main = do
                             printOK
                             (eitherQuad, quadcode) <- genQuadcode p
 
-                            -- print $ (show eitherQuad)
+                            print $ (show eitherQuad)
                             -- print $ "After quad "
                             -- print $ (show quadcode)
                             let ftuple = splitExtension filename
@@ -344,6 +349,8 @@ main = do
                             let finalName = fname ++ ".s"
                             -- print $ finalName
                             (eithAsm, asmcode) <- genAssembly (extractQStore eitherQuad) quadcode --(prepareAsmStore eitherQuad) quadcode
+                            -- print $ "err " ++ (show eithAsm)
+                            checkErr eithAsm
                             writeToFile filename (unlines $ map show asmcode)
                             exitSuccess
                             --printOK >> getQuadcode p >>= writeToFile filename >> exitSuccess
@@ -1389,9 +1396,9 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
     tell $ [ALabel name]
     tell $ [AProlog]
 
-    -- printMesA $ "NAME IN |" ++ name ++ "|"
+    printMesA $ "NAME IN |" ++ name ++ "|"
     -- printMesA $ "boooodyyy"
-    -- printMesA $ (show body)
+    printMesA $ (show body)
 
     -- get size of params, subtract from the stack (probably iterate once again)
     -- clear store before function leave

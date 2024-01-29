@@ -643,9 +643,9 @@ createDecIncQCode ident qcode rest isDecrement = do
                 Nothing -> throwError $ ident ++ " loc: " ++ (show loc) ++ " not found in storeQ"
                 Just (curLabel, varVal) ->
                     if isDecrement then
-                        genQStmt rest (qcode ++ [QDec locVar ident])
+                        genQStmt rest (qcode ++ [QDec locVar curLabel])--ident])
                     else
-                        genQStmt rest (qcode ++ [QInc locVar ident])
+                        genQStmt rest (qcode ++ [QInc locVar curLabel])--ident])
 
 createNegOrNotExpr expr isParam isNeg = do
     (val, code, depth) <- genQExpr expr isParam
@@ -987,8 +987,9 @@ genQStmt ((AssArr pos exprArrVar exprElemNum exprElemVal) : rest) qcode = do
     (val1, code1, depth1) <- genQExpr exprArrVar JustLocal
     (val2, code2, depth2) <- genQExpr exprElemNum JustLocal
     (val3, code3, depth3) <- genQExpr exprElemVal JustLocal
+    printMesQ $ "elemval " ++ (show exprElemVal) ++ " loc: " ++ (show val3) 
 
-    genQStmt rest (qcode ++ code1 ++ code2 ++ [QArrAss val1 val2 val3])
+    genQStmt rest (qcode ++ code1 ++ code2 ++ code3 ++ [QArrAss val1 val2 val3])
 
 
 genQStmt ((For pos varType varIdent arrExpr stmts) : rest) qcode = do
