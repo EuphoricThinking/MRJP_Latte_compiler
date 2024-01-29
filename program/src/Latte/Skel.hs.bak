@@ -57,6 +57,7 @@ transStmt x = case x of
   Latte.Abs.BStmt _ block -> failure x
   Latte.Abs.Decl _ type_ items -> failure x
   Latte.Abs.Ass _ ident expr -> failure x
+  Latte.Abs.AssArr _ expr1 expr2 expr3 -> failure x
   Latte.Abs.AssClass _ expr1 ident expr2 -> failure x
   Latte.Abs.Incr _ ident -> failure x
   Latte.Abs.IncClass _ expr ident -> failure x

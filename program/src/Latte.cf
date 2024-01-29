@@ -72,7 +72,7 @@ CondElse.  Stmt ::= "if" "(" Expr ")" Stmt "else" Stmt  ;
 
 While.     Stmt ::= "while" "(" Expr ")" Stmt ;
 
-For.       Stmt ::= "for" "(" Type Ident ":" Ident ")" Stmt ;
+For.       Stmt ::= "for" "(" Type Ident ":" Expr ")" Stmt ;
 
 SExp.      Stmt ::= Expr  ";" ;
 

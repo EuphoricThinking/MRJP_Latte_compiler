@@ -58,6 +58,7 @@ data Stmt' a
     | BStmt a (Block' a)
     | Decl a (Type' a) [Item' a]
     | Ass a Ident (Expr' a)
+    | AssArr a (Expr' a) (Expr' a) (Expr' a)
     | AssClass a (Expr' a) Ident (Expr' a)
     | Incr a Ident
     | IncClass a (Expr' a) Ident
@@ -182,6 +183,7 @@ instance HasPosition Stmt where
     BStmt p _ -> p
     Decl p _ _ -> p
     Ass p _ _ -> p
+    AssArr p _ _ _ -> p
     AssClass p _ _ _ -> p
     Incr p _ -> p
     IncClass p _ _ -> p

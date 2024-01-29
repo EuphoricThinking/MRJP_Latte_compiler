@@ -924,45 +924,46 @@ checkBody ((AssArr pos exprVar exprElemNum exprToAssign) : rest) depth ifdepth b
 
 
 -- shadow x -> run in local
-checkBody ((For pos iType (Ident iIdent) (Ident arrayIdent) stmts) : rest) depth ifdepth blockDepth = do
-    arrLoc <- asks (Map.lookup arrayIdent)
-    case arrLoc of
-            Nothing -> throwError $ "Variable " ++ arrayIdent ++ " not declared " ++ (writePos pos)
-            Just loc -> do
-                arrData <- gets (Map.lookup loc . store)
-                case arrData of
-                    Nothing -> throwError $ "No data in store for " ++ arrayIdent ++ " " ++ (writePos pos)
-                    Just (arrType, depth) -> do
-                        if not (isArrayType (Just arrType))
-                        then
-                            throwError $ "Attempt to iterate over non-array object " ++ (writePos pos)
-                        else do
-                            if not (matchTypesOrigEval (wrapOrigTypeInJust iType) (Just (getArrayElemType arrType)))
-                            then
-                                throwError $ "Mismatch in array element types and for loop variable type " ++ (writePos pos)
-                            else do
-                                iLoc <- alloc
-                                insertToStore ((getTypeOriginal iType), (blockDepth - 1)) iLoc -- (blockDepth - 1), because the next statement might be a block (blockdepth + 1 when entering) or a single statement, including single redeclaration - we want to assure that the blockdepth differs
+checkBody ((For pos iType (Ident iIdent) arrayExpr stmts) : rest) depth ifdepth blockDepth = do
+    -- arrLoc <- asks (Map.lookup arrayIdent)
+    -- case arrLoc of
+    --         Nothing -> throwError $ "Variable " ++ arrayIdent ++ " not declared " ++ (writePos pos)
+    --         Just loc -> do
+    --             arrData <- gets (Map.lookup loc . store)
+    --             case arrData of
+    --                 Nothing -> throwError $ "No data in store for " ++ arrayIdent ++ " " ++ (writePos pos)
+    --                 Just (arrType, depth) -> do
+    arrType <- getExprType arrayExpr
+    if not (isArrayType arrType)
+    then
+        throwError $ "Attempt to iterate over non-array object " ++ (writePos pos)
+    else do
+        if not (matchTypesOrigEval (wrapOrigTypeInJust iType) (Just (getArrayElemType $ fromJust arrType)))
+        then
+            throwError $ "Mismatch in array element types and for loop variable type " ++ (writePos pos)
+        else do
+            iLoc <- alloc
+            insertToStore ((getTypeOriginal iType), (blockDepth - 1)) iLoc -- (blockDepth - 1), because the next statement might be a block (blockdepth + 1 when entering) or a single statement, including single redeclaration - we want to assure that the blockdepth differs
 
-                                local (Map.insert iIdent iLoc) (checkBody [stmts] (depth + 1) ifdepth blockDepth)
+            local (Map.insert iIdent iLoc) (checkBody [stmts] (depth + 1) ifdepth blockDepth)
 
-                                let retInBody = checkRet [stmts]
+            let retInBody = checkRet [stmts]
 
-                                if retInBody && (depth == 0) && (ifdepth == 0)
-                                then do
-                                    curFunUpd <- gets curFunc
-                                    curState <- get
+            if retInBody && (depth == 0) && (ifdepth == 0)
+            then do
+                curFunUpd <- gets curFunc
+                curState <- get
 
-                                    let name = getFuncNameFromCurFunc curFunUpd
-                                    let isFreeRetFound = getFuncFreeRetCurFunc curFunUpd
-                                    let curFuncRetType = getFuncRetTypeCurFunc curFunUpd
-                                    let curFuncPos = getFuncPosCurFunc curFunUpd
+                let name = getFuncNameFromCurFunc curFunUpd
+                let isFreeRetFound = getFuncFreeRetCurFunc curFunUpd
+                let curFuncRetType = getFuncRetTypeCurFunc curFunUpd
+                let curFuncPos = getFuncPosCurFunc curFunUpd
 
-                                    put curState {curFunc = (CurFuncData name True isFreeRetFound curFuncRetType curFuncPos)}
+                put curState {curFunc = (CurFuncData name True isFreeRetFound curFuncRetType curFuncPos)}
 
-                                    checkBody rest depth ifdepth blockDepth
-                                else do
-                                    checkBody rest depth ifdepth blockDepth
+                checkBody rest depth ifdepth blockDepth
+            else do
+                checkBody rest depth ifdepth blockDepth
 
 
 

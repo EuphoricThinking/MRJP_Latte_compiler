@@ -58,7 +58,7 @@ Grammar
 	Stmt -> 'if' '(' Expr ')' Stmt                     (38)
 	Stmt -> 'if' '(' Expr ')' Stmt 'else' Stmt         (39)
 	Stmt -> 'while' '(' Expr ')' Stmt                  (40)
-	Stmt -> 'for' '(' Type Ident ':' Ident ')' Stmt    (41)
+	Stmt -> 'for' '(' Type Ident ':' Expr ')' Stmt     (41)
 	Stmt -> Expr ';'                                   (42)
 	Item -> Ident                                      (43)
 	Item -> Ident '=' Expr                             (44)
@@ -1541,7 +1541,7 @@ State 62
 
 State 63
 
-	Stmt -> 'for' . '(' Type Ident ':' Ident ')' Stmt    (rule 41)
+	Stmt -> 'for' . '(' Type Ident ':' Expr ')' Stmt    (rule 41)
 
 	'('            shift, and enter state 82
 
@@ -1994,7 +1994,7 @@ State 81
 
 State 82
 
-	Stmt -> 'for' '(' . Type Ident ':' Ident ')' Stmt    (rule 41)
+	Stmt -> 'for' '(' . Type Ident ':' Expr ')' Stmt    (rule 41)
 
 	'boolean'      shift, and enter state 8
 	'int'          shift, and enter state 10
@@ -3103,7 +3103,7 @@ State 134
 
 State 135
 
-	Stmt -> 'for' '(' Type . Ident ':' Ident ')' Stmt    (rule 41)
+	Stmt -> 'for' '(' Type . Ident ':' Expr ')' Stmt    (rule 41)
 	Type -> Type . '[]'                                 (rule 52)
 
 	'[]'           shift, and enter state 15
@@ -3277,7 +3277,7 @@ State 143
 
 State 144
 
-	Stmt -> 'for' '(' Type Ident . ':' Ident ')' Stmt    (rule 41)
+	Stmt -> 'for' '(' Type Ident . ':' Expr ')' Stmt    (rule 41)
 
 	':'            shift, and enter state 164
 
@@ -3705,11 +3705,28 @@ State 163
 
 State 164
 
-	Stmt -> 'for' '(' Type Ident ':' . Ident ')' Stmt    (rule 41)
+	Stmt -> 'for' '(' Type Ident ':' . Expr ')' Stmt    (rule 41)
 
+	'!'            shift, and enter state 58
+	'('            shift, and enter state 59
+	'-'            shift, and enter state 60
+	'false'        shift, and enter state 62
+	'new'          shift, and enter state 65
+	'true'         shift, and enter state 67
 	L_Ident        shift, and enter state 2
+	L_integ        shift, and enter state 69
+	L_quoted       shift, and enter state 70
 
-	Ident          goto state 169
+	Ident          goto state 76
+	Integer        goto state 45
+	String         goto state 46
+	Expr6          goto state 77
+	Expr5          goto state 52
+	Expr4          goto state 53
+	Expr3          goto state 54
+	Expr2          goto state 55
+	Expr1          goto state 56
+	Expr           goto state 169
 
 State 165
 
@@ -3852,7 +3869,7 @@ State 168
 
 State 169
 
-	Stmt -> 'for' '(' Type Ident ':' Ident . ')' Stmt    (rule 41)
+	Stmt -> 'for' '(' Type Ident ':' Expr . ')' Stmt    (rule 41)
 
 	')'            shift, and enter state 173
 
@@ -3937,7 +3954,7 @@ State 172
 
 State 173
 
-	Stmt -> 'for' '(' Type Ident ':' Ident ')' . Stmt    (rule 41)
+	Stmt -> 'for' '(' Type Ident ':' Expr ')' . Stmt    (rule 41)
 
 	'!'            shift, and enter state 58
 	'('            shift, and enter state 59
@@ -4002,7 +4019,7 @@ State 174
 
 State 175
 
-	Stmt -> 'for' '(' Type Ident ':' Ident ')' Stmt .    (rule 41)
+	Stmt -> 'for' '(' Type Ident ':' Expr ')' Stmt .    (rule 41)
 
 	'!'            reduce using rule 41
 	'('            reduce using rule 41

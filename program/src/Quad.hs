@@ -982,6 +982,10 @@ genQStmt ((AssArr pos exprArrVar exprElemNum exprElemVal) : rest) qcode = do
     genQStmt rest (qcode ++ code1 ++ code2 ++ [QArrAss val1 val2 val3])
 
 
+--genQStmt ((For pos varType varIdent ))
+
+
+
 
 
 
