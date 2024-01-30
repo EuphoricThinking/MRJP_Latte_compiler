@@ -147,7 +147,7 @@ declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock pos stmts)) 
     reverseMethsAttrs ident
 
     declareEmptyFuncBodiesWithRets rest
-    
+
 
 updCurClassName name = do
     curState <- get
@@ -473,6 +473,36 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     tell $ [QFunc newFullFunc]
 
     insOneByOne rest
+
+insOneByOne ((ClassDef pos (Ident ident) (CBlock pos stmts)) : rest) = do
+    updCurClassName ident
+
+    genClassMethods stmts []
+
+    insOneByOne rest
+
+saveAttrsToEnv attrType [] = do
+    curEnv <- curEnv
+    return curEnv
+
+saveAttrsToEnv attrType ((CItem pos (Ident ident)) : rest) = do
+    attrLoc <- alloc
+    insertToStoreNewIdentVal ident attrType loc -- check whether does not duplicate
+
+    local (Map.insert ident attrLoc) (saveAttrsToEnv attrType rest)
+
+
+genClassMethods [] qcode = return qcode
+
+genClassMethods ((ClassEmpty pos) : rest) = genClassMethods rest qcode
+
+genClassMethods ((ClassDecl pos attrType listOfItems) : rest) qcode = do
+    envWithAttrs <- saveAttrsToEnv (getOrigQType attrType) listOfItems
+
+    local (const envWithAttrs) (genClassMethods rest qcode)
+
+genClassMethods ((ClassMethod pos retType (Ident ident) args (CBlock pos stmts)) : rest) = do
+    
 
 -- genQIns [] = return [[]] -- [] should be
 
