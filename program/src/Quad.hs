@@ -1331,27 +1331,29 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
     else do
         --funcs<- gets (defFunc)
         --printMesQ $ show (funcs)
-        fbody <- gets (Map.lookup ident . defFunc)
-        -- return ((IntQVal (fromInteger 1)), [], 1)
-        case fbody of
-            Nothing -> do
-                -- must be in a class
-                curClass <- gets curClassName
-                let methName = getLabelClassMethod curClass ident
+        curClass <- gets curClassName
+        if curClass == ""
+        then do
+            fbody <- gets (Map.lookup ident . defFunc)
+            -- return ((IntQVal (fromInteger 1)), [], 1)
+            case fbody of
+                Nothing -> throwError $ ident ++ " function call error: no such function"  -- if class -> get classLabel
+                Just appliedFuncData -> do
+                    -- let retType = getFuncRet appliedFuncData
+                    -- updateLocalEAppRetType retType
 
-                mbody <- gets (Map.lookup methName . defFunc)
-                case mbody of
-                    Nothing -> throwError $ ident ++ " function call error: no such function"  -- if class -> get classLabel
-                    Just mdata -> do
-                        let newExprlist = (EVar defaultPos (Ident selfClassPtr)) : exprList
-                        applyFunction appliedFuncData methName newExprlist updCode isParam depth
-            Just appliedFuncData -> do
-                -- let retType = getFuncRet appliedFuncData
-                -- updateLocalEAppRetType retType
-
-                -- newTmpName <- createTempVarName ident -- move decl depending on param
-                -- callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
-                applyFunction appliedFuncData ident exprList updCode isParam depth
+                    -- newTmpName <- createTempVarName ident -- move decl depending on param
+                    -- callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
+                    applyFunction appliedFuncData ident exprList updCode isParam depth
+        else do
+            let methName = getLabelClassMethod curClass ident
+            mbody <- gets (Map.lookup methName . defFunc)
+            mbody <- gets (Map.lookup methName . defFunc)
+            case mbody of
+                Nothing -> throwError $ ident ++ " function call error: no such method in class " ++ curClass  -- if class -> get classLabel
+                Just mdata -> do
+                    let newExprlist = (EVar defaultPos (Ident selfClassPtr)) : exprList
+                    applyFunction appliedFuncData methName newExprlist updCode isParam depth
 
 genQExpr v@(EVar pos (Ident ident)) isParam = do
     --printMesQ $ "quad " ++ (show v) ++ (show isParam)
