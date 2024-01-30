@@ -28,7 +28,9 @@ data QStore = QStore {
     curFuncName :: String,
     specialFunc :: [String],
     defFunc :: Map.Map String FuncData,
-    countLabels :: Map.Map String Int
+    countLabels :: Map.Map String Int,
+    defClass :: Map.Map String ClassData,
+    curClassName :: String
     -- add label map?
 } deriving (Show)
 
@@ -56,6 +58,13 @@ data ArgData = ArgData String ValType deriving (Show)
 type Args = [ArgData] 
 
 data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes [String] NumStrVars NumBools deriving (Show)
+
+type OffsetClass = Int
+type Attributes = Map.Map String (Val, OffsetClass)
+type Methods = Map.Map String (RetType, OffsetClass)
+type OffsetAttr = Int
+type OffsetMeth = Int
+data ClassData = ClassData String NumIntTypes [String] NumStrVars NumBools Attributes Methods OffsetAttr OffsetMeth deriving (Show)
 
 data QVar = QLoc String ValType | QArg String ValType | NoMeaning deriving (Show)
 
@@ -123,6 +132,54 @@ declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stm
 
     declareEmptyFuncBodiesWithRets rest
 
+declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock pos stmts)) : rest) = do
+    let emptyBodyClass = ClassData ident 0 [] 0 0 Map.empty Map.empty 0 0
+    insertToStoreNewClass ident emptyBodyClass
+
+    saveClassAttrsMethods stmts
+
+
+saveClassAttrsMethods ((ClassEmpty pos) :  rest) = saveClassAttrsMethods rest
+
+saveClassAttrsMethods ((ClassDecl pos attrType listOfItems) : rest) = do
+    declClassAttrs attrType listOfItems
+
+getClassData className = do
+    classDataDict <- gets defClass
+    let classData = Map.lookup classDataDict className
+    case classData of
+        Nothing -> throwError $ "No data in store for class " ++ className
+        Just cdata -> return cdata
+
+extractAttrs (ClassData _ _ _ _ _ attrs _ _ _) = attrs
+extractOffsetAttrs (ClassData _ _ _ _ _ _ _ attrsOffset _) = attrsOffset
+
+updClassDataAttrsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths ) upd_Attrs upd_OffAttr = (ClassData name numInts stringList numPtrs numBools upd_Attrs meths upd_OffAttr offMeths)
+
+getClassAttrs className = do
+    cdata <- getClassData className
+    return extractAttrs cdata
+
+getLastAttrOffset className = do
+    cdata <- getClassData className
+    return extractOffsetAttrs cdata
+
+updateClassAttrs className attrName val = do
+    cdata <- getClassData className
+    attrs <- getClassAttrs className
+    lastOff <- getLastAttrOffset className
+    -- update offset and map
+    let inserted = Map.insert attrName (val, lastOff) attrs
+    let updCData = updClassDataAttrsBody cdata inserted (lastOff + 1)
+    
+    curState <- gets
+    put curState (defClass = Map.insert className updCData (defClass curState))
+
+
+
+declClassAttrs attrType ((CItem pos (Ident ident)) : rest) = do
+
+
 
 
 runQuadGen :: Program -> QuadMonad (ValType, QStore)
@@ -147,6 +204,10 @@ alloc = do
 insertToStoreNewFunc name funcInfo = do
     cur_state <- get
     put cur_state {defFunc = Map.insert name funcInfo (defFunc cur_state)}
+
+insertToStoreNewClass name classInfo = do
+    cur_state <- get
+    put cur_state {defClass = Map.insert name classInfo (defClass cur_state)}
 
 insertToStoreNewIdentVal name val loc = do
     curState <- get
@@ -829,6 +890,8 @@ getArrElemType (LocQVal _ (ArrayQ t)) = t
 getIdentString (Ident i) = i
 
 getCurnamExprRet ((LocQVal curname _), _, _) = curname
+
+
 
 genQStmt :: [Stmt] -> QuadCode -> QuadMonad QuadCode
 genQStmt [] qcode = return qcode
