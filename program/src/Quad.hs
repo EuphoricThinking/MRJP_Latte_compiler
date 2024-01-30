@@ -44,7 +44,7 @@ data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show
 -- | QLTH QVar Val Val -- less than, a < b
 -- | QLE QVar Val Val -- less or equal, a <= b
 
-data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool | Attr ValType | ClassMeth RetType --[Arg]
+data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool | Attr ValType | ClassMeth LabelCustom RetType --[Arg]
              deriving (Eq, Show)
 
 type SizeLocals = Int
@@ -271,13 +271,21 @@ updateClassAttrs className attrName val = do
     curState <- gets
     put curState (defClass = Map.insert className updCData (defClass curState))
 
+createClassMethodLabel className methodName = do
+    let defName = className ++ "_func_" ++ methodName
+    insertNewLabelToCounter defName
+
+    return defName
+
 updateClassMethods className methName retType args = do
     cdata <- getClassData className
     meths <- getClassMethods className
 
     -- addLater
     --let selfArg = (Ar defaultPos (Class defaultPos (Ident className)))
-    let methodVal = ClassMeth (getOrigQType retType)
+    methName <- createClassMethodLabel
+
+    let methodVal = ClassMeth methName (getOrigQType retType)
     
     -- let methInherited = Map.lookup methName meths
     -- case methInherited of
