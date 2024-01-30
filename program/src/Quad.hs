@@ -123,7 +123,7 @@ selfClassPtr = "self"
 defaultPos = (Just (1,1))
 
 -- genQuadcode :: Program -> Quadcode
-genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
+genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty, defClass = Map.empty, curClassName = ""})
 
 -- let 
     -- p = runQuadGen program
@@ -505,7 +505,8 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 insOneByOne ((ClassDef pos (Ident ident) (CBlock pos stmts)) : rest) = do
     updCurClassName ident
 
-    genClassMethods stmts
+    curEnv <- asks
+    local (const curEnv) (genClassMethods stmts)
 
     updCurClassName ""
 
