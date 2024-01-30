@@ -44,7 +44,7 @@ data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show
 -- | QLTH QVar Val Val -- less than, a < b
 -- | QLE QVar Val Val -- less or equal, a <= b
 
-data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool | Attr ValType
+data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool | Attr ValType | ClassMeth RetType --[Arg]
              deriving (Eq, Show)
 
 type SizeLocals = Int
@@ -116,6 +116,8 @@ concatStr = "___concatenateStrings"
 allocArr = "___allocArray"
 arrLenIdent = "length"
 
+defaultPos = (Just (1,1))
+
 -- genQuadcode :: Program -> Quadcode
 genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty})
 
@@ -151,6 +153,7 @@ saveClassAttrsMethods ((ClassDecl pos attrType listOfItems) : rest) = do
 
     saveClassAttrsMethods rest
 
+saveClassAttrsMethods ((ClassMethod pos retType (Ident ident) args body) : rest) = do
 
 
 getClassData className = do
@@ -162,6 +165,10 @@ getClassData className = do
 
 extractAttrs (ClassData _ _ _ _ _ attrs _ _ _) = attrs
 extractOffsetAttrs (ClassData _ _ _ _ _ _ _ attrsOffset _) = attrsOffset
+
+extractMethods (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = meths
+extractMethOffset (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = offMeths
+
 extractNumIntsClass (ClassData _ numInts _ _ _ _ _ _ _) = numInts
 extractNumPtrsClass (ClassData _ _ _ numPtrs _ _ _ _ _) = numStrs
 extractNumBools (ClassData _ _ _ _ numBools _ _ _ _) = numBools
@@ -189,6 +196,8 @@ updNumClassPtrsCur = gets curClassName >>= updNumClassPtrs
 
 updClassDataAttrsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths ) upd_Attrs upd_OffAttr = (ClassData name numInts stringList numPtrs numBools upd_Attrs meths upd_OffAttr offMeths)
 
+updClassDataMethodsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) upd_Methods upd_OffMeth = (ClassData name numInts stringList numPtrs numBools attrs upd_Methods offAttr upd_OffMeth)
+
 updClassDataNumPtrs (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = (ClassData name numInts stringList (numPtrs + 1) numBools attrs meths offAttr offMeths )
 
 updClassNumInts (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = (ClassData name (numInts + 1) stringList numPtrs numBools attrs meths offAttr offMeths)
@@ -202,6 +211,14 @@ getClassAttrs className = do
 getLastAttrOffset className = do
     cdata <- getClassData className
     return extractOffsetAttrs cdata
+
+getClassMethods className = do
+    cdata <- getClassData className
+    return extractMethods cdata
+
+getClassMethLastOff className = do
+    cdata <- getClassData className
+    return extractMethOffset cdata
 
 updClassData className cdata = do
     curState <- gets
@@ -217,6 +234,26 @@ updateClassAttrs className attrName val = do
     
     curState <- gets
     put curState (defClass = Map.insert className updCData (defClass curState))
+
+updateClassMethods className methName retType args = do
+    cdata <- getClassData className
+    meths <- getClassMethods className
+
+    -- addLater
+    --let selfArg = (Ar defaultPos (Class defaultPos (Ident className)))
+    let methodVal = ClassMeth (getOrigQType retType)
+    
+    let methInherited = Map.lookup methName meths
+    case methInherited of
+        Nothing -> do -- the first decl
+            lastOff <- getClassMethLastOff className
+            let inserted = Map.insert methName (methodVal, lastOff) meths
+            let updCData = updClassDataMethodsBody cdata inserted (lastOff + 1)
+
+            updClassData className updCData
+
+        Just (val, offset)
+
 
 updateNumAttrs attrType className = do
     case attrType of
