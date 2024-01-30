@@ -64,7 +64,10 @@ type Attributes = Map.Map String (ValType, OffsetClass)
 type Methods = Map.Map String (RetType, OffsetClass)
 type OffsetAttr = Int
 type OffsetMeth = Int
-data ClassData = ClassData String NumIntTypes [String] NumStrVars NumBools Attributes Methods OffsetAttr OffsetMeth deriving (Show)
+type AttrList = [String]
+type MethList = [String]
+
+data ClassData = ClassData String NumIntTypes [String] NumStrVars NumBools Attributes Methods OffsetAttr OffsetMeth AttrList MethList deriving (Show)
 
 data QVar = QLoc String ValType | QArg String ValType | NoMeaning deriving (Show)
 
@@ -135,16 +138,23 @@ declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stm
     declareEmptyFuncBodiesWithRets rest
 
 declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock pos stmts)) : rest) = do
-    let emptyBodyClass = ClassData ident 0 [] 0 0 Map.empty Map.empty 0 0
+    let emptyBodyClass = ClassData ident 0 [] 0 0 Map.empty Map.empty 0 0 [] []
     insertToStoreNewClass ident emptyBodyClass
     updCurClassName name
 
     saveClassAttrsMethods stmts
 
+    reverseMethsAttrs ident
+
+    declareEmptyFuncBodiesWithRets rest
+    
+
 updCurClassName name = do
     curState <- get
     put curState {curClassName = name}
 
+
+saveClassAttrsMethods [] = return ()
 
 saveClassAttrsMethods ((ClassEmpty pos) :  rest) = saveClassAttrsMethods rest
 
@@ -154,6 +164,23 @@ saveClassAttrsMethods ((ClassDecl pos attrType listOfItems) : rest) = do
     saveClassAttrsMethods rest
 
 saveClassAttrsMethods ((ClassMethod pos retType (Ident ident) args body) : rest) = do
+    updateClassMethods className ident retType args
+
+    saveClassAttrsMethods rest
+
+
+reverseMethsAttrs className = do
+    cdata <- getClassData className
+    let meths = extractMethList cdata
+    let attrs = extractAttrList cdata
+    
+    let rMeth = reverseList meths []
+    let rAttr = reverseList attrs []
+
+    let updMethData = updClassDataMethList rMeth
+    let updMethAttr = updClassDataAttrList updMethData
+
+    updClassData className updMethAttr
 
 
 getClassData className = do
@@ -163,15 +190,18 @@ getClassData className = do
         Nothing -> throwError $ "No data in store for class " ++ className
         Just cdata -> return cdata
 
-extractAttrs (ClassData _ _ _ _ _ attrs _ _ _) = attrs
-extractOffsetAttrs (ClassData _ _ _ _ _ _ _ attrsOffset _) = attrsOffset
+extractAttrs (ClassData _ _ _ _ _ attrs _ _ _ _ _) = attrs
+extractOffsetAttrs (ClassData _ _ _ _ _ _ _ attrsOffset _ _ _) = attrsOffset
 
-extractMethods (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = meths
-extractMethOffset (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = offMeths
+extractMethods (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths _ _) = meths
+extractMethOffset (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths _ _) = offMeths
 
-extractNumIntsClass (ClassData _ numInts _ _ _ _ _ _ _) = numInts
-extractNumPtrsClass (ClassData _ _ _ numPtrs _ _ _ _ _) = numStrs
-extractNumBools (ClassData _ _ _ _ numBools _ _ _ _) = numBools
+extractAttrList = (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = attrList
+extractMethList = (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = methList
+
+extractNumIntsClass (ClassData _ numInts _ _ _ _ _ _ _ _ _) = numInts
+extractNumPtrsClass (ClassData _ _ _ numPtrs _ _ _ _ _ _ _) = numStrs
+extractNumBools (ClassData _ _ _ _ numBools _ _ _ _ _ _) = numBools
 
 updNumClassPtrs className = do
     cdata <- getClassData className
@@ -192,17 +222,23 @@ updNumClassIntsCur = gets curClassName >>= updNumClassInts
 updNumClassBoolsCur = gets curClassName >>= updNumClassBools
 updNumClassPtrsCur = gets curClassName >>= updNumClassPtrs
 
+reverseList [] acc = acc
+reverseList (x:xs) acc = reverseList xs (x:acc)
 
 
-updClassDataAttrsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths ) upd_Attrs upd_OffAttr = (ClassData name numInts stringList numPtrs numBools upd_Attrs meths upd_OffAttr offMeths)
+updClassDataAttrsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) upd_Attrs upd_OffAttr atrName = (ClassData name numInts stringList numPtrs numBools upd_Attrs meths upd_OffAttr offMeths (attrName : attrList) methList)
 
-updClassDataMethodsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) upd_Methods upd_OffMeth = (ClassData name numInts stringList numPtrs numBools attrs upd_Methods offAttr upd_OffMeth)
+updClassDataMethList (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) new_MethList = (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList new_MethList)
 
-updClassDataNumPtrs (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = (ClassData name numInts stringList (numPtrs + 1) numBools attrs meths offAttr offMeths )
+updClassDataAttrList (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) new_AttrList = (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths new_AttrList methList)
 
-updClassNumInts (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = (ClassData name (numInts + 1) stringList numPtrs numBools attrs meths offAttr offMeths)
+updClassDataMethodsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) upd_Methods upd_OffMeth methName = (ClassData name numInts stringList numPtrs numBools attrs upd_Methods offAttr upd_OffMeth attrList (methName : methList))
 
-updClassNumBools (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = (ClassData name numInts stringList numPtrs (numBools + 1) attrs meths offAttr offMeths)
+updClassDataNumPtrs (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = (ClassData name numInts stringList (numPtrs + 1) numBools attrs meths offAttr offMeths attrList methList)
+
+updClassNumInts (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = (ClassData name (numInts + 1) stringList numPtrs numBools attrs meths offAttr offMeths attrList methList)
+
+updClassNumBools (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = (ClassData name numInts stringList numPtrs (numBools + 1) attrs meths offAttr offMeths attrList methList)
 
 getClassAttrs className = do
     cdata <- getClassData className
@@ -230,7 +266,7 @@ updateClassAttrs className attrName val = do
     lastOff <- getLastAttrOffset className
     -- update offset and map
     let inserted = Map.insert attrName (val, lastOff) attrs
-    let updCData = updClassDataAttrsBody cdata inserted (lastOff + 1)
+    let updCData = updClassDataAttrsBody cdata inserted (lastOff + 1) attrName
     
     curState <- gets
     put curState (defClass = Map.insert className updCData (defClass curState))
@@ -250,7 +286,7 @@ updateClassMethods className methName retType args = do
     -- if it overwrites the class Method
     lastOff <- getClassMethLastOff className
     let inserted = Map.insert methName (methodVal, lastOff) meths
-    let updCData = updClassDataMethodsBody cdata inserted (lastOff + 1)
+    let updCData = updClassDataMethodsBody cdata inserted (lastOff + 1) methName
 
     updClassData className updCData
 
