@@ -44,7 +44,7 @@ data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show
 -- | QLTH QVar Val Val -- less than, a < b
 -- | QLE QVar Val Val -- less or equal, a <= b
 
-data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool
+data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool | Attr ValType
              deriving (Eq, Show)
 
 type SizeLocals = Int
@@ -60,7 +60,7 @@ type Args = [ArgData]
 data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes [String] NumStrVars NumBools deriving (Show)
 
 type OffsetClass = Int
-type Attributes = Map.Map String (Val, OffsetClass)
+type Attributes = Map.Map String (ValType, OffsetClass)
 type Methods = Map.Map String (RetType, OffsetClass)
 type OffsetAttr = Int
 type OffsetMeth = Int
@@ -135,14 +135,23 @@ declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stm
 declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock pos stmts)) : rest) = do
     let emptyBodyClass = ClassData ident 0 [] 0 0 Map.empty Map.empty 0 0
     insertToStoreNewClass ident emptyBodyClass
+    updCurClassName name
 
     saveClassAttrsMethods stmts
+
+updCurClassName name = do
+    curState <- get
+    put curState {curClassName = name}
 
 
 saveClassAttrsMethods ((ClassEmpty pos) :  rest) = saveClassAttrsMethods rest
 
 saveClassAttrsMethods ((ClassDecl pos attrType listOfItems) : rest) = do
     declClassAttrs attrType listOfItems
+
+    saveClassAttrsMethods rest
+
+
 
 getClassData className = do
     classDataDict <- gets defClass
@@ -153,8 +162,38 @@ getClassData className = do
 
 extractAttrs (ClassData _ _ _ _ _ attrs _ _ _) = attrs
 extractOffsetAttrs (ClassData _ _ _ _ _ _ _ attrsOffset _) = attrsOffset
+extractNumIntsClass (ClassData _ numInts _ _ _ _ _ _ _) = numInts
+extractNumPtrsClass (ClassData _ _ _ numPtrs _ _ _ _ _) = numStrs
+extractNumBools (ClassData _ _ _ _ numBools _ _ _ _) = numBools
+
+updNumClassPtrs className = do
+    cdata <- getClassData className
+    let newBody = updClassDataNumPtrs cdata
+    updClassData className newBody
+
+updNumClassBools className = do
+    cdata <- getClassData className
+    let newBody = updClassNumBools cdata
+    updClassData className newBody
+
+updNumClassInts className = do
+    cdata <- getClassData className
+    let newBody = updClassNumInts cdata
+    updClassData className newBody
+
+updNumClassIntsCur = gets curClassName >>= updNumClassInts
+updNumClassBoolsCur = gets curClassName >>= updNumClassBools
+updNumClassPtrsCur = gets curClassName >>= updNumClassPtrs
+
+
 
 updClassDataAttrsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths ) upd_Attrs upd_OffAttr = (ClassData name numInts stringList numPtrs numBools upd_Attrs meths upd_OffAttr offMeths)
+
+updClassDataNumPtrs (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = (ClassData name numInts stringList (numPtrs + 1) numBools attrs meths offAttr offMeths )
+
+updClassNumInts (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = (ClassData name (numInts + 1) stringList numPtrs numBools attrs meths offAttr offMeths)
+
+updClassNumBools (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths) = (ClassData name numInts stringList numPtrs (numBools + 1) attrs meths offAttr offMeths)
 
 getClassAttrs className = do
     cdata <- getClassData className
@@ -163,6 +202,10 @@ getClassAttrs className = do
 getLastAttrOffset className = do
     cdata <- getClassData className
     return extractOffsetAttrs cdata
+
+updClassData className cdata = do
+    curState <- gets
+    put curState (defClass = Map.insert className cdata (defClass curState))
 
 updateClassAttrs className attrName val = do
     cdata <- getClassData className
@@ -175,11 +218,24 @@ updateClassAttrs className attrName val = do
     curState <- gets
     put curState (defClass = Map.insert className updCData (defClass curState))
 
+updateNumAttrs attrType className = do
+    case attrType of
+        IntQ -> updNumClassInts className
+        BoolQ -> updNumClassBools className
+        _ -> updNumClassPtrs className
 
 
 declClassAttrs attrType ((CItem pos (Ident ident)) : rest) = do
+    let attrTypeQ = getOrigQType attrType
+    curClassName <- gets curClassName
 
+    updateClassAttrs curClassName ident attrTypeQ
+    updateNumAttrs attrTypeQ curClassName
 
+    -- attrLoc <- alloc  no, that will be during evaluation, now only save names
+    declClassAttrs attrType rest
+
+declClassAttrs _ [] = return ()
 
 
 runQuadGen :: Program -> QuadMonad (ValType, QStore)
