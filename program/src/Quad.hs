@@ -203,8 +203,8 @@ extractOffsetAttrs (ClassData _ _ _ _ _ _ _ attrsOffset _ _ _) = attrsOffset
 extractMethods (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths _ _) = meths
 extractMethOffset (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths _ _) = offMeths
 
-extractAttrList = (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = attrList
-extractMethList = (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = methList
+extractAttrList (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = attrList
+extractMethList (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = methList
 
 extractNumIntsClass (ClassData _ numInts _ _ _ _ _ _ _ _ _) = numInts
 extractNumPtrsClass (ClassData _ _ _ numPtrs _ _ _ _ _ _ _) = numStrs
@@ -1535,6 +1535,8 @@ genQExpr (EArrEl pos exprVar exprElemNum) isParam = do
     let newCode = codeVar ++ codeNum ++ [QArrElem locVal valVar valNum]
 
     return ((LocQVal resTempName arrType), newCode, (max depthVar depthNum) + 1)
+
+-- classes
 
 
 
