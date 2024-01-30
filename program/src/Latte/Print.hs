@@ -225,10 +225,6 @@ instance Print [Latte.Abs.Item' a] where
   prt _ [x] = concatD [prt 0 x]
   prt _ (x:xs) = concatD [prt 0 x, doc (showString ","), prt 0 xs]
 
-instance Print (Latte.Abs.Construct' a) where
-  prt i = \case
-    Latte.Abs.EClassNest _ id_ -> prPrec i 0 (concatD [prt 0 id_, doc (showString ".")])
-
 instance Print (Latte.Abs.Type' a) where
   prt i = \case
     Latte.Abs.Int _ -> prPrec i 0 (concatD [doc (showString "int")])

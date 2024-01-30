@@ -46,7 +46,7 @@ Init.      Item ::= Ident "=" Expr ;
 
 separator nonempty Item "," ;
 
-EClassNest. Construct ::= Ident "." ;
+-- EClassNest. Construct ::= Ident "." ;
 
 Ass.       Stmt ::= Ident "=" Expr  ";" ;
 

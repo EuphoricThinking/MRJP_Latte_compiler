@@ -77,10 +77,6 @@ type Item = Item' BNFC'Position
 data Item' a = NoInit a Ident | Init a Ident (Expr' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
-type Construct = Construct' BNFC'Position
-data Construct' a = EClassNest a Ident
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
-
 type Type = Type' BNFC'Position
 data Type' a
     = Int a
@@ -201,10 +197,6 @@ instance HasPosition Item where
   hasPosition = \case
     NoInit p _ -> p
     Init p _ _ -> p
-
-instance HasPosition Construct where
-  hasPosition = \case
-    EClassNest p _ -> p
 
 instance HasPosition Type where
   hasPosition = \case

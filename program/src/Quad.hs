@@ -34,7 +34,7 @@ data QStore = QStore {
     -- add label map?
 } deriving (Show)
 
-data ValType = IntQ | StringQ | BoolQ | VoidQ | ArrayQ ValType 
+data ValType = IntQ | StringQ | BoolQ | VoidQ | ArrayQ ValType | ClassQ String
                 deriving (Eq, Show)
 
 data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show)
@@ -61,7 +61,7 @@ data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes [String
 
 type OffsetClass = Int
 type Attributes = Map.Map String (ValType, OffsetClass)
-type Methods = Map.Map String (RetType, OffsetClass)
+type Methods = Map.Map String (Val, OffsetClass) -- classdata
 type OffsetAttr = Int
 type OffsetMeth = Int
 type AttrList = [String]
@@ -541,8 +541,14 @@ genClassMethods ((ClassMethod pos retType (Ident ident) args (CBlock pos stmts))
 
     genClassMethods rest
 
+getVarClassName (LocQVal ident (ClassQ className)) = className
 
-
+getMethodRet className methName = do
+    meths <- getClassMethods className
+    let foundMeth = Map.lookup methName meths
+    case foundMeth of
+        Nothing -> throwError $ "No such method: " ++ methName ++ " in class: " ++ className
+        Just ((ClassMeth label rettype), offset) -> return rettype
 
 
     
@@ -1349,7 +1355,6 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
         else do
             let methName = getLabelClassMethod curClass ident
             mbody <- gets (Map.lookup methName . defFunc)
-            mbody <- gets (Map.lookup methName . defFunc)
             case mbody of
                 Nothing -> throwError $ ident ++ " function call error: no such method in class " ++ curClass  -- if class -> get classLabel
                 Just mdata -> do
@@ -1537,6 +1542,34 @@ genQExpr (EArrEl pos exprVar exprElemNum) isParam = do
     return ((LocQVal resTempName arrType), newCode, (max depthVar depthNum) + 1)
 
 -- classes
+genQExpr (EMethod pos exprClass (Ident methodName) exprList) isParam = do
+    (valClass, codeClass, depthClass) <- genQExpr exprClass isParam
+    (updCode, depth) <- genParamCodeForExprList exprList isParam
+    
+    resTempName <- createTempVarNameCurFuncExprs
+
+    let className = getVarClassName valClass
+    methRet <- getMethodRet className methodName
+
+    updateLocalEAppRetType methRet
+
+    let locVal = QLoc resTempName methRet
+    let newCode = codeClass ++ updCode ++ [QCallMethod locVal valClass methodName ((length exprList) + 1)]
+
+    return ((LocQVal resTempName methRet), newCode, (max depth depthClass) + 1)
+
+
+    -- let methName = getLabelClassMethod className methodName
+
+    -- mbody <- gets (Map.lookup methName . defFunc)
+    -- case mbody of
+    --     Nothing -> throwError $ ident ++ " method call error: no such method in class " ++ className  -- if class -> get classLabel
+    --     Just mdata -> do
+    --         let newExprlist = (EVar defaultPos (Ident selfClassPtr)) : exprList
+    --         applyFunction appliedFuncData methName newExprlist updCode isParam depth
+    -- updaet ret type
+
+    
 
 
 
@@ -1547,6 +1580,8 @@ genCond v@(ELitFalse _) lTrue lFalse = eLitToGenCode v lTrue lFalse -- genQExpr 
 genCond v@(ELitTrue _) lTrue lFalse = eLitToGenCode v lTrue lFalse-- genQExpr v JustLocal
 -- comparison between numbers is handled in gencond erel
 genCond v@(EApp pos (Ident ident) exprList) lTrue lFalse = singleValsGenCond v lTrue lFalse
+
+genCond v@(EMethod pos exprClass (Ident methodName) exprList) lTrue lFalse = singleValsGenCond v lTrue lFalse
 
     -- not equal - ZF = 1 -> true && true
 

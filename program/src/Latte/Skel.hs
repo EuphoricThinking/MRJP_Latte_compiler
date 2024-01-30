@@ -76,10 +76,6 @@ transItem x = case x of
   Latte.Abs.NoInit _ ident -> failure x
   Latte.Abs.Init _ ident expr -> failure x
 
-transConstruct :: Show a => Latte.Abs.Construct' a -> Result
-transConstruct x = case x of
-  Latte.Abs.EClassNest _ ident -> failure x
-
 transType :: Show a => Latte.Abs.Type' a -> Result
 transType x = case x of
   Latte.Abs.Int _ -> failure x
