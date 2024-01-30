@@ -118,6 +118,7 @@ exprInfix = "_expr_"
 concatStr = "___concatenateStrings"
 allocArr = "___allocArray"
 arrLenIdent = "length"
+selfClassPtr = "self"
 
 defaultPos = (Just (1,1))
 
@@ -142,7 +143,7 @@ declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock pos stmts)) 
     insertToStoreNewClass ident emptyBodyClass
     updCurClassName name
 
-    saveClassAttrsMethods stmts
+    saveClassAttrsMethods ident stmts
 
     reverseMethsAttrs ident
 
@@ -154,19 +155,25 @@ updCurClassName name = do
     put curState {curClassName = name}
 
 
-saveClassAttrsMethods [] = return ()
+saveClassAttrsMethods _ [] = return ()
 
-saveClassAttrsMethods ((ClassEmpty pos) :  rest) = saveClassAttrsMethods rest
+saveClassAttrsMethods className ((ClassEmpty pos) :  rest) = saveClassAttrsMethods className rest
 
-saveClassAttrsMethods ((ClassDecl pos attrType listOfItems) : rest) = do
-    declClassAttrs attrType listOfItems
+saveClassAttrsMethods className ((ClassDecl pos attrType listOfItems) : rest) = do
+    declClassAttrs className attrType listOfItems
 
-    saveClassAttrsMethods rest
+    saveClassAttrsMethods className rest
 
-saveClassAttrsMethods ((ClassMethod pos retType (Ident ident) args body) : rest) = do
+saveClassAttrsMethods className ((ClassMethod pos retType (Ident ident) args body) : rest) = do
+
     updateClassMethods className ident retType args
 
-    saveClassAttrsMethods rest
+    let methName = getLabelClassMethod className ident
+    let emptyBodyFunc = FuncData methName (getOrigQType retType) [] 0 [] 0 [] 0 0
+    insertToStoreNewFunc methName emptyBodyFunc
+
+
+    saveClassAttrsMethods className rest
 
 
 reverseMethsAttrs className = do
@@ -277,7 +284,9 @@ createClassMethodLabel className methodName = do
 
     return defName
 
-updateClassMethods className methName retType args = do
+getLabelClassMethod className methodName = className ++ "_func_" ++ methodName
+
+updateClassMethods className origName retType args = do
     cdata <- getClassData className
     meths <- getClassMethods className
 
@@ -293,7 +302,7 @@ updateClassMethods className methName retType args = do
 
     -- if it overwrites the class Method
     lastOff <- getClassMethLastOff className
-    let inserted = Map.insert methName (methodVal, lastOff) meths
+    let inserted = Map.insert origName (methodVal, lastOff) meths
     let updCData = updClassDataMethodsBody cdata inserted (lastOff + 1) methName
 
     updClassData className updCData
@@ -452,22 +461,19 @@ clearStoreQNewFunc = do
     put curState {countLabels = Map.empty}
     -- eventually add labels to args in order to preserve order
 
-insOneByOne :: [TopDef] -> QuadMonad QStore
-insOneByOne [] = do
-    cur_state <- get
-    return cur_state
+applyFunction appliedFuncData ident exprList updCode isParam depth = do
+    let retType = getFuncRet appliedFuncData
+    updateLocalEAppRetType retType
 
-insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
-    -- curState <- get
+    newTmpName <- createTempVarName ident -- move decl depending on param
+    callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
 
-    -- curState <- get
-    -- curFName <- gets curFuncName
-    --print (show curFName
+processSingleFunction ident args rettype stmts = do
     env <- ask
     (envWithParams, numInts, numStrs, numBools) <- local (const env) (saveArgsToEnv args 0 0 0)
 
     -- let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0 [] 0
-    let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) (numInts + numStrs) [] numInts [] numStrs numBools
+    let newFuncData = FuncData ident rettype (map getArgData args) (numInts + numStrs) [] numInts [] numStrs numBools -- (getOrigQType rettype)
 
     insertToStoreNewFunc ident newFuncData
     updateCurFuncName ident
@@ -480,12 +486,28 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
     tell $ [QFunc newFullFunc]
 
+insOneByOne :: [TopDef] -> QuadMonad QStore
+insOneByOne [] = do
+    cur_state <- get
+    return cur_state
+
+insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
+    -- curState <- get
+
+    -- curState <- get
+    -- curFName <- gets curFuncName
+    --print (show curFName
+    processSingleFunction ident args (getOrigQType rettype) stmts
+    
+
     insOneByOne rest
 
 insOneByOne ((ClassDef pos (Ident ident) (CBlock pos stmts)) : rest) = do
     updCurClassName ident
 
-    genClassMethods stmts []
+    genClassMethods stmts
+
+    updCurClassName ""
 
     insOneByOne rest
 
@@ -500,16 +522,28 @@ saveAttrsToEnv attrType ((CItem pos (Ident ident)) : rest) = do
     local (Map.insert ident attrLoc) (saveAttrsToEnv attrType rest)
 
 
-genClassMethods [] qcode = return qcode
+genClassMethods [] = return ()
 
-genClassMethods ((ClassEmpty pos) : rest) = genClassMethods rest qcode
+genClassMethods ((ClassEmpty pos) : rest) = genClassMethods rest
 
 genClassMethods ((ClassDecl pos attrType listOfItems) : rest) qcode = do
     envWithAttrs <- saveAttrsToEnv (getOrigQType attrType) listOfItems
 
-    local (const envWithAttrs) (genClassMethods rest qcode)
+    local (const envWithAttrs) (genClassMethods rest)
 
 genClassMethods ((ClassMethod pos retType (Ident ident) args (CBlock pos stmts)) : rest) = do
+    curClass <- gets curClassName
+    let methodName = getLabelClassMethod curClass ident
+    let selfArg = (Ar defaultPos (Class defaultPos (Ident curClass)) (Ident selfClassPtr))
+
+    processSingleFunction methodName (selfArg : args) (getOrigQType retType) stmts
+
+    genClassMethods rest
+
+
+
+
+
     
 
 -- genQIns [] = return [[]] -- [] should be
@@ -1300,13 +1334,24 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
         fbody <- gets (Map.lookup ident . defFunc)
         -- return ((IntQVal (fromInteger 1)), [], 1)
         case fbody of
-            Nothing -> throwError $ ident ++ " function call error: no such function"
-            Just appliedFuncData -> do
-                let retType = getFuncRet appliedFuncData
-                updateLocalEAppRetType retType
+            Nothing -> do
+                -- must be in a class
+                curClass <- gets curClassName
+                let methName = getLabelClassMethod curClass ident
 
-                newTmpName <- createTempVarName ident -- move decl depending on param
-                callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
+                mbody <- gets (Map.lookup methName . defFunc)
+                case mbody of
+                    Nothing -> throwError $ ident ++ " function call error: no such function"  -- if class -> get classLabel
+                    Just mdata -> do
+                        let newExprlist = (EVar defaultPos (Ident selfClassPtr)) : exprList
+                        applyFunction appliedFuncData methName newExprlist updCode isParam depth
+            Just appliedFuncData -> do
+                -- let retType = getFuncRet appliedFuncData
+                -- updateLocalEAppRetType retType
+
+                -- newTmpName <- createTempVarName ident -- move decl depending on param
+                -- callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
+                applyFunction appliedFuncData ident exprList updCode isParam depth
 
 genQExpr v@(EVar pos (Ident ident)) isParam = do
     --printMesQ $ "quad " ++ (show v) ++ (show isParam)
