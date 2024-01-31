@@ -1758,20 +1758,20 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                                 then do
                                     tell $ [AMov (show AR11D) (createAddrIntRBP storageR)]
                                     tell $ [AMov (createAddrIntRBP memStorageL) (show AR11D)]
-                                else if isString valType then do
-                                    tell $ [AMov (show AR11) (createAddrPtrRBP storageR)]
-                                    tell $ [AMov (createAddrPtrRBP memStorageL) (show AR11)]
-                                else do
+                                else if isBoolQ valType then do --do
                                     tell $ [AMovZX (show AR11D) (createAddrBoolRBP storageR)]
                                     tell $ [AMov (createAddrBoolRBP memStorageL) (show AR11B)]
+                                else do --if isString valType then do
+                                    tell $ [AMov (show AR11) (createAddrPtrRBP storageR)]
+                                    tell $ [AMov (createAddrPtrRBP memStorageL) (show AR11)]
                             else do
                                 if isIntQ valType--is32bit valType
                                 then
                                     tell $ [AMov (createAddrIntRBP memStorageL) (show storageR)]
-                                else if isString valType then
-                                    tell $ [AMov (createAddrPtrRBP memStorageL) (show storageR)]
-                                else 
+                                else if isBoolQ valType then do
                                     tell $ [AMov (createAddrBoolRBP memStorageL) (show storageR)] -- TODO fix this --> different types of registers
+                                else do --if isString valType then
+                                    tell $ [AMov (createAddrPtrRBP memStorageL) (show storageR)]
                             
 
             genStmtsAsm rest
