@@ -35,7 +35,7 @@ data QStore = QStore {
     -- add label map?
 } deriving (Show)
 
-data ValType = IntQ | StringQ | BoolQ | VoidQ | ArrayQ ValType | ClassQ String
+data ValType = IntQ | StringQ | BoolQ | VoidQ | ArrayQ ValType | ClassQ String | AttrQ ValType
                 deriving (Eq, Show)
 
 data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show)
@@ -536,6 +536,7 @@ insOneByOne ((ClassDef pos (Ident ident) (CBlock posB stmts)) : rest) = do
 
     curEnv <- ask --s
     local (const curEnv) (genClassMethods stmts)
+    -- genClassMethods stmts
 
     updCurClassName ""
 
@@ -916,7 +917,7 @@ getValType val =
         (StrQVal _) -> StringQ
         (BoolQVal _) -> BoolQ
         (ClassQObj ident) -> ClassQ ident
-        (Attr vtype) -> vtype
+        (Attr vtype) -> AttrQ vtype-- vtype
 
 isArray (ArrayQ _) = True
 isArray _ = False
@@ -938,7 +939,7 @@ createTempVarNameCurFuncExprs = do
 
 createDecIncQCode ident qcode rest isDecrement = do
     newVarName <- createTempVarNameCurFuncExprs
-    let locVar = QLoc newVarName IntQ
+    -- let locVar = QLoc newVarName IntQ
 
     varLoc <- asks (Map.lookup ident)
     case varLoc of
@@ -948,7 +949,8 @@ createDecIncQCode ident qcode rest isDecrement = do
 
             case varLabel of
                 Nothing -> throwError $ ident ++ " loc: " ++ (show loc) ++ " not found in storeQ"
-                Just (curLabel, varVal) ->
+                Just (curLabel, varVal) -> do
+                    let locVar = QLoc newVarName (getValType varVal)
                     if isDecrement then
                         genQStmt rest (qcode ++ [QDec locVar curLabel])--ident])
                     else

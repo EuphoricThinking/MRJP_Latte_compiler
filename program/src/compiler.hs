@@ -27,6 +27,10 @@ import Data.Bits
 import Data.List (sortBy)
 import Data.Function (on)
 
+-- import Debug.trace
+
+-- R10 USED FOR SELF PTRS
+
 data AsmRegister = ARAX
     | AEAX
     | ARBP
@@ -69,6 +73,7 @@ data AsmRegister = ARAX
     | AR13B
     | AR14B
     | AR15B
+    | AR10 deriving (Eq)
 
 
 data Asm = AGlobl
@@ -257,6 +262,7 @@ instance Show AsmRegister where
     show AR13B = "r13b"
     show AR14B = "r14b"
     show AR15B = "r15b"
+    show AR10 = "r10"
 
     -- ah:al in eax
 
@@ -266,7 +272,7 @@ instance Show StoragePlace where
     show (OffsetRBP i) = show i
     show (Register reg) = show reg
     show (ProgLabel l) = l
-    show (OffsetClass i) = show i
+    show (OffsetClass i) = (show i) ++ "offsetclass"
 
 type AsmCode = [Asm]
 
@@ -605,6 +611,8 @@ createAddrIntRBP memStorage =
     case memStorage of
         OffsetRBP offset -> "dword " ++ (createRelAddrRBP offset) -- was before
         Register reg -> show reg
+        ProgLabel l -> show l
+        OffsetClass c -> "dword [" ++ (show AR10) ++ "+" ++ (show c) ++ "]"
 
 createAddrPtrRBP memStorage =
     case memStorage of
@@ -843,8 +851,12 @@ getNewOffsetUpdRBP memSize = do
     return (OffsetRBP newRBPOffset)
 
 
+isClassType (ClassQ _) = True
+isClassType _ = False
 
+getClassNameFromType (ClassQ name) = name
 
+isCurClass cname ident valtype reg = (ident == selfClassPtr) && (cname /= "") && (isClassType valtype) && ((getClassNameFromType valtype) == cname) && (reg == ARDI)
 --moveParamsToLocal fname fbody = do
     -- move over the lists, up to zero
 
@@ -858,29 +870,37 @@ moveFromRegisters [] _ _ _ = do
 moveFromRegisters ((ArgData ident valType) : args) (reg : regs) (ereg : eregs) (areg : aregs) = do
     let var = (QLoc ident valType)
 
-    case valType of
-        IntQ -> do
-            offsetRBP <- allocVar ereg intBytes -- allocInt ereg
+    cname <- gets curClassNameAsm
+    if isCurClass cname ident valType reg
+    then do
+        tell $ [AMov (show AR10) (show reg)]
 
-            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+        local (Map.insert ident (var, (Register AR10))) (moveFromRegisters args regs eregs aregs)
 
-        StringQ -> do
-            offsetRBP <- allocVar reg strPointerBytes
+    else do
+        case valType of
+            IntQ -> do
+                offsetRBP <- allocVar ereg intBytes -- allocInt ereg
 
-            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+                local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
-        BoolQ -> do
-             offsetRBP <- getNewOffsetUpdRBP boolBytes
-             tell $ [AMov (createAddrBoolRBP offsetRBP) (show areg)]
-             -- tell $ [AMovZX (show AR11D) (show areg)]
+            StringQ -> do
+                offsetRBP <- allocVar reg strPointerBytes
+
+                local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+
+            BoolQ -> do
+                offsetRBP <- getNewOffsetUpdRBP boolBytes
+                tell $ [AMov (createAddrBoolRBP offsetRBP) (show areg)]
+                -- tell $ [AMovZX (show AR11D) (show areg)]
 
 
-             local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+                local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
-        _ -> do
-            offsetRBP <- allocVar reg strPointerBytes
+            _ -> do
+                offsetRBP <- allocVar reg strPointerBytes
 
-            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+                local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
 --moveParamsToLocal 
 moveStackParams [] _ = do
@@ -961,11 +981,12 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs) = do
             varData <- asks (Map.lookup ident)
             case varData of
                 Nothing -> throwError $ "No env data for " ++ ident
-                Just (var, offset) -> do
-                    --printMesA $ "param loc " ++ (show offset)
+                Just vv@(var, offset) -> do
+                    printMesA $ "param loc " ++ (show vv)
                     case valType of
                         (IntQ) -> do
                             tell $ [AMov (show ereg) (createAddrIntRBP offset)]
+                            printMesA $ "aft loc param"
 
                         StringQ -> do
                             tell $ [AMov (show reg) (createAddrPtrRBP offset)]
@@ -1008,6 +1029,9 @@ assignResToRegister var@(QLoc varTmpId varType) =
             tell $ [AMov (createAddrBoolRBP offsetRBP) (show AAL)]
             return (var, offsetRBP) --(Register AAL))
         (ArrayQ arrType) -> do
+            resAddr <- allocVar ARAX strPointerBytes
+            return (var, resAddr)
+        (ClassQ className) -> do
             resAddr <- allocVar ARAX strPointerBytes
             return (var, resAddr)
 
@@ -1522,6 +1546,7 @@ getClassAttrsInf attrname className = do
         Just adata -> return adata
 
 movResToRAXSized resAddr resType = do
+    printMesA $ "mov rax sied"
     case resType of
         IntQ -> tell $ [AMov (show AEAX) resAddr]
         BoolQ -> tell $ [AMovZX (show AEAX) resAddr]
@@ -1557,7 +1582,7 @@ runGenAsm q = do--return BoolT
     -- genFuncsAsm q
 
     -- asmEnv <- ask
-    -- printMesA "encLoc print"
+    printMesA $ "encLoc print"
     -- printMesA asmEnv
     -- case (specialFunc curState) of
     --     [] -> 
@@ -1594,6 +1619,8 @@ genFuncsAsm ((QFunc className finfo@(FuncData name retType args locNum body numI
 
     local (const curEnv) (genStmtsAsm body)
 
+    printMesA $ "clearance" ++ (show rest)
+
     clearCurFuncParams
 
     -- genStmtsAsm body
@@ -1605,10 +1632,12 @@ genFuncsAsm ((QFunc className finfo@(FuncData name retType args locNum body numI
 -- ret needs to know the value, to move a good one to eax
 genStmtsAsm :: QuadCode -> AsmMonad ()
 genStmtsAsm ((QRet res) : rest) = do
-   -- printMesA $ "RETCOMP " ++ (show res)
+    printMesA $ "RETCOMP " ++ (show res)
     case res of
         (IntQVal numVal) -> do
+            printMesA $ "here"
             tell $ [AMov (show AEAX) (show numVal)] -- zostaw, później skoncz do ret
+            printMesA $ (show rest)
 
         (LocQVal ident valType) -> do
             fndId <- asks (Map.lookup ident)
@@ -1617,6 +1646,7 @@ genStmtsAsm ((QRet res) : rest) = do
                     curClassN <- gets curClassNameAsm
                     (attrVal, offset) <- getClassAttrsInf ident curClassN
                     selfAddr <- findIdentAddr selfClassPtr
+                    printMesA $ "after addresses"
 
                     tell $ [AMov (show AR11) (createAddrPtrRBP selfAddr)]
                     tell $ [AMov (show AR11) (getValAtAddrInReg AR11)]
@@ -1624,9 +1654,10 @@ genStmtsAsm ((QRet res) : rest) = do
                     tell $ [AAdd (show AR11) (show offset)]
 
                     movResToRAXSized (getAddrInRegTyped AR11 attrVal) attrVal
-
+                    printMesA $ "aft all retmake"
 
                 Just (qvar, memStorageVar) -> do
+                    printMesA $ "justed"
                     if is32bit valType
                     then
                         movMemoryVals (Register AEAX) memStorageVar valType
@@ -1668,6 +1699,7 @@ genStmtsAsm [] = do
 -- was in QRet val
     funcName <- gets curFuncNameAsm
     curBody <- gets (Map.lookup funcName . funcInfo)
+    printMesA $ "aft all "
 
     case curBody of
         Nothing -> throwError $ funcName ++ " no such func in asm store"
@@ -1747,6 +1779,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
 genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
 
     curRBP <- gets lastAddrRBP
+    printMesA $ "asm decl " ++ (show val) ++ " " ++ (show rest)
 
     case val of
         (IntQVal v) -> do
@@ -1770,6 +1803,7 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
                 Nothing -> throwError $ ident ++ " var not in env"
                 Just (varFromAssigned, storage) -> do
                     newOffset <- allocVarCopyFromMem storage valType
+                    printMesA $ "Aft loc"
 
                     local (Map.insert name (varFromAssigned, newOffset)) (genStmtsAsm rest)
                     -- case valType of
@@ -1795,6 +1829,9 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
             --printMesA $ "decl bool"
             newRBPOffset <- allocBool b
             local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
+
+        (ClassQObj className) -> genStmtsAsm ((QClass var) : rest)
+
 
 genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
 
@@ -1824,7 +1861,7 @@ genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPo
 genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
     -- after params generation
     valSubtracted <- alignStack
-    -- printMesA $ "call " ++ ident ++ " " ++ (show rest)
+    printMesA $ "call " ++ ident ++ " " ++ (show rest)
 
     case ident of
         "printInt" -> do
@@ -1878,6 +1915,7 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
                     --let valStorage = assignResToRegister qvar
                     -- printMesA $ "after call " ++ ident ++ " " ++ (show valStorage)
                     valStorage <- assignResToRegister qvar
+                    printMesA $ "after call " ++ ident
                     -- printMesA $ ident ++ " var id: " ++ varTmpId
 
                     local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
