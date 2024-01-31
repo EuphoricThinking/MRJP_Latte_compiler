@@ -199,6 +199,8 @@ getClassData className = do
         Nothing -> throwError $ "No data in store for class " ++ className
         Just cdata -> return cdata
 
+extractClassName (ClassData className _ _ _ _ _ _ _ _ _ _) = className
+
 extractAttrs (ClassData _ _ _ _ _ attrs _ _ _ _ _) = attrs
 extractOffsetAttrs (ClassData _ _ _ _ _ _ _ attrsOffset _ _ _) = attrsOffset
 

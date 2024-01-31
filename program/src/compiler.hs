@@ -309,6 +309,7 @@ numRegisterParams = 6
 endSuffix = "_END"
 functionLabel = ".L"
 stringLabel = "LS"
+vtablePrefix = "_vtable_for_"
 
 labelRegister = ARIP
 
@@ -331,9 +332,34 @@ getClassSizes cdata =
     in
         numInts*intBytes + numBools*boolBytes + numPtrs*strPointerBytes
 
+createAttrsOffset [] mapAttrs offset = (mapAttrs, offset)
+-- start from 8 - pointer to vtable
+createAttrsOffset ((attrType, attrName) : rest) mapAttrs offset = 
+    let
+        inserted = Map.insert attrName (attrType, offset) mapAttrs
+    in
+        createAttrsOffset rest inserted (offset + (getMemSize attrType))
+
+createVTableLabel cdata =
+    let
+        className = extractClassName cdata
+    in
+        vtablePrefix ++ className
+
+processSingleCdata cdata =
+    let
+        methodInfo = extractMethods cdata
+        mapped = map (\(val, offset) -> (val, offset*strPointerBytes)) methodInfo
+        (attrsOffsets, lastOffset) = createAttrsOffset (extractAttrs cdata) Map.empty strPointerBytes
+        vtableLabel = createVTableLabel cdata
+    in
+        ClassInfo {offsetMethod = mapped, offsetAttr = attrsOffsets, classSize = lastOffset, vtableAddr = (ProgLabel vtableLabel)}
+
 prepareClassInfo classDict =
     let
         classnameClassdata = Map.toList classDict
+        classData = map processSingleCdata classDict
+        vtable
         
 checkErr errm =
     case errm of
