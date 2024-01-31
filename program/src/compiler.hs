@@ -1471,6 +1471,12 @@ addVTables = do
 
         iterOverClassNameEmitVtableLabels listKeyLabels
 
+getClassInfo className = do
+    cdata <- gets (Map.lookup className . classInfo)
+    case cdata of
+        Nothing -> throwError $ "No data for class " ++ className
+        Just cinfo -> return cinfo
+
 
                                             -- HELPER END ---------END----------
 
@@ -2371,3 +2377,12 @@ genStmtsAsm ((QArrElem qvar@(QLoc ident elemType) arrVar elemNum) : rest) = do
     newRBPOffset <- allocVar r11Typed (getMemSize elemType)
 
     local (Map.insert ident (qvar, newRBPOffset)) (genStmtsAsm rest)
+
+-- classes
+genStmtsAsm ((QClass qvar@(QLoc name (ClassQ className))) : rest) = do
+    cdata <- getClassInfo className
+    let cSize = classSize cdata
+
+    let newCode = (QParam (IntQVal cSize)) : (QCall allocStruct 1) : rest
+
+    genStmtsAsm newCode
