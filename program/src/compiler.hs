@@ -24,6 +24,9 @@ import System.Directory
 import Data.Word
 import Data.Bits
 
+import Data.List (sortBy)
+import Data.Function (on)
+
 data AsmRegister = ARAX
     | AEAX
     | ARBP
@@ -355,12 +358,15 @@ processSingleCdata cdata =
     in
         ClassInfo {offsetMethod = mapped, offsetAttr = attrsOffsets, classSize = lastOffset, vtableAddr = (ProgLabel vtableLabel)}
 
-prepareClassInfo classDict =
-    let
-        classnameClassdata = Map.toList classDict
-        classData = map processSingleCdata classDict
-        vtable
-        
+prepareClassInfo classDict = Map.map processSingleCdata classDict
+
+prepareVTableLabels classDict =
+        let 
+            listValues = Map.elems classDict -- ((ClassMeth funcName type), offset)
+            sorted = sortBy (compare `on` snd) listValues -- offsets sorted
+        in
+            map (\((ClassMeth label rettype), offset) -> label) sorted
+
 checkErr errm =
     case errm of
         (Left mes) -> printError mes >> exitFailure
