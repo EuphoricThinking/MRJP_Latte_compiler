@@ -105,6 +105,8 @@ data Quad = QLabel String --FuncData
     | QAttr QVar Val String -- string -> the attribute name
     | QArrAss Val Val Val -- array elemNum elemVal
     | QArrElem QVar Val Val -- array ident elemNum
+    | QClass QVar
+    | QCallMethod QVar Val String Int
 
     deriving (Show)
 
@@ -133,6 +135,7 @@ genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadG
     -- in
             -- runwriterv $ runexcept $ evalstate (runreader p mapempty) s
 
+declareEmptyFuncBodiesWithRets :: [TopDef] -> QuadMonad ()
 declareEmptyFuncBodiesWithRets [] = return ()
 declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     let emptyBodyFunc = FuncData ident (getOrigQType rettype) [] 0 [] 0 [] 0 0
@@ -140,10 +143,10 @@ declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stm
 
     declareEmptyFuncBodiesWithRets rest
 
-declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock pos stmts)) : rest) = do
+declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock posB stmts)) : rest) = do
     let emptyBodyClass = ClassData ident 0 [] 0 0 Map.empty Map.empty 0 0 [] []
     insertToStoreNewClass ident emptyBodyClass
-    updCurClassName name
+    updCurClassName ident
 
     saveClassAttrsMethods ident stmts
 
@@ -156,13 +159,13 @@ updCurClassName name = do
     curState <- get
     put curState {curClassName = name}
 
-
+saveClassAttrsMethods :: String -> [ClassStmt] -> QuadMonad ()
 saveClassAttrsMethods _ [] = return ()
 
 saveClassAttrsMethods className ((ClassEmpty pos) :  rest) = saveClassAttrsMethods className rest
 
 saveClassAttrsMethods className ((ClassDecl pos attrType listOfItems) : rest) = do
-    declClassAttrs className attrType listOfItems
+    declClassAttrs attrType listOfItems
 
     saveClassAttrsMethods className rest
 
@@ -186,15 +189,15 @@ reverseMethsAttrs className = do
     let rMeth = reverseList meths []
     let rAttr = reverseList attrs []
 
-    let updMethData = updClassDataMethList rMeth
-    let updMethAttr = updClassDataAttrList updMethData
+    let updMethData = updClassDataMethList cdata rMeth
+    let updMethAttr = updClassDataAttrList updMethData rAttr
 
     updClassData className updMethAttr
 
 
 getClassData className = do
     classDataDict <- gets defClass
-    let classData = Map.lookup classDataDict className
+    let classData = Map.lookup className classDataDict
     case classData of
         Nothing -> throwError $ "No data in store for class " ++ className
         Just cdata -> return cdata
@@ -211,33 +214,47 @@ extractAttrList (ClassData name numInts stringList numPtrs numBools attrs meths 
 extractMethList (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = methList
 
 extractNumIntsClass (ClassData _ numInts _ _ _ _ _ _ _ _ _) = numInts
-extractNumPtrsClass (ClassData _ _ _ numPtrs _ _ _ _ _ _ _) = numStrs
+extractNumPtrsClass (ClassData _ _ _ numPtrs _ _ _ _ _ _ _) = numPtrs
 extractNumBools (ClassData _ _ _ _ numBools _ _ _ _ _ _) = numBools
 
+updNumClassPtrs :: String -> QuadMonad ()
 updNumClassPtrs className = do
     cdata <- getClassData className
     let newBody = updClassDataNumPtrs cdata
     updClassData className newBody
 
+updNumClassBools :: String -> QuadMonad ()
 updNumClassBools className = do
     cdata <- getClassData className
     let newBody = updClassNumBools cdata
     updClassData className newBody
 
+updNumClassInts :: String -> QuadMonad ()
 updNumClassInts className = do
     cdata <- getClassData className
     let newBody = updClassNumInts cdata
     updClassData className newBody
 
-updNumClassIntsCur = gets curClassName >>= updNumClassInts
-updNumClassBoolsCur = gets curClassName >>= updNumClassBools
-updNumClassPtrsCur = gets curClassName >>= updNumClassPtrs
+updNumClassIntsCur :: QuadMonad ()
+updNumClassIntsCur = do
+    name <- gets curClassName
+    updNumClassInts name
+
+updNumClassBoolsCur :: QuadMonad ()
+updNumClassBoolsCur = do
+    name <- gets curClassName
+    updNumClassBools name
+
+updNumClassPtrsCur :: QuadMonad ()
+updNumClassPtrsCur = do
+    name <- gets curClassName
+    updNumClassPtrs name
 
 reverseList [] acc = acc
 reverseList (x:xs) acc = reverseList xs (x:acc)
 
 
-updClassDataAttrsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) upd_Attrs upd_OffAttr atrName = (ClassData name numInts stringList numPtrs numBools upd_Attrs meths upd_OffAttr offMeths (attrName : attrList) methList)
+updClassDataAttrsBody (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) upd_Attrs upd_OffAttr attrName = (ClassData name numInts stringList numPtrs numBools upd_Attrs meths upd_OffAttr offMeths (attrName : attrList) methList)
 
 updClassDataMethList (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) new_MethList = (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList new_MethList)
 
@@ -253,24 +270,25 @@ updClassNumBools (ClassData name numInts stringList numPtrs numBools attrs meths
 
 getClassAttrs className = do
     cdata <- getClassData className
-    return extractAttrs cdata
+    return (extractAttrs cdata)
 
 getLastAttrOffset className = do
     cdata <- getClassData className
-    return extractOffsetAttrs cdata
+    return (extractOffsetAttrs cdata)
 
 getClassMethods className = do
     cdata <- getClassData className
-    return extractMethods cdata
+    return (extractMethods cdata)
 
 getClassMethLastOff className = do
     cdata <- getClassData className
-    return extractMethOffset cdata
+    return (extractMethOffset cdata)
 
 updClassData className cdata = do
-    curState <- gets
-    put curState (defClass = Map.insert className cdata (defClass curState))
+    curState <- get --s
+    put curState {defClass = Map.insert className cdata (defClass curState)}
 
+updateClassAttrs :: String -> String -> ValType -> QuadMonad ()
 updateClassAttrs className attrName attrType = do
     cdata <- getClassData className
     attrs <- getClassAttrs className
@@ -279,8 +297,8 @@ updateClassAttrs className attrName attrType = do
     let inserted = Map.insert attrName (attrType, lastOff) attrs
     let updCData = updClassDataAttrsBody cdata inserted (lastOff + 1) (attrType, attrName)
     
-    curState <- gets
-    put curState (defClass = Map.insert className updCData (defClass curState))
+    curState <- get --s
+    put curState {defClass = Map.insert className updCData (defClass curState)}
 
 createClassMethodLabel className methodName = do
     let defName = className ++ "_func_" ++ methodName
@@ -311,7 +329,9 @@ updateClassMethods className origName retType args = do
 
         Just (val, offset) -> do -- if it overwrites the class Method
             let inserted = Map.insert origName (methodVal, offset) meths
-            let updCData = updClassDataMethodsBody cdata inserted lastOff
+            let updCData = updClassDataMethodsBody cdata inserted lastOff methName
+
+            updClassData className updCData
 
 
 updateNumAttrs attrType className = do
@@ -320,6 +340,9 @@ updateNumAttrs attrType className = do
         BoolQ -> updNumClassBools className
         _ -> updNumClassPtrs className
 
+
+declClassAttrs :: Type -> [ClassItem] -> QuadMonad ()
+declClassAttrs _ [] = return ()
 
 declClassAttrs attrType ((CItem pos (Ident ident)) : rest) = do
     let attrTypeQ = getOrigQType attrType
@@ -330,8 +353,6 @@ declClassAttrs attrType ((CItem pos (Ident ident)) : rest) = do
 
     -- attrLoc <- alloc  no, that will be during evaluation, now only save names
     declClassAttrs attrType rest
-
-declClassAttrs _ [] = return ()
 
 
 runQuadGen :: Program -> QuadMonad (ValType, QStore)
@@ -506,10 +527,10 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
     insOneByOne rest
 
-insOneByOne ((ClassDef pos (Ident ident) (CBlock pos stmts)) : rest) = do
+insOneByOne ((ClassDef pos (Ident ident) (CBlock posB stmts)) : rest) = do
     updCurClassName ident
 
-    curEnv <- asks
+    curEnv <- ask --s
     local (const curEnv) (genClassMethods stmts)
 
     updCurClassName ""
@@ -517,12 +538,12 @@ insOneByOne ((ClassDef pos (Ident ident) (CBlock pos stmts)) : rest) = do
     insOneByOne rest
 
 saveAttrsToEnv attrType [] = do
-    curEnv <- curEnv
+    curEnv <- ask --curEnv
     return curEnv
 
 saveAttrsToEnv attrType ((CItem pos (Ident ident)) : rest) = do
     attrLoc <- alloc
-    insertToStoreNewIdentVal ident attrType loc -- check whether does not duplicate
+    insertToStoreNewIdentVal ident attrType attrLoc -- check whether does not duplicate
 
     local (Map.insert ident attrLoc) (saveAttrsToEnv attrType rest)
 
@@ -531,12 +552,12 @@ genClassMethods [] = return ()
 
 genClassMethods ((ClassEmpty pos) : rest) = genClassMethods rest
 
-genClassMethods ((ClassDecl pos attrType listOfItems) : rest) qcode = do
-    envWithAttrs <- saveAttrsToEnv (getOrigQType attrType) listOfItems
+genClassMethods ((ClassDecl pos attrType listOfItems) : rest) = do
+    envWithAttrs <- saveAttrsToEnv (Attr (getOrigQType attrType)) listOfItems
 
     local (const envWithAttrs) (genClassMethods rest)
 
-genClassMethods ((ClassMethod pos retType (Ident ident) args (CBlock pos stmts)) : rest) = do
+genClassMethods ((ClassMethod pos retType (Ident ident) args (Blk posB stmts)) : rest) = do
     curClass <- gets curClassName
     let methodName = getLabelClassMethod curClass ident
     let selfArg = (Ar defaultPos (Class defaultPos (Ident curClass)) (Ident selfClassPtr))
@@ -1361,7 +1382,7 @@ genQExpr (EApp pos (Ident ident) exprList) isParam = do
             mbody <- gets (Map.lookup methName . defFunc)
             case mbody of
                 Nothing -> throwError $ ident ++ " function call error: no such method in class " ++ curClass  -- if class -> get classLabel
-                Just mdata -> do
+                Just appliedFuncData -> do
                     let newExprlist = (EVar defaultPos (Ident selfClassPtr)) : exprList
                     applyFunction appliedFuncData methName newExprlist updCode isParam depth
 
