@@ -77,7 +77,7 @@ data ParamIndicator = JustLocal | Param String deriving (Show)
 data Quad = QLabel String --FuncData
     -- add special funcs
     | QRet Val
-    | QFunc FuncData
+    | QFunc String FuncData
     | QAss QVar Val
     | QParam Val
     | QCall QVar String Int
@@ -496,7 +496,7 @@ applyFunction appliedFuncData ident exprList updCode isParam depth = do
     newTmpName <- createTempVarName ident -- move decl depending on param
     callFuncParamOrLocal ident newTmpName retType exprList updCode isParam depth
 
-processSingleFunction ident args rettype stmts = do
+processSingleFunction ident args rettype stmts classIdent = do
     env <- ask
     (envWithParams, numInts, numStrs, numBools) <- local (const env) (saveArgsToEnv args 0 0 0)
 
@@ -513,7 +513,7 @@ processSingleFunction ident args rettype stmts = do
     newFullFunc <- updateCurFuncBody funcBody
     --newFullFunc <- local (const curEnv) (updateCurFuncBody funcBody)
 
-    tell $ [QFunc newFullFunc]
+    tell $ [QFunc classIdent newFullFunc]
 
 insOneByOne :: [TopDef] -> QuadMonad QStore
 insOneByOne [] = do
@@ -526,7 +526,7 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
     -- curState <- get
     -- curFName <- gets curFuncName
     --print (show curFName
-    processSingleFunction ident args (getOrigQType rettype) stmts
+    processSingleFunction ident args (getOrigQType rettype) stmts ""
     
 
     insOneByOne rest
@@ -566,7 +566,7 @@ genClassMethods ((ClassMethod pos retType (Ident ident) args (Blk posB stmts)) :
     let methodName = getLabelClassMethod curClass ident
     let selfArg = (Ar defaultPos (Class defaultPos (Ident curClass)) (Ident selfClassPtr))
 
-    processSingleFunction methodName (selfArg : args) (getOrigQType retType) stmts
+    processSingleFunction methodName (selfArg : args) (getOrigQType retType) stmts curClass
 
     genClassMethods rest
 

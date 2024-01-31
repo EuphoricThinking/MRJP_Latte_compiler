@@ -260,12 +260,13 @@ instance Show AsmRegister where
 
     -- ah:al in eax
 
-data StoragePlace = OffsetRBP Int | Register AsmRegister | ProgLabel String
+data StoragePlace = OffsetRBP Int | Register AsmRegister | ProgLabel String | OffsetClass Int
 
 instance Show StoragePlace where
     show (OffsetRBP i) = show i
     show (Register reg) = show reg
     show (ProgLabel l) = l
+    show (OffsetClass i) = show i
 
 type AsmCode = [Asm]
 
@@ -294,7 +295,8 @@ data AStore = AStore {
     curRSP :: Int,
     strLabelsCounter :: Int,
     labelsCounter :: Int,
-    classInfo :: Map.Map String ClassInfo
+    classInfo :: Map.Map String ClassInfo,
+    curClassNameAsm :: String
     -- strLabels :: Map.Map VarLabel StrProgLabel
 } deriving (Show)
 
@@ -329,7 +331,7 @@ extractAsmCode (Right (_, acode)) = acode
 
 -- prepareAsmStore :: Either String Store -> AStore
 prepareAsmStore qdata = AStore {curFuncNameAsm = "",
-funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0, strLabelsCounter = 0, labelsCounter = 0, classInfo = (prepareClassInfo (defClass qdata))} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
+funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0, strLabelsCounter = 0, labelsCounter = 0, classInfo = (prepareClassInfo (defClass qdata)), curClassNameAsm = ""} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
 
 getClassSizes cdata =
     let
@@ -586,6 +588,10 @@ subLocals numLoc f@(FuncData name retType args locNum body numInts strVars strVa
 updateCurFuncNameAsm name = do
     curState <- get
     put curState {curFuncNameAsm = name}
+
+updateCurClassNameAsm className = do
+    curState <- get
+    put curState {curClassNameAsm = className}
 
 isIntQ IntQ = True
 isIntQ _ = False
@@ -1048,7 +1054,7 @@ iterOverAllFuncs [] = do
     env <- ask
     return env
 
-iterOverAllFuncs ((QFunc finfo@(FuncData name retType args locNum body numInts strVars strVarsNum numBools)) : rest) = do
+iterOverAllFuncs ((QFunc className finfo@(FuncData name retType args locNum body numInts strVars strVarsNum numBools)) : rest) = do
     let args = getFuncStringList finfo
 
     env <- saveStrLiteralsInDataSec args
@@ -1068,7 +1074,7 @@ prepareDataSect funcs = do
 
 clearCurFuncParams = do
     curState <- get
-    put curState {lastAddrRBP = 0, curRSP = 0}
+    put curState {lastAddrRBP = 0, curRSP = 0, curClassNameAsm = ""}
 
 isOffset offset =
     case offset of
@@ -1100,7 +1106,14 @@ findAddr :: Val -> AsmMonad StoragePlace
 findAddr v@(LocQVal ident _) = do
     idData <- asks (Map.lookup ident)
     case idData of
-        Nothing -> throwError $ ident ++ " var not found for address determination"
+        Nothing -> do--throwError $ ident ++ " var not found for address determination"
+            cname <- gets curClassNameAsm
+            case cname of
+                "" -> throwError $ ident ++ " var not found for address determination"
+                className -> do
+                    (valTypeAttr, offset) <- getClassAttrsInf ident className
+                    return (OffsetClass offset)
+
         Just (_, memStorage) -> return memStorage
 
 
@@ -1489,6 +1502,14 @@ getClassMethodInf methodName cdata = do
         Nothing -> throwError $ "No such method: " ++ methodName ++ " for a class"
         Just (val, offset) -> return offset
 
+getClassAttrsInf attrname className = do
+    cdata <- getClassInfo className
+    let attrs = offsetAttr cdata
+    let attrData = Map.lookup attrname attrs
+    case attrData of
+        Nothing -> throwError $ "No such attribute: " ++ attrname ++ " for a class " ++ className
+        Just adata -> return adata
+
 
 
                                             -- HELPER END ---------END----------
@@ -1528,7 +1549,7 @@ runGenAsm q = do--return BoolT
 genFuncsAsm :: QuadCode -> AsmMonad ()
 genFuncsAsm [] = return ()
 
-genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVars strVarsNum numBools)) : rest) = do
+genFuncsAsm ((QFunc className finfo@(FuncData name retType args locNum body numInts strVars strVarsNum numBools)) : rest) = do
     -- env <- ask
     -- strEnv <- local (const env) (createStrLiteralLabels strVars)
 
@@ -1544,6 +1565,7 @@ genFuncsAsm ((QFunc finfo@(FuncData name retType args locNum body numInts strVar
 
     subLocals locNum finfo
     updateCurFuncNameAsm name
+    updateCurClassNameAsm className
 
     st <- get
     -- printMesA "curs"
