@@ -117,6 +117,8 @@ printInt = "printInt"
 exprInfix = "_expr_"
 concatStr = "___concatenateStrings"
 allocArr = "___allocArray"
+allocStruct = "___allocStructClass"
+
 arrLenIdent = "length"
 selfClassPtr = "self"
 
@@ -1542,6 +1544,18 @@ genQExpr (EArrEl pos exprVar exprElemNum) isParam = do
     return ((LocQVal resTempName arrType), newCode, (max depthVar depthNum) + 1)
 
 -- classes
+-- a new class
+genQExpr (EClass pos (Class posC (Ident className))) isParam = do
+    addToSpecialUncond allocStruct
+    updateLocalNumCur
+    increaseStringVarsNum
+
+    resTempName <- createTempVarNameCurFuncExprs
+    let classType = ClassQ className
+    let locVar = QLoc resTempName classType
+
+    return ((LocQVal resTempName classType), [QClass locVar], 1)
+
 genQExpr (EMethod pos exprClass (Ident methodName) exprList) isParam = do
     (valClass, codeClass, depthClass) <- genQExpr exprClass isParam
     (updCode, depth) <- genParamCodeForExprList exprList isParam

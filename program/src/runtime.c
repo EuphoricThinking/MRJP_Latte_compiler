@@ -61,3 +61,10 @@ arr* ___allocArray(size_t elemSize, int numElems) {
 
     return newArr;
 }
+
+void* ___allocStructClass(size_t memSize) {
+        if (memSize == 0)
+            return NULL;
+        else
+            return malloc(memSize);
+}
