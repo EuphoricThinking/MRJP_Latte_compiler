@@ -271,6 +271,13 @@ type AsmMonad a = ReaderT AsmEnv (StateT AStore (ExceptT String (WriterT AsmCode
 type StrProgLabel = String
 type VarLabel = String
 
+data ClassInfo = ClassInfo {
+    offsetMethod :: Map.Map String (Val, Int),  -- className : ((ClassMeth label retType), offset_vtable)
+    offsetAttr :: Map.Map String (ValType, Int), -- attrName : (valtype, offset)
+    classSize :: Int,
+    vtableAddr :: StoragePlace
+} deriving (Show)
+
 data AStore = AStore {
     -- storeA :: Map.Map Loc
     curFuncNameAsm :: String,
@@ -279,7 +286,8 @@ data AStore = AStore {
     specialFuncExt :: [String],
     curRSP :: Int,
     strLabelsCounter :: Int,
-    labelsCounter :: Int
+    labelsCounter :: Int,
+    classInfo :: ClassInfo
     -- strLabels :: Map.Map VarLabel StrProgLabel
 } deriving (Show)
 
@@ -312,8 +320,10 @@ extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
 
 -- prepareAsmStore :: Either String Store -> AStore
-prepareAsmStore qdata = AStore {curFuncNameAsm = "",
-funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0, strLabelsCounter = 0, labelsCounter = 0} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
+prepareAsmStore qdata cdata = AStore {curFuncNameAsm = "",
+funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0, strLabelsCounter = 0, labelsCounter = 0, classInfo = cdata} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
+
+prepareClassInfo classDict =
 
 checkErr errm =
     case errm of
