@@ -216,7 +216,7 @@ instance Show Asm where
     show (ASETLE s) = "\tsetle " ++ s
     show (ASETGE s) = "\tsetge " ++ s
     show (AOr op1 op2) = "\tor " ++ op1 ++ ", " ++ op2
-    show (AQuad l) = "\t.quad " ++ l
+    show (AQuad l) = "\tdq " ++ l
     show SectRodata = "section .rodata"
 
 instance Show AsmRegister where
