@@ -359,8 +359,8 @@ createVTableLabel cdata =
 processSingleCdata cdata =
     let
         methodInfo = extractMethods cdata -- mathname : (nameRet, offset)
-        mapped = map (\(val, offset) -> (val, offset*strPointerBytes)) methodInfo -- mathname : (nameRet, offset*8)
-        (attrsOffsets, lastOffset) = createAttrsOffset (extractAttrs cdata) Map.empty strPointerBytes -- attrName : (attrtype, offset)
+        mapped = Map.map (\(val, offset) -> (val, offset*strPointerBytes)) methodInfo -- mathname : (nameRet, offset*8)
+        (attrsOffsets, lastOffset) = createAttrsOffset (extractAttrList cdata) Map.empty strPointerBytes -- attrName : (attrtype, offset)
         vtableLabel = createVTableLabel cdata -- vtableName
     in
         ClassInfo {offsetMethod = mapped, offsetAttr = attrsOffsets, classSize = lastOffset, vtableAddr = (ProgLabel vtableLabel)}
