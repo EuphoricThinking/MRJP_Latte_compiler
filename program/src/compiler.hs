@@ -290,7 +290,7 @@ data AStore = AStore {
     curRSP :: Int,
     strLabelsCounter :: Int,
     labelsCounter :: Int,
-    classInfo :: ClassInfo
+    classInfo :: Map.Map String ClassInfo
     -- strLabels :: Map.Map VarLabel StrProgLabel
 } deriving (Show)
 
@@ -351,22 +351,25 @@ createVTableLabel cdata =
 
 processSingleCdata cdata =
     let
-        methodInfo = extractMethods cdata
-        mapped = map (\(val, offset) -> (val, offset*strPointerBytes)) methodInfo
-        (attrsOffsets, lastOffset) = createAttrsOffset (extractAttrs cdata) Map.empty strPointerBytes
-        vtableLabel = createVTableLabel cdata
+        methodInfo = extractMethods cdata -- mathname : (nameRet, offset)
+        mapped = map (\(val, offset) -> (val, offset*strPointerBytes)) methodInfo -- mathname : (nameRet, offset*8)
+        (attrsOffsets, lastOffset) = createAttrsOffset (extractAttrs cdata) Map.empty strPointerBytes -- attrName : (attrtype, offset)
+        vtableLabel = createVTableLabel cdata -- vtableName
     in
         ClassInfo {offsetMethod = mapped, offsetAttr = attrsOffsets, classSize = lastOffset, vtableAddr = (ProgLabel vtableLabel)}
 
+-- classname : classdata -> className : classInfo
 prepareClassInfo classDict = Map.map processSingleCdata classDict
 
-prepareVTableLabelOrdered classDict =
+prepareVTableLabelOrdered cdata =
         let 
-            listValues = Map.elems classDict -- ((ClassMeth funcName type), offset)
+            meths = extractMethods cdata
+            listValues = Map.elems meths -- name: ((ClassMeth funcName type), offset)
             sorted = sortBy (compare `on` snd) listValues -- offsets sorted
         in
             map (\((ClassMeth label rettype), offset) -> label) sorted
 
+-- classname : classinfo -> className : listVtableFuncs
 prepareVTablePerClass classDict = Map.map prepareVTableLabelOrdered classDict
 
 checkErr errm =
