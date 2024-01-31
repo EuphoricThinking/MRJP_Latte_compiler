@@ -571,7 +571,10 @@ genClassMethods ((ClassMethod pos retType (Ident ident) args (Blk posB stmts)) :
 
     genClassMethods rest
 
-getVarClassName (LocQVal ident (ClassQ className)) = className
+getClassNameFromvtype (ClassQ name) = name
+getClassNameFromvtype (AttrQ (ClassQ name)) = name
+
+getVarClassName (LocQVal ident val) = getClassNameFromvtype val
 
 getMethodRet className methName = do
     meths <- getClassMethods className
@@ -692,6 +695,7 @@ increaseNumLocTypesCur exprVal = do
                     put curState {defFunc = Map.insert fname updatedNumInts (defFunc curState)}
 
                 t@(LocQVal tmpName retType) -> do
+                    printMesQ $ "inc loc " ++ (show t)
                     case retType of
                         IntQ -> do 
                             -- updateLocalNumCur
@@ -711,6 +715,11 @@ increaseNumLocTypesCur exprVal = do
                         (ArrayQ _) -> do
                             updateStringVarsNum fname curBody -- should be in a new array generation
                             return ()
+
+                        _ -> do
+                            increaseStringVarsNum -- should be in a new array generation
+                            return ()
+
 
 
 
@@ -1601,6 +1610,7 @@ genQExpr (EMethod pos exprClass (Ident methodName) exprList) isParam = do
     
     resTempName <- createTempVarNameCurFuncExprs
 
+    printMesQ $ "getvar " ++ (show valClass)
     let className = getVarClassName valClass
     methRet <- getMethodRet className methodName
 

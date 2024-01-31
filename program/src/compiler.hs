@@ -359,16 +359,18 @@ initAttrsList reg addr [] = return ()
 initAttrsList reg addr ((attrName, (valType, offset)) : rest) = do
     -- tell $ [AMov (show AR11) (createAddrPtrRBP addr)]
     -- tell $ [AAdd (show AR11) (show offset)]
+    let addr = createLeaAddr reg True offset
 
     case valType of
         BoolQ -> do
             tell $ [AXor (show AAL) (show AAL)]
             -- tell $ [AMov ("byte " ++ (getValAtAddrInReg AR11)) (show AAL)]
-            tell $ [AMov ("byte " ++ (createLeaAddr reg True offset)) (show AAL)]
+            tell $ [AMov ("byte " ++ addr) (show AAL)]
         IntQ -> do
             --tell $ [AMov ("dword " ++ (getValAtAddrInReg AR11)) (show 0)]
-            tell $ [AMov ("dword " ++ (createLeaAddr reg True offset)) (show 0)]
-        --_ -> do
+            tell $ [AMov ("dword " ++ addr) (show 0)]
+        StringQ -> do
+            tell $ [AMov ("qword " ++ addr) ""]
     initAttrsList reg addr rest
 
 initAttrVals reg addr className = do
@@ -660,6 +662,8 @@ createAddrBoolRBP memStorage =
         Register reg -> show reg
 
 
+
+
 -- arrays 
 createLengthArrAddr arrStorage = 
     case arrStorage of
@@ -700,6 +704,19 @@ getAddrInRegTyped reg typeVal =
         IntQ -> "dword " ++ (getValAtAddrInReg reg)
         BoolQ -> "byte " ++ (getValAtAddrInReg reg)
         _ -> "qword " ++ (getValAtAddrInReg reg)
+
+getAddrInRegTypedOffsetted reg typeVal offset =
+    if offset == 0
+    then
+        getAddrInRegTyped reg typeVal
+    else
+        let
+            addr = createLeaAddr reg True offset
+        in
+            case typeVal of
+            IntQ -> "dword " ++ addr
+            BoolQ -> "byte " ++ addr
+            _ -> "qword " ++ addr
 
 getArrElemOffset arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum = do
     case elemNum of
@@ -1159,6 +1176,11 @@ extractLocQvarId (LocQVal id _) = id
 extractLocQvarType (LocQVal _ t) = t
 
 extractLocQvarClassName (LocQVal _ (ClassQ className)) = className
+
+-- loadAttrAddr attrName className = do
+--     (valTypeAttr, offset) <- getClassAttrsInf attrName className
+--     te
+
 
 findClassOffset ident = do
     cname <- gets curClassNameAsm
@@ -1757,7 +1779,51 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
     -- printMesA $ "id qass " ++ (show id) ++ " " ++ (show rest)
 
     case id of
-        Nothing -> throwError $ "Assignment to undeclared var in asm: " ++ name
+        Nothing -> do
+            cname <- gets curClassNameAsm
+            -- case cname of
+            --     Nothing -> throwError $ "Assignment to undeclared var in asm: " ++ name
+            --     className -> do
+            (valTypeAttr, offset) <- getClassAttrsInf name cname
+            let addr = getAddrInRegTypedOffsetted AR10 valTypeAttr offset
+            case val of
+                (IntQVal v) -> tell $ [AMov addr (show v)]
+                (StrQVal s) -> do
+                    fndLbl <- asks (Map.lookup s)
+                    case fndLbl of
+                        Nothing -> throwError $ "No found label for " ++ s
+                        Just (_, lbl) ->
+                            tell $ [AMov addr (show lbl)]
+                (BoolQVal b) -> tell $ [AMov addr (show b)]
+                (LocQVal ident valType) -> do
+                    valStorage <- asks (Map.lookup ident)
+                    case valStorage of
+                        Nothing -> throwError $ ident ++ " var to be assigned not in env"
+                        Just (varFromAssigned, storageR) -> do
+                            if isOffset storageR
+                            then do
+                                if isIntQ valType --is32bit valType
+                                then do
+                                    tell $ [AMov (show AR11D) (createAddrIntRBP storageR)]
+                                    tell $ [AMov addr (show AR11D)]
+                                else if isBoolQ valType then do --do
+                                    tell $ [AMovZX (show AR11D) (createAddrBoolRBP storageR)]
+                                    tell $ [AMov addr (show AR11B)]
+                                else do --if isString valType then do
+                                    tell $ [AMov (show AR11) (createAddrPtrRBP storageR)]
+                                    tell $ [AMov addr (show AR11)]
+                            else do
+                                tell $ [AMov addr (show storageR)]
+                                        -- if isIntQ valType--is32bit valType
+                                        -- then
+                                        --     tell $ [AMov addr (show storageR)]
+                                        -- else if isBoolQ valType then do
+                                        --     tell $ [AMov addr (show storageR)] -- TODO fix this --> different types of registers
+                                        -- else do --if isString valType then
+                                        --     tell $ [AMov addr (show storageR)]
+
+
+
         Just (var, memStorageL) -> do
 
             -- at this moment the variables are stored only in memory
