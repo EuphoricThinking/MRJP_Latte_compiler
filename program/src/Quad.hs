@@ -45,7 +45,7 @@ data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show
 -- | QLTH QVar Val Val -- less than, a < b
 -- | QLE QVar Val Val -- less or equal, a <= b
 
-data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool | Attr ValType | ClassMeth LabelCustom RetType --[Arg]
+data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool | Attr ValType | ClassMeth LabelCustom RetType | ClassQObj String --[Arg]
              deriving (Eq, Show)
 
 type SizeLocals = Int
@@ -443,6 +443,7 @@ getArgData (Ar _ (Int _) (Ident ident)) = ArgData ident IntQ
 getArgData (Ar _ (Bool _) (Ident ident)) = ArgData ident BoolQ
 getArgData (Ar _ (Str _) (Ident ident)) = ArgData ident StringQ
 getArgData (Ar _ a@(Array _ t) (Ident ident)) = ArgData ident (getOrigQType a)
+getArgData (Ar _ (Class _ (Ident className)) (Ident ident)) = ArgData ident (ClassQ className)
 
 
 updArgsNum numInts numStrs numBools valType =
@@ -500,6 +501,7 @@ processSingleFunction ident args rettype stmts = do
     (envWithParams, numInts, numStrs, numBools) <- local (const env) (saveArgsToEnv args 0 0 0)
 
     -- let newFuncData = FuncData ident (getOrigQType rettype) (map getArgData args) 0 [] 0 [] 0
+    printMesQ $ "args " ++ ident ++ " " ++ (show args)
     let newFuncData = FuncData ident rettype (map getArgData args) (numInts + numStrs) [] numInts [] numStrs numBools -- (getOrigQType rettype)
 
     insertToStoreNewFunc ident newFuncData
@@ -738,6 +740,9 @@ increaseNumLocTypesCur exprVal = do
 
                     increaseBoolsNum fname curBody
 
+                _ -> do
+                    increaseStringVarsNum
+
 updateLocalNumCur = do
     --update locals counter
     curFName <- gets curFuncName
@@ -783,9 +788,11 @@ evalDecl declType ((Init posIn (Ident ident) expr) : rest) qcode = do
             local (Map.insert ident newLoc) (evalDecl declType rest codeWithAsgn) -- newName changed to ident
 
 evalDecl declType ((NoInit posIn (Ident ident)) : rest) qcode = do
+    printMesQ $ show declType
     case declType of
         (Int _) -> evalDecl declType ((Init posIn (Ident ident) (ELitInt posIn 0)) : rest) qcode
         (Str _) -> evalDecl declType ((Init posIn (Ident ident) (EString posIn "")) : rest) qcode
+        ctype@(Class pos id) -> evalDecl declType ((Init posIn (Ident ident) (ENull pos ctype)) : rest) qcode
 
 specialFuncsList = ["printInt", "printString", "error", "readInt", "readString", concatStr, allocArr]
 isSpecialFuncQ fname = checkIfAnyNameFromList specialFuncsList fname
@@ -1596,6 +1603,10 @@ genQExpr (EMethod pos exprClass (Ident methodName) exprList) isParam = do
     let newCode = codeClass ++ updCode ++ [QCallMethod locVal valClass methodName ((length exprList) + 1)]
 
     return ((LocQVal resTempName methRet), newCode, (max depth depthClass) + 1)
+
+genQExpr (ENull pos objType) _ =
+    case objType of
+        (Class pos (Ident ident)) -> return ((ClassQObj ident), [], 1)
 
 
     -- let methName = getLabelClassMethod className methodName
