@@ -120,6 +120,8 @@ data Asm = AGlobl
     | ASETLE String
     | ASETGE String
     | AOr String String
+    | AQuad String
+    | SectRodata
 
 -- push rbp := sub rsp, 8 \ mov [rsp], rbp
 --
@@ -209,6 +211,8 @@ instance Show Asm where
     show (ASETLE s) = "\tsetle " ++ s
     show (ASETGE s) = "\tsetge " ++ s
     show (AOr op1 op2) = "\tor " ++ op1 ++ ", " ++ op2
+    show (AQuad l) = "\t.quad " ++ l
+    show SectRodata = "section .rodata"
 
 instance Show AsmRegister where
     show ARAX = "rax"
@@ -324,8 +328,8 @@ extractQStore (Right (_, qstore)) = qstore
 extractAsmCode (Right (_, acode)) = acode
 
 -- prepareAsmStore :: Either String Store -> AStore
-prepareAsmStore qdata cdata = AStore {curFuncNameAsm = "",
-funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0, strLabelsCounter = 0, labelsCounter = 0, classInfo = cdata} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
+prepareAsmStore qdata = AStore {curFuncNameAsm = "",
+funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0, strLabelsCounter = 0, labelsCounter = 0, classInfo = (prepareClassInfo (defClass qdata))} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
 
 getClassSizes cdata =
     let
@@ -343,11 +347,14 @@ createAttrsOffset ((attrType, attrName) : rest) mapAttrs offset =
     in
         createAttrsOffset rest inserted (offset + (getMemSize attrType))
 
+rawLabelVTableForClass classname = vtablePrefix ++ classname
+
 createVTableLabel cdata =
     let
         className = extractClassName cdata
     in
-        vtablePrefix ++ className
+        --vtablePrefix ++ className
+        rawLabelVTableForClass className
 
 processSingleCdata cdata =
     let
@@ -359,7 +366,12 @@ processSingleCdata cdata =
         ClassInfo {offsetMethod = mapped, offsetAttr = attrsOffsets, classSize = lastOffset, vtableAddr = (ProgLabel vtableLabel)}
 
 -- classname : classdata -> className : classInfo
-prepareClassInfo classDict = Map.map processSingleCdata classDict
+prepareClassInfo classDict = 
+    if Map.null classDict
+    then
+        Map.empty
+    else
+        Map.map processSingleCdata classDict
 
 prepareVTableLabelOrdered cdata =
         let 
@@ -371,6 +383,14 @@ prepareVTableLabelOrdered cdata =
 
 -- classname : classinfo -> className : listVtableFuncs
 prepareVTablePerClass classDict = Map.map prepareVTableLabelOrdered classDict
+
+prepareVTablesFromClassInfo classInfoM =
+    let 
+        meths = (offsetMethod classInfoM)
+        listValues = Map.elems meths
+        sorted = sortBy (compare `on` snd) listValues
+    in
+        map (\((ClassMeth label rettype), offset) -> label) sorted
 
 checkErr errm =
     case errm of
@@ -1419,13 +1439,54 @@ boolOnlyMovAndOr showed1 showed2 mode = do
         QAND -> tell $ [AAnd (show AR11B) showed2]
         QOR -> tell $ [AOr (show AR11B) showed2]
 
+
+emitMethodLabels [] = tell $ [ASpace]
+
+emitMethodLabels (label : rest) = do
+    tell $ [AQuad label]
+    emitMethodLabels rest
+
+iterOverClassNameEmitVtableLabels [] = tell $ [ASpace]
+
+iterOverClassNameEmitVtableLabels ((className, methodLabels) : rest) = do
+    let vtableLabel = rawLabelVTableForClass className
+    tell $ [ALabel vtableLabel]
+
+    emitMethodLabels methodLabels
+
+    iterOverClassNameEmitVtableLabels rest
+
+
+
+addVTables = do
+    classInfoM <- gets classInfo
+
+    if Map.null classInfoM
+    then
+        return ()
+    else do
+        -- classInfo -> className : curLabels (according to sorted indices)
+        let vtablesPerClass = Map.map prepareVTablesFromClassInfo classInfoM
+        let listKeyLabels = Map.toList vtablesPerClass
+
+        iterOverClassNameEmitVtableLabels listKeyLabels
+
+
                                             -- HELPER END ---------END----------
+
+
+
+
+
+
 
 runGenAsm :: QuadCode -> AsmMonad Value
 runGenAsm q = do--return BoolT
     tell $ [ANoExecStack]
 
     asmEnv <- prepareDataSect q
+
+    addVTables
 
     tell $ [SectText]
     tell $ [AGlobl] 
