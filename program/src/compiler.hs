@@ -360,12 +360,14 @@ processSingleCdata cdata =
 
 prepareClassInfo classDict = Map.map processSingleCdata classDict
 
-prepareVTableLabels classDict =
+prepareVTableLabelOrdered classDict =
         let 
             listValues = Map.elems classDict -- ((ClassMeth funcName type), offset)
             sorted = sortBy (compare `on` snd) listValues -- offsets sorted
         in
             map (\((ClassMeth label rettype), offset) -> label) sorted
+
+prepareVTablePerClass classDict = Map.map prepareVTableLabelOrdered classDict
 
 checkErr errm =
     case errm of
