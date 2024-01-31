@@ -2408,7 +2408,7 @@ genStmtsAsm ((QCallMethod qvar@(QLoc resName methRetType) valClass methodName nu
     tell $ [AMov (show AR11) (createMemAddr classObjAddr classType)] -- get obj adds
     tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get vtable addr
 
-    cdata <- getClassInfo classname
+    cdata <- getClassInfo className
     methodOffset <- getClassMethodInf methodName cdata
 
     tell $ [AAdd (show AR11) (show methodOffset)] -- get method address in vtable
