@@ -1092,6 +1092,10 @@ extractBoolVal (BoolQVal b) = b
 
 extractLocQvarId (LocQVal id _) = id
 
+extractLocQvarType (LocQVal _ t) = t
+
+extractLocQvarClassName (LocQVal _ (ClassQ className)) = className
+
 findAddr :: Val -> AsmMonad StoragePlace
 findAddr v@(LocQVal ident _) = do
     idData <- asks (Map.lookup ident)
@@ -1131,6 +1135,7 @@ createMemAddr memStorage locType =
                 StringQ -> "qword " ++ (createRelAddrRBP offset)
                 BoolQ -> "byte " ++ (createRelAddrRBP offset)
                 (ArrayQ _) -> "qword " ++ (createRelAddrRBP offset)
+                _ -> "qword " ++ (createRelAddrRBP offset)
 
         Register reg -> show reg
         ProgLabel l -> l
@@ -1476,6 +1481,14 @@ getClassInfo className = do
     case cdata of
         Nothing -> throwError $ "No data for class " ++ className
         Just cinfo -> return cinfo
+
+getClassMethodInf methodName cdata = do
+    let methods = offsetMethod cdata
+    let methData = Map.lookup methodName methods
+    case methData of
+        Nothing -> throwError $ "No such method: " ++ methodName ++ " for a class"
+        Just (val, offset) -> return offset
+
 
 
                                             -- HELPER END ---------END----------
@@ -2383,6 +2396,23 @@ genStmtsAsm ((QClass qvar@(QLoc name (ClassQ className))) : rest) = do
     cdata <- getClassInfo className
     let cSize = classSize cdata
 
-    let newCode = (QParam (IntQVal cSize)) : (QCall allocStruct 1) : rest
+    let newCode = (QParam (IntQVal cSize)) : (QCall qvar allocStruct 1) : rest
+
+    genStmtsAsm newCode
+
+genStmtsAsm ((QCallMethod qvar@(QLoc resName methRetType) valClass methodName numArgs) : rest) = do
+    classObjAddr <- findAddr valClass
+    let classType = extractLocQvarType valClass
+    let className = extractLocQvarClassName valClass
+
+    tell $ [AMov (show AR11) (createMemAddr classObjAddr classType)] -- get obj adds
+    tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get vtable addr
+
+    cdata <- getClassInfo classname
+    methodOffset <- getClassMethodInf methodName cdata
+
+    tell $ [AAdd (show AR11) (show methodOffset)] -- get method address in vtable
+
+    let newCode = (QCall qvar (show AR11) numArgs) : rest
 
     genStmtsAsm newCode

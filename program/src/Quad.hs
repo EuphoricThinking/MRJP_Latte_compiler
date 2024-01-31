@@ -19,6 +19,7 @@ import System.Exit
 
 -- POSSIBLE UPGRADE TO SSA (NEW LABELS): countLabels not empited, args are not mapped, but the list is iterated over
 
+
 --type Loc = Int
 --type Env = Map.Map String Loc -- ident, location
 type LabelCustom = String
@@ -367,6 +368,7 @@ getOrigQType (Str _) = StringQ
 getOrigQType (Void _) = VoidQ
 getOrigQType (Bool _) = BoolQ
 getOrigQType (Array _ t) = ArrayQ (getOrigQType t)
+getOrigQType (Class _ (Ident ident)) = ClassQ ident
 
 alloc :: QuadMonad Loc
 alloc = do
