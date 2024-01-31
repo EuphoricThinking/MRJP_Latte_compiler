@@ -915,6 +915,8 @@ getValType val =
         (ParamQVal _ vtype) -> vtype
         (StrQVal _) -> StringQ
         (BoolQVal _) -> BoolQ
+        (ClassQObj ident) -> ClassQ ident
+        (Attr vtype) -> vtype
 
 isArray (ArrayQ _) = True
 isArray _ = False
@@ -1186,6 +1188,7 @@ genQStmt ((Ass pos (Ident ident) expr) : rest) qcode = do
             case curLabelVal of
                 Nothing -> throwError $ ident ++ "unassigned value"
                 Just (curLabel, oldVal) -> do
+                    printMesQ $ "ass " ++ (show val)
                     let updCode = qcode ++ exprCode ++ [QAss (QLoc curLabel (getValType val)) val]
                     newLoc <- alloc
                     -- insertToStoreNewIdentVal ident val newLoc
@@ -1407,6 +1410,7 @@ genQExpr v@(EVar pos (Ident ident)) isParam = do
                 Just (curName, val) ->
                     case isParam of
                         JustLocal -> do
+                            printMesQ $ "evar " ++ (show val)
                             let locVal = LocQVal curName (getValType val)
                             return (locVal, [], 0)
                         Param fname -> do
@@ -1547,6 +1551,7 @@ genQExpr (EAttr pos expr (Ident attrName)) isParam = do
     -- printMesQ (show val)
 
     -- return ((LocQVal resTempName IntQ), [], depth + 1)
+    printMesQ $ "eattr " ++ (show val)
     if isArray (getValType val)
     then do
         let locVal = QLoc resTempName IntQ

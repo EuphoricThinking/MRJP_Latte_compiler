@@ -422,7 +422,7 @@ main = do
 
                             -- print $ (show eitherQuad)
                             print $ "After quad "
-                            -- print $ (show quadcode)
+                            print $ (show quadcode)
                             let ftuple = splitExtension filename
                             let fname = fst ftuple
                             let finalName = fname ++ ".s"
@@ -1102,17 +1102,28 @@ extractLocQvarType (LocQVal _ t) = t
 
 extractLocQvarClassName (LocQVal _ (ClassQ className)) = className
 
+findClassOffset ident = do
+    cname <- gets curClassNameAsm
+    case cname of
+        "" -> throwError $ ident ++ " var not found for address determination"
+        className -> do
+            (valTypeAttr, offset) <- getClassAttrsInf ident className
+            return (OffsetClass offset)
+
+-- findclassAttrData ident = do
+--     cname <- gets curClassNameAsm
+--     case cname of
+--         "" -> throwError $ ident ++ " var not found for address determination"
+--         className -> do
+--             cdata@(valTypeAttr, offset) <- getClassAttrsInf ident className
+--             return cdata
+
 findAddr :: Val -> AsmMonad StoragePlace
 findAddr v@(LocQVal ident _) = do
     idData <- asks (Map.lookup ident)
     case idData of
-        Nothing -> do--throwError $ ident ++ " var not found for address determination"
-            cname <- gets curClassNameAsm
-            case cname of
-                "" -> throwError $ ident ++ " var not found for address determination"
-                className -> do
-                    (valTypeAttr, offset) <- getClassAttrsInf ident className
-                    return (OffsetClass offset)
+        Nothing -> findClassOffset ident --throwError $ ident ++ " var not found for address determination"
+            
 
         Just (_, memStorage) -> return memStorage
 
@@ -1276,7 +1287,7 @@ showIntLiteral intLit = show $ extractIntVal intLit
 findIdentAddr ident = do
     idData <- asks (Map.lookup ident)
     case idData of
-        Nothing -> throwError $ ident ++ " var not found for address determination"
+        Nothing -> findClassOffset ident --throwError $ ident ++ " var not found for address determination"
         Just (_, memStorage) -> return memStorage
 
 isString StringQ = True
@@ -1510,6 +1521,13 @@ getClassAttrsInf attrname className = do
         Nothing -> throwError $ "No such attribute: " ++ attrname ++ " for a class " ++ className
         Just adata -> return adata
 
+movResToRAXSized resAddr resType = do
+    case resType of
+        IntQ -> tell $ [AMov (show AEAX) resAddr]
+        BoolQ -> tell $ [AMovZX (show AEAX) resAddr]
+        _ -> tell $ [AMov (show ARAX) resAddr]
+
+
 
 
                                             -- HELPER END ---------END----------
@@ -1595,7 +1613,19 @@ genStmtsAsm ((QRet res) : rest) = do
         (LocQVal ident valType) -> do
             fndId <- asks (Map.lookup ident)
             case fndId of
-                Nothing -> throwError $ "ret: " ++ ident ++ " var not found"
+                Nothing -> do --throwError $ "ret: " ++ ident ++ " var not found"
+                    curClassN <- gets curClassNameAsm
+                    (attrVal, offset) <- getClassAttrsInf ident curClassN
+                    selfAddr <- findIdentAddr selfClassPtr
+
+                    tell $ [AMov (show AR11) (createAddrPtrRBP selfAddr)]
+                    tell $ [AMov (show AR11) (getValAtAddrInReg AR11)]
+
+                    tell $ [AAdd (show AR11) (show offset)]
+
+                    movResToRAXSized (getAddrInRegTyped AR11 attrVal) attrVal
+
+
                 Just (qvar, memStorageVar) -> do
                     if is32bit valType
                     then
