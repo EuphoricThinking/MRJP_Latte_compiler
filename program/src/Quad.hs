@@ -292,22 +292,22 @@ updateClassMethods className origName retType args = do
 
     -- addLater
     --let selfArg = (Ar defaultPos (Class defaultPos (Ident className)))
-    methName <- createClassMethodLabel
+    methName <- createClassMethodLabel className origName
 
     let methodVal = ClassMeth methName (getOrigQType retType)
     
-    -- let methInherited = Map.lookup methName meths
-    -- case methInherited of
-    --     Nothing -> do -- the first decl
-
-    -- if it overwrites the class Method
     lastOff <- getClassMethLastOff className
-    let inserted = Map.insert origName (methodVal, lastOff) meths
-    let updCData = updClassDataMethodsBody cdata inserted (lastOff + 1) methName
+    let methInherited = Map.lookup origName meths
+    case methInherited of
+        Nothing -> do -- the first decl
+            let inserted = Map.insert origName (methodVal, lastOff) meths
+            let updCData = updClassDataMethodsBody cdata inserted (lastOff + 1) methName
 
-    updClassData className updCData
+            updClassData className updCData
 
-        -- Just (val, offset)
+        Just (val, offset) -> do -- if it overwrites the class Method
+            let inserted = Map.insert origName (methodVal, offset) meths
+            let updCData = updClassDataMethodsBody cdata inserted lastOff
 
 
 updateNumAttrs attrType className = do
