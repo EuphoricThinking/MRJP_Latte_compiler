@@ -355,6 +355,30 @@ createAttrsOffset ((attrType, attrName) : rest) mapAttrs offset =
     in
         createAttrsOffset rest inserted (offset + (getMemSize attrType))
 
+initAttrsList reg addr [] = return ()
+initAttrsList reg addr ((attrName, (valType, offset)) : rest) = do
+    -- tell $ [AMov (show AR11) (createAddrPtrRBP addr)]
+    -- tell $ [AAdd (show AR11) (show offset)]
+
+    case valType of
+        BoolQ -> do
+            tell $ [AXor (show AAL) (show AAL)]
+            -- tell $ [AMov ("byte " ++ (getValAtAddrInReg AR11)) (show AAL)]
+            tell $ [AMov ("byte " ++ (createLeaAddr reg True offset)) (show AAL)]
+        IntQ -> do
+            --tell $ [AMov ("dword " ++ (getValAtAddrInReg AR11)) (show 0)]
+            tell $ [AMov ("dword " ++ (createLeaAddr reg True offset)) (show 0)]
+        --_ -> do
+    initAttrsList reg addr rest
+
+initAttrVals reg addr className = do
+    classAttrs <- getClassInfo className
+    let attrs = offsetAttr classAttrs
+    let listAttrs = Map.toList attrs
+
+    initAttrsList reg addr listAttrs
+
+
 rawLabelVTableForClass classname = vtablePrefix ++ classname
 
 createVTableLabel cdata =
@@ -604,6 +628,13 @@ isIntQ _ = False
 
 getOffsetFromClassOff :: StoragePlace -> Int
 getOffsetFromClassOff (OffsetClass offset) = offset
+
+getRegWithOffsetCallMethod reg offset =
+    if offset == 0
+    then
+        getValAtAddrInReg reg
+    else
+        createLeaAddr reg True offset
 
 createRelAddrRBP offset = 
     if offset < 0 then
@@ -1652,7 +1683,7 @@ genStmtsAsm ((QRet res) : rest) = do
                     printMesA $ "after addresses"
 
                     tell $ [AMov (show AR11) (createAddrPtrRBP selfAddr)]
-                    tell $ [AMov (show AR11) (getValAtAddrInReg AR11)]
+                    tell $ [ALea (show AR11) (getValAtAddrInReg AR11)]
 
                     tell $ [AAdd (show AR11) (show offset)]
 
@@ -1912,7 +1943,14 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             valStorage <- assignResToRegister qvar
             let addr = snd valStorage
             let className = getClassNameFromType varType
-            tell $ [AMov (createAddrPtrRBP addr) (rawLabelVTableForClass className)] -- save vtable address at the first slot
+            tell $ [AMov (show AR11) (createAddrPtrRBP addr)] -- move struct addr to rdx
+            tell $ [AMov ("qword " ++ (getValAtAddrInReg AR11)) (rawLabelVTableForClass className)] -- at the address in AR11, store vtable
+
+            --tell $ [AMov (createAddrPtrRBP addr) (rawLabelVTableForClass className)] -- save vtable address at the first slot
+
+            -- init attrs values
+            -- tell $ [AMov (show AR11) (createAddrPtrRBP addr)]
+            initAttrVals AR11 addr className
 
             local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
@@ -2511,15 +2549,21 @@ genStmtsAsm ((QCallMethod qvar@(QLoc resName methRetType) valClass methodName nu
     tell $ [AMov (show AR11) (createMemAddr classObjAddr classType)] -- get obj adds
     tell $ [AMov (show ARDI) (show AR11)] -- pass object to rdi as self
     tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get vtable addr
+    -- tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get vtable addr
 
     cdata <- getClassInfo className
     methodOffset <- getClassMethodInf methodName cdata
 
-    let newCode = (QCall qvar (show AR11) numArgs) : rest
+    let funcAddr = getRegWithOffsetCallMethod AR11 methodOffset
+    let newCode = (QCall qvar funcAddr numArgs) : rest
 
-    if (methodOffset /= 0) then do
-        tell $ [AAdd (show AR11) (show methodOffset)] -- get method address in vtable
+    genStmtsAsm newCode
 
-        genStmtsAsm newCode
-    else do
-        genStmtsAsm newCode
+    -- let newCode = (QCall qvar (show AR11) numArgs) : rest
+
+    -- if (methodOffset /= 0) then do
+    --     tell $ [AAdd (show AR11) (show methodOffset)] -- get method address in vtable
+
+    --     genStmtsAsm newCode
+    -- else do
+    --     genStmtsAsm newCode
