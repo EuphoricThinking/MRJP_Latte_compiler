@@ -355,8 +355,9 @@ createAttrsOffset ((attrType, attrName) : rest) mapAttrs offset =
     in
         createAttrsOffset rest inserted (offset + (getMemSize attrType))
 
-initAttrsList reg addr [] = return ()
-initAttrsList reg addr ((attrName, (valType, offset)) : rest) = do
+-- initAttrsList :: AsmRegister -> Stor
+initAttrsList reg [] = return ()
+initAttrsList reg ((attrName, (valType, offset)) : rest) = do
     -- tell $ [AMov (show AR11) (createAddrPtrRBP addr)]
     -- tell $ [AAdd (show AR11) (show offset)]
     let addr = createLeaAddr reg True offset
@@ -366,19 +367,26 @@ initAttrsList reg addr ((attrName, (valType, offset)) : rest) = do
             tell $ [AXor (show AAL) (show AAL)]
             -- tell $ [AMov ("byte " ++ (getValAtAddrInReg AR11)) (show AAL)]
             tell $ [AMov ("byte " ++ addr) (show AAL)]
+            initAttrsList reg rest
+
         IntQ -> do
             --tell $ [AMov ("dword " ++ (getValAtAddrInReg AR11)) (show 0)]
             tell $ [AMov ("dword " ++ addr) (show 0)]
+            initAttrsList reg rest
+
         StringQ -> do
             tell $ [AMov ("qword " ++ addr) ""]
-    initAttrsList reg addr rest
+            initAttrsList reg rest
 
-initAttrVals reg addr className = do
+        _ -> initAttrsList reg rest
+    --initAttrsList reg addr rest
+
+initAttrVals reg className = do
     classAttrs <- getClassInfo className
     let attrs = offsetAttr classAttrs
     let listAttrs = Map.toList attrs
 
-    initAttrsList reg addr listAttrs
+    initAttrsList reg listAttrs
 
 
 rawLabelVTableForClass classname = vtablePrefix ++ classname
@@ -1011,6 +1019,7 @@ pushParams ((QParam val) : rest) = do
 
 -- genStmt -> genParams
 genParams qcall@((QCall qvar ident numArgs) : rest) _ _ = genStmtsAsm qcall
+genParams qcall@((QCallMethod qvar ident numArgs) : rest) _ _ = genStmtsAsm qcall
 genParams [] _ _ = genStmtsAsm []
 genParams qcode [] _ = do
     let qcallcode  = getQCallCode qcode
@@ -1022,7 +1031,7 @@ genParams qcode [] _ = do
 
 
 genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs) = do
-    --printMesA qp
+    printMesA $ "params " ++ (show rest)
     case val of
         (IntQVal v) -> do
             tell $ [AMov (show ereg) (show v)]
@@ -1265,6 +1274,10 @@ moveTempToR11 memStorageAddr valType =
         (ArrayQ _) -> do
             tell $ [AMov (show AR11) memStorageAddr]
             return AR11
+        _ -> do
+            tell $ [AMov (show AR11) memStorageAddr]
+            return AR11
+        
 
 -- movVarToR11 varLoc isLoc32bit = do
 --     addr <- findAddr varLoc
@@ -1933,7 +1946,7 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
         (ClassQObj className) -> genStmtsAsm ((QClass var) : rest)
 
 
-genStmtsAsm params@((QParam val) : rest) = genParams params parametersRegisterPoniters64 parametersRegistersInts32
+genStmtsAsm params@((QParam val) : rest) = printMesA ("params qp " ++ (show params)) >> genParams params parametersRegisterPoniters64 parametersRegistersInts32
 
 -- genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
 
@@ -2016,7 +2029,7 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
 
             -- init attrs values
             -- tell $ [AMov (show AR11) (createAddrPtrRBP addr)]
-            initAttrVals AR11 addr className
+            initAttrVals AR11 className
 
             local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
