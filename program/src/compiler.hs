@@ -1905,6 +1905,16 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
 
             genStmtsAsm rest
 
+        "___allocStructClass" -> do
+            tell $ [ACall ident]
+            dealloc valSubtracted
+
+            valStorage <- assignResToRegister qvar
+            let addr = snd valStorage
+            let className = getClassNameFromType varType
+            tell $ [AMov (createAddrPtrRBP addr) (rawLabelVTableForClass className)] -- save vtable address at the first slot
+
+            local (Map.insert varTmpId valStorage) (genStmtsAsm rest)
 
         _ -> do
             tell $ [ACall ident]
