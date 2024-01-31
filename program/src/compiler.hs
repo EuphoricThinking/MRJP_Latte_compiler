@@ -323,8 +323,18 @@ extractAsmCode (Right (_, acode)) = acode
 prepareAsmStore qdata cdata = AStore {curFuncNameAsm = "",
 funcInfo = (defFunc qdata), lastAddrRBP = 0, specialFuncExt = (specialFunc qdata), curRSP = 0, strLabelsCounter = 0, labelsCounter = 0, classInfo = cdata} -- after call mod = 8 (ret addr + 8 bytes), after push rbp (+8 bytes) -> mod = 8 
 
-prepareClassInfo classDict =
+getClassSizes cdata =
+    let
+        numInts = extractNumIntsClass cdata
+        numBools = extractNumBools cdata
+        numPtrs = extractNumPtrsClass cdata
+    in
+        numInts*intBytes + numBools*boolBytes + numPtrs*strPointerBytes
 
+prepareClassInfo classDict =
+    let
+        classnameClassdata = Map.toList classDict
+        
 checkErr errm =
     case errm of
         (Left mes) -> printError mes >> exitFailure

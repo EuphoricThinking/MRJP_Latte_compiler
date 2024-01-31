@@ -64,7 +64,7 @@ type Attributes = Map.Map String (ValType, OffsetClass)
 type Methods = Map.Map String (Val, OffsetClass) -- classdata
 type OffsetAttr = Int
 type OffsetMeth = Int
-type AttrList = [String]
+type AttrList = [(ValType, String)]
 type MethList = [String]
 
 data ClassData = ClassData String NumIntTypes [String] NumStrVars NumBools Attributes Methods OffsetAttr OffsetMeth AttrList MethList deriving (Show)
@@ -269,13 +269,13 @@ updClassData className cdata = do
     curState <- gets
     put curState (defClass = Map.insert className cdata (defClass curState))
 
-updateClassAttrs className attrName val = do
+updateClassAttrs className attrName attrType = do
     cdata <- getClassData className
     attrs <- getClassAttrs className
     lastOff <- getLastAttrOffset className
     -- update offset and map
-    let inserted = Map.insert attrName (val, lastOff) attrs
-    let updCData = updClassDataAttrsBody cdata inserted (lastOff + 1) attrName
+    let inserted = Map.insert attrName (attrType, lastOff) attrs
+    let updCData = updClassDataAttrsBody cdata inserted (lastOff + 1) (attrType, attrName)
     
     curState <- gets
     put curState (defClass = Map.insert className updCData (defClass curState))
