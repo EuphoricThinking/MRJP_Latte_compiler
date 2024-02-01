@@ -903,6 +903,38 @@ allocVarCopyFromMem memToBeCopied valType = do
     movMemoryVals storageOffset memToBeCopied valType
 
     return storageOffset
+
+-- assignAttributes :: QVar -> (ValType, StoragePlace)
+declareAttributes var@(QLoc name valType) (attrType, attrStorage) = do
+    let rightValAddr = createMemAddr attrStorage attrType
+    r11_typed <- moveTempToR11 rightValAddr attrType
+    
+    copiedOffset <- allocVar r11_typed (getMemSize attrType)
+    let copiedAddr = createMemAddr copiedOffset attrType
+
+    case valType of -- left type
+        (AttrQ atype) -> do
+            leftOffset <- findClassOffsetMess name "assignAttributes"
+            let leftValAddr = createMemAddr leftOffset atype
+
+            tell $ [AMov leftValAddr copiedAddr]
+
+            return leftOffset
+
+        _ -> return copiedOffset
+
+assignAttributes identRightVar addrLeft = do
+    (attrType, offset) <- findClassAttrDataMess identRightVar "not in env assign Attributes"
+    let offsetRight = OffsetClass offset
+    let addrRight = createMemAddr offsetRight attrType
+
+    r11_sized <- moveTempToR11 addrRight attrType
+    
+    if isBoolQ attrType then
+        tell $ [AMovZX addrLeft (show r11_sized)]
+    else
+        tell $ [AMov addrLeft (show r11_sized)]
+
         
 
 getNewOffsetUpdRBP memSize = do
@@ -1234,6 +1266,23 @@ findClassOffset ident = do
         className -> do
             (valTypeAttr, offset) <- getClassAttrsInf ident className
             return (OffsetClass offset)
+
+findClassAttrDataMess ident mess = do
+    cname <- gets curClassNameAsm
+    case cname of
+        "" -> throwError $ ident ++ " var not found for address determination in " ++ mess
+        className -> do
+            adata@(valTypeAttr, offset) <- getClassAttrsInf ident className
+            return adata
+
+findClassOffsetMess ident mess = do
+    cname <- gets curClassNameAsm
+    case cname of
+        "" -> throwError $ ident ++ " var not found for address determination " ++ mess
+        className -> do
+            (valTypeAttr, offset) <- getClassAttrsInf ident className
+            return (OffsetClass offset)
+-- findAttrQAssHelper 
 
 -- findclassAttrData ident = do
 --     cname <- gets curClassNameAsm
@@ -1904,7 +1953,9 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                 (LocQVal ident valType) -> do
                     valStorage <- asks (Map.lookup ident)
                     case valStorage of
-                        Nothing -> throwError $ ident ++ " var to be assigned not in env"
+                        Nothing -> do 
+                            assignAttributes ident addr
+                            --throwError $ ident ++ " var to be assigned not in env"
                         Just (varFromAssigned, storageR) -> do
                             if isOffset storageR
                             then do
@@ -1953,7 +2004,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                 (LocQVal ident valType) -> do
                     valStorage <- asks (Map.lookup ident)
                     case valStorage of
-                        Nothing -> throwError $ ident ++ " var to be assigned not in env"
+                        Nothing -> throwError $ ident ++ " var to be assigned not in env assignment locval"
                         Just (varFromAssigned, storageR) -> do
                             --printMesA $ "ASSIGN loc " ++ ident ++ " " ++ (show id)
                             -- all variables are stored in the memory at this moment, but this is for further extensions
@@ -2005,8 +2056,14 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
 
         (LocQVal ident valType) -> do
             valStorage <- asks (Map.lookup ident)
+            curfuncname <- gets curFuncNameAsm
             case valStorage of
-                Nothing -> throwError $ ident ++ " var not in env"
+                Nothing -> do
+                    adata@(attrType, storage) <- findClassAttrDataMess ident ("not in env decl " ++ curfuncname)
+                    newOffset <- declareAttributes var (attrType, (OffsetClass storage))
+                    local (Map.insert name (var, newOffset)) (genStmtsAsm rest)
+                    
+                    --throwError $ ident ++ " var not in env decl " ++ curfuncname
                 Just (varFromAssigned, storage) -> do
                     newOffset <- allocVarCopyFromMem storage valType
                     printMesA $ "Aft loc"
