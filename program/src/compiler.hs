@@ -472,7 +472,7 @@ main = do
             case parsed of
                 Left mes -> printError mes
                 Right p -> do
-                    resWrapped <- runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False})
+                    resWrapped <- runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False, classMerged = Map.empty})
                     case resWrapped of
                         Left msg -> printError msg >> exitFailure
                         Right _ -> do

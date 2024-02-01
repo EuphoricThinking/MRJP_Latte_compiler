@@ -77,7 +77,8 @@ data Store = Store {
     curFunc :: CurFuncData,
     classStruct :: Map.Map String (Map.Map String Value),
     classEnv :: Map.Map String Env,
-    isInClass :: Bool
+    isInClass :: Bool,
+    classMerged :: Map.Map String Bool
     --Env :: Map.Map String Loc -- env after checking topdefs
 } deriving (Show)
 
@@ -118,6 +119,16 @@ insertNewAttrMeth className attrMethModifiedMap = do
 
     put curState {classStruct = Map.insert className attrMethModifiedMap (classStruct curState)}
 
+markClassAssUnmerged className = do
+    curState <- get
+
+    put curState {classMerged = Map.insert className False (classMerged curState)}
+
+markClassAssMergedTRUE className = do
+    curState <- get
+
+    put curState {classMerged = Map.insert className True (classMerged curState)}
+
 evalMaybe :: String -> Maybe a -> InterpreterMonad a
 evalMaybe s Nothing = throwError s
 evalMaybe s (Just a) = return a
@@ -143,7 +154,7 @@ executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False})--, basalEnv = Map.empty}) 
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False, classMerged = Map.empty})--, basalEnv = Map.empty}) 
 
 
 printSth mes = lift $ lift $ lift $ print mes
@@ -159,7 +170,7 @@ executeRightProgram (Prog pos topDefs) =
     do
         -- save functions and class name,
         -- class data is not in store, only names in env
-        envWithFuncDecl <- findFuncDecl topDefs
+        envWithFuncDecl <- findFuncDecl topDefs False
 
         -- updateBasalEnv envWithFuncDecl
 
@@ -191,11 +202,22 @@ getFuncArgsWithoutJust (FnDecl rettype args _) = args
 
 getFuncRetTypeWithoutJust (FnDecl rettype args _) = rettype
 
-findFuncDecl [] = do
+
+mergeExtDict [] = return ()
+
+mergeExtDict ((FnDef pos rettype (Ident ident) args stmts) : rest) = mergeExtDict rest
+
+mergeExtDict ((ClassDef pos (Ident className) cbody) : rest) = mergeExtDict rest
+
+mergeExtDict ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) = do
+
+
+
+findFuncDecl [] _ = do
     curEnv <- ask
     return curEnv
 
-findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
+findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) boolval = do
     prevLoc <- asks (Map.lookup ident)
     case prevLoc of
         Just foundLoc -> throwError $ "Multiple function declaration" ++ (writePos pos)
@@ -205,9 +227,9 @@ findFuncDecl ((FnDef pos rettype (Ident ident) args stmts) : rest) = do
             let funDeclData = (FnDecl rettype args pos)
             insertToStore (funDeclData, 0) funDecLoc
 
-            local (Map.insert ident funDecLoc) (findFuncDecl rest)
+            local (Map.insert ident funDecLoc) (findFuncDecl rest False)
 
-findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) = do --(CBlock posBlock stmts)) : rest) = do
+findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) isExt = do --(CBlock posBlock stmts)) : rest) = do
     prevLoc <- asks (Map.lookup className)
     case prevLoc of
         Just founfLoc -> throwError $ "Multiple struct or not extended class declaration" ++ (writePos pos) -- checks if function and a class are named the same
@@ -216,6 +238,11 @@ findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) = do --(CBlock posB
 
             insertNewClass className
 
+            if isExt then
+                markClassAssUnmerged className
+            else
+                markClassAssMergedTRUE className
+
             classDecLoc <- alloc
             -- classEnv <- saveOnlyAttrsMethods stmts className
             let classValue = ClassType className
@@ -223,11 +250,25 @@ findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) = do --(CBlock posB
 
             -- evalClassBody stmts className
 
-            local (Map.insert className classDecLoc) (findFuncDecl rest)
+            local (Map.insert className classDecLoc) (findFuncDecl rest False)
+
+findFuncDecl ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) boolval =
+    let
+        classDefStruct = getOrdinaryClassStruc po cname cbody
+    in
+        findFuncDecl (classDefStruct : rest) True
+
+getOrdinaryClassStruc pos cname cbody = ClassDef pos cname cbody
 
 saveClassInnerData [] = return Success
 
 saveClassInnerData ((FnDef pos rettype (Ident ident) args stmts) : rest) = saveClassInnerData rest
+
+saveClassInnerData ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) = 
+    let
+        classDefStruct = getOrdinaryClassStruc po cname cbody
+    in
+        saveClassInnerData (classDefStruct : rest)
 
 saveClassInnerData ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) = do --(CBlock posBlock stmts)) : rest) = do
     prevLoc <- asks (Map.lookup className)
