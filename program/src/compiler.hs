@@ -668,7 +668,7 @@ createAddrBoolRBP memStorage =
     case memStorage of
         OffsetRBP offset -> "byte " ++ (createRelAddrRBP offset)
         Register reg -> show reg
-
+        OffsetClass offs -> getAddrInRegTypedOffsetted AR10 BoolQ offs
 
 
 
@@ -1196,6 +1196,7 @@ extractLocQvarId (LocQVal id _) = id
 extractLocQvarType (LocQVal _ t) = t
 
 extractLocQvarClassName (LocQVal _ (ClassQ className)) = className
+extractLocQvarClassName (LocQVal _ (AttrQ (ClassQ name))) = name
 
 -- loadAttrAddr attrName className = do
 --     (valTypeAttr, offset) <- getClassAttrsInf attrName className
@@ -1958,6 +1959,11 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
 
         (ClassQObj className) -> genStmtsAsm ((QClass var) : rest)
 
+        (QNull nullType) -> do
+            newRBPOffset <- allocVar 0 strPointerBytes
+            local (Map.insert name (var, newRBPOffset)) (genStmtsAsm rest)
+            -- qnull jako var
+
 
 genStmtsAsm params@((QParam val) : rest) = printMesA ("params qp " ++ (show params)) >> genParams params parametersRegisterPoniters64 parametersRegistersInts32
 
@@ -2636,6 +2642,7 @@ genStmtsAsm ((QClass qvar@(QLoc name (ClassQ className))) : rest) = do
 genStmtsAsm ((QCallMethod qvar@(QLoc resName methRetType) valClass methodName numArgs) : rest) = do
     classObjAddr <- findAddr valClass
     let classType = extractLocQvarType valClass
+    printMesQ $ "bef extract " ++ (show valClass)
     let className = extractLocQvarClassName valClass
 
     tell $ [AMov (show AR11) (createMemAddr classObjAddr classType)] -- get obj adds
