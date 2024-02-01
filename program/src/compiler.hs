@@ -1770,11 +1770,11 @@ checkArgsCallPushR10 numArgs =
         _ -> return ()
 
 attrAssHelper addrLeft addrRight valType = do
-    let rax_typed = getRAXtypedToMovOrMovzx aval
-    if isBoolQ aval then
+    let rax_typed = getRAXtypedToMovOrMovzx valType
+    if isBoolQ valType then do
         tell $ [AMovZX  (show AEAX) addrRight]
         tell $ [AMov addrLeft (show AAL)]
-    else 
+    else do
         tell $ [AMov (show rax_typed) addrRight]
         tell $ [AMov addrLeft (show rax_typed)]
 
@@ -2863,7 +2863,7 @@ genStmtsAsm ((QClassAssAttr classVal@(LocQVal varName classType) attrName newVal
 
     tell $ [AMov (show AR11) (createAddrPtrRBP classAddr)] -- move obj to r11
 
-    (attrType, attrOffset) <- findClassOffsetMess attr className
+    (attrType, attrOffset) <- findClassAttrDataMess attrName className
     let attrAddr = getAddrInRegTypedOffsetted AR11 attrType attrOffset
 
     case newVal of
@@ -2871,12 +2871,12 @@ genStmtsAsm ((QClassAssAttr classVal@(LocQVal varName classType) attrName newVal
             tell $ [AMov attrAddr (show v)]
         (BoolQVal v) -> do
             tell $ [AMov attrAddr (show v)]
-        (StringQVal s) -> do
+        (StrQVal s) -> do
             fndLbl <- asks (Map.lookup s)
-                case fndLbl of
-                    Nothing -> throwError $ "No found label for " ++ s
-                    Just (_, lbl) ->
-                        tell $ [AMov addr (show lbl)]
+            case fndLbl of
+                Nothing -> throwError $ "No found label for " ++ s
+                Just (_, lbl) ->
+                    tell $ [AMov attrAddr (show lbl)]
         (LocQVal ident valType) -> do
             valStorage <- asks (Map.lookup ident)
             case valStorage of
