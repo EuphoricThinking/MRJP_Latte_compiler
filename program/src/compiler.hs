@@ -1714,8 +1714,9 @@ addVTables = do
 
 getClassInfo className = do
     cdata <- gets (Map.lookup className . classInfo)
+    cfunc <- gets curFuncNameAsm
     case cdata of
-        Nothing -> throwError $ "No data for class " ++ className
+        Nothing -> throwError $ "No data for class " ++ className ++ " in func " ++ cfunc
         Just cinfo -> return cinfo
 
 getClassMethodInf methodName cdata = do
@@ -2776,8 +2777,20 @@ genStmtsAsm ((QAttr qvar@(QLoc ident valType) objVarExpr attrIdent) : rest) = do
 
 
             else do
+                objVar <- findAddr objVarExpr -- even self should have been noticed
+                let className = getClassNameFromType varType
 
-                genStmtsAsm rest
+                (attrType, attrOffset) <- getClassAttrsInf attrIdent className
+
+                tell $ [AMov (show AR11) (createAddrPtrRBP objVar)] -- load obj addr to r11
+                let attrAddr = getAddrInRegTypedOffsetted AR11 attrType attrOffset -- get addr of attr rel to r11: type [r11 + offset]
+
+                r11_typed <- moveTempToR11 attrAddr attrType -- r11x <- type [r11 + offset]
+
+                resAddr <- allocVar r11_typed (getMemSize attrType)
+
+                local (Map.insert ident (qvar, resAddr)) (genStmtsAsm rest)
+                -- genStmtsAsm rest
 
 genStmtsAsm ((QArrAss arrVar@(LocQVal ident arrtype@(ArrayQ at)) elemNum elemVal) : rest) = do
     -- eleNum int
