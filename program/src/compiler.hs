@@ -1266,6 +1266,7 @@ createMemAddr memStorage locType =
 
         Register reg -> show reg
         ProgLabel l -> l
+        OffsetClass offs -> getAddrInRegTypedOffsetted AR10 locType offs
 
 createMemAddrRBPdword_qword (OffsetRBP offset) valType =
     case valType of
