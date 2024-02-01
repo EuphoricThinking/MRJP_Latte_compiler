@@ -78,7 +78,8 @@ data Store = Store {
     classStruct :: Map.Map String (Map.Map String Value),
     classEnv :: Map.Map String Env,
     isInClass :: Bool,
-    classMerged :: Map.Map String Bool
+    classMerged :: Map.Map String Bool,
+    classParents :: Map.Map String String
     --Env :: Map.Map String Loc -- env after checking topdefs
 } deriving (Show)
 
@@ -129,6 +130,30 @@ markClassAssMergedTRUE className = do
 
     put curState {classMerged = Map.insert className True (classMerged curState)}
 
+insertParent childClass parentClass = do
+    curState <- get
+
+    put curState {classParents = Map.insert childClass parentClass (classParents curState)}
+
+getParent className = do
+    parentName <- gets (Map.lookup className . classParents)
+    case parentName of
+        Nothing -> throwError $ "Name of the parent not saved for " ++ className
+        Just pname -> return pname
+
+getMergeVal className = do
+    mergeData <- gets (Map.lookup className . classMerged)
+
+    case mergeData of
+        Nothing -> throwError $ "No saved class " ++ className ++ " for dict merging"
+        Just mergeVal -> return mergeVal
+
+getClassEnv className pos = do
+    classDataEnv <- gets (Map.lookup className . classEnv)
+    case classDataEnv of
+        Nothing -> throwError $ " no env data for class " ++ className ++ (writePos pos)
+        Just cenv -> return cenv
+
 evalMaybe :: String -> Maybe a -> InterpreterMonad a
 evalMaybe s Nothing = throwError s
 evalMaybe s (Just a) = return a
@@ -154,7 +179,7 @@ executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False, classMerged = Map.empty})--, basalEnv = Map.empty}) 
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False, classMerged = Map.empty, classParents = Map.empty})--, basalEnv = Map.empty}) 
 
 
 printSth mes = lift $ lift $ lift $ print mes
@@ -177,6 +202,7 @@ executeRightProgram (Prog pos topDefs) =
         -- class attributes and method names are stored,
         -- but not analyzed (whether delcared class exists or whether the given method is correct)
         local (const envWithFuncDecl) (saveClassInnerData topDefs)
+        local (const envWithFuncDecl) (mergeExtDict topdefs)
     
         case Map.lookup "main" envWithFuncDecl of
             Nothing -> throwError $ "No main method defined"
@@ -202,6 +228,72 @@ getFuncArgsWithoutJust (FnDecl rettype args _) = args
 
 getFuncRetTypeWithoutJust (FnDecl rettype args _) = rettype
 
+checkArgsTypes aname pname cname posp [] [] = return ()
+checkArgsTypes aname pname cname posp [] args = throwError $ "Too little args in parent class method " ++ aname ++ " in class " ++ pname ++ " " ++ (writePos posp) ++ " in comparison to child " ++ cname
+checkArgsTypes aname pname cname posp [] args = throwError $ "Too little args in child class method " ++ aname ++ " in class " ++ cname ++ " " ++ (writePos posp) ++ " in comparison to parent " ++ pname
+checkArgsTypes aname pname cname posp (a1 : args1) (a2 : args2) =
+    if (getArgType a1) /= (getArgType a2) then
+        throwError $ "Mismatch in arg types " ++ (writePos (getArgPos a1)) ++ " "  ++ (writePos (getArgPos a2))
+    else
+        checkArgsTypes aname pname cname posp posc args1 args2
+
+checkAttrsParent _ _ _ [] = return ()
+
+checkAttrsParent parentDict parentName childName ((attrName, val) : rest) = do
+    let foundAttr = Map.lookup attrName parentDict
+    case foundAttr of
+        Nothing -> checkAttrsParent parentDict rest -- a new attr
+        Just attr -> do
+            case attr of
+                (FnDecl rettype arg pos) -> do
+                    if not (isFnDecl val) then
+                        throwError $ "Mismatch in attr types: " ++ attrName ++ " is a function in " ++ parentName ++ " declared at " ++ (writePos pos) ++ " but type is different in the subclass " ++ childName
+                    else do
+                        let retAttr = getFuncRetTypeWithoutJust val
+                        let childArg = getFuncArgsWithoutJust val
+
+                        if retAttr /= rettype then
+                            throwError $ "Return mismatch in parent and child methods " ++ parentName ++ " " ++ childName ++ " " ++ attrName ++ " " ++ (writePos pos)
+                        else do
+                            checkArgsTypes attrName parentName childName pos arg childArg
+
+                            checkAttrsParent parentDict parentName childName rest
+                otherType -> do
+                    if otherType /= val then
+                        throwError $ "Mismatch in attr types: " ++ attrName ++ " in " ++ parentName ++ " declared at " ++ (writePos pos) ++ " has different type in the subclass " ++ childName
+                    else do
+                        checkAttrsParent parentDict parentName childName rest
+
+traverseUp className pos = do
+    mergeVal <- getMergeVal className
+    classData <- getClassMethodsAttrs className pos
+
+    if mergeVal then do
+        return classData
+    else do
+        parentName <- getParent className
+        parentData <- getClassMethodsAttrs parentName pos
+        classDataFromParent <- traverseUp parentName pos
+        let childKeys = Map.toList classData
+
+        checkAttrsParent parentData parentName className childKeys
+
+        let mergedParentsChildAttrMeths = Map.union parentData classData
+        insertNewAttrMeth className mergedParentsChildAttrMeths
+
+        childEnv <- getClassEnv className pos
+        parentEnv <- getClassEnv parentName pos
+
+        let mergedEnvs = Map.union childEnv parentEnv
+        updateClassEnvInStore className mergedEnvs
+
+        markClassAssMergedTRUE className
+
+        return mergedParentsChildAttrMeths
+
+
+
+
 
 mergeExtDict [] = return ()
 
@@ -210,6 +302,15 @@ mergeExtDict ((FnDef pos rettype (Ident ident) args stmts) : rest) = mergeExtDic
 mergeExtDict ((ClassDef pos (Ident className) cbody) : rest) = mergeExtDict rest
 
 mergeExtDict ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) = do
+    mergeVal <- getMergeVal className
+    if mergeVal then -- already merged attrs and methods
+        mergeExtDict rest
+    else do
+        attrsMethodsMerged <- traverseUp className pos
+
+        mergeExtDict rest
+        -- if attrs and methods are redefined
+            -- methods - if name is the same, args are the same, attrs are the same -- type of func arguments must be the same order, return type
 
 
 
@@ -252,11 +353,12 @@ findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) isExt = do --(CBloc
 
             local (Map.insert className classDecLoc) (findFuncDecl rest False)
 
-findFuncDecl ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) boolval =
-    let
-        classDefStruct = getOrdinaryClassStruc po cname cbody
-    in
-        findFuncDecl (classDefStruct : rest) True
+findFuncDecl ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) boolval = do
+    insertParent className extName
+
+    let classDefStruct = getOrdinaryClassStruc po cname cbody
+    
+    findFuncDecl (classDefStruct : rest) True
 
 getOrdinaryClassStruc pos cname cbody = ClassDef pos cname cbody
 
@@ -477,6 +579,9 @@ saveOnlyAttrsMethods ((ClassMethod pos retType (Ident ident) args (Blk _ stmts))
             local (Map.insert ident methodLoc) (saveOnlyAttrsMethods rest className)
 -- getClassData className 
 
+isFnDecl (FnDecl _ _ _) = True
+isFnDecl _ = False
+
 isInt (Int a) = True
 isInt _ = False
 
@@ -493,6 +598,8 @@ isArrayType (Just (ArrayType _)) = True
 isArrayType _ = False
 
 getPos (Just pos) = pos
+
+getTypeArg (Ar pos argType (Ident argName)) = getTypeOriginal argtype
 
 getTypeOriginal :: Type -> Value
 getTypeOriginal (Int _)  = IntT
