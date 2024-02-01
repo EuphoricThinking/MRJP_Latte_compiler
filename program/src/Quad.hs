@@ -845,9 +845,19 @@ addParamsFromList ((paramVal, _, depth) : rest) qcode maxDepth = do
 -- add for more than six variable? no, the stck clrears itself
 genParamCodeForExprList exprList isParam = do
     let genExpParams exp = genQExpr exp isParam
-    valsCodes <- mapM genExpParams exprList --exprList isParam
-    paramGenCode <- paramsConcatCode valsCodes []
+    valsCodes <- mapM genExpParams exprList -- [(val, code, depth)]
+    paramGenCode <- paramsConcatCode valsCodes []  -- concatenated codes from vals
+    -- (valsCodes, paramGenCode) <- genParametersValsAndCodes exprList isParam
     addParamsFromList valsCodes paramGenCode 0
+
+genParametersValsAndCodes exprList isParam = do
+    let genExpParams exp = genQExpr exp isParam
+    valsCodes <- mapM genExpParams exprList -- [(val, code, depth)]
+    paramGenCode <- paramsConcatCode valsCodes []  -- concatenated codes from vals
+
+    return (valsCodes, paramGenCode)
+
+--genParamsAddSelf exprList isParam 
 
 addToSpecialFuncsIfSpecial fname = do
     if isSpecialFuncQ fname
@@ -1607,20 +1617,35 @@ genQExpr (EClass pos (Class posC (Ident className))) isParam = do
 
 genQExpr (EMethod pos exprClass (Ident methodName) exprList) isParam = do
     (valClass, codeClass, depthClass) <- genQExpr exprClass isParam
-    (updCode, depth) <- genParamCodeForExprList exprList isParam
+    (updCode, depth) <- genParamCodeForExprList (exprClass : exprList) isParam
     
     resTempName <- createTempVarNameCurFuncExprs
-
-    printMesQ $ "getvar " ++ (show valClass)
     let className = getVarClassName valClass
     methRet <- getMethodRet className methodName
 
-    updateLocalEAppRetType methRet
-
     let locVal = QLoc resTempName methRet
-    let newCode = codeClass ++ [QParam valClass] ++ updCode ++ [QCallMethod locVal valClass methodName ((length exprList) + 1)]
 
-    return ((LocQVal resTempName methRet), newCode, (max depth depthClass) + 1)
+    let newCode = updCode ++ [QCallMethod locVal valClass methodName ((length exprList) + 1)]
+
+    return ((LocQVal resTempName methRet), newCode, depth)
+
+    -- updateLocalEAppRetType methRet
+
+    -- (valClass, codeClass, depthClass) <- genQExpr exprClass isParam
+    -- (updCode, depth) <- genParamCodeForExprList exprList isParam
+    
+    -- resTempName <- createTempVarNameCurFuncExprs
+
+    -- printMesQ $ "getvar " ++ (show valClass)
+    -- let className = getVarClassName valClass
+    -- methRet <- getMethodRet className methodName
+
+    -- updateLocalEAppRetType methRet
+
+    -- let locVal = QLoc resTempName methRet
+    -- let newCode = codeClass ++ [QParam valClass] ++ updCode ++ [QCallMethod locVal valClass methodName ((length exprList) + 1)]
+
+    -- return ((LocQVal resTempName methRet), newCode, (max depth depthClass) + 1)
 
 genQExpr (ENull pos objType) _ =
     case objType of
