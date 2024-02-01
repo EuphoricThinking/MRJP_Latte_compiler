@@ -156,6 +156,11 @@ declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock posB stmts))
 
     declareEmptyFuncBodiesWithRets rest
 
+declareEmptyFuncBodiesWithRets ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) = do
+    let classDefStruct = getOrdinaryClassStruc pos cname cbody
+
+    declareEmptyFuncBodiesWithRets (classDefStruct : rest)
+
 
 updCurClassName name = do
     curState <- get
@@ -1584,7 +1589,7 @@ genQExpr (EAttr pos expr (Ident attrName)) isParam = do
     -- return ((LocQVal resTempName IntQ), [], depth + 1)
     printMesQ $ "eattr " ++ (show val)
     let valType = getValType val
-    
+
     updateLocalEAppRetType valType
 
     if isArray valType --(getValType val)

@@ -79,7 +79,8 @@ data Store = Store {
     classEnv :: Map.Map String Env,
     isInClass :: Bool,
     classMerged :: Map.Map String Bool,
-    classParents :: Map.Map String String
+    classParents :: Map.Map String String,
+    classParentsList :: Map.Map String [String]
     --Env :: Map.Map String Loc -- env after checking topdefs
 } deriving (Show)
 
@@ -130,6 +131,57 @@ markClassAssMergedTRUE className = do
 
     put curState {classMerged = Map.insert className True (classMerged curState)}
 
+getParentsList className = do
+    pdata <- gets (Map.lookup className . classParentsList)
+    case pdata of
+        Nothing -> throwError $ "No parents list for class " ++ className
+        Just parents -> return parents
+
+initEmptyParents className = do
+    curState <- get
+
+    put curState {classParentsList = Map.insert className [] (classParentsList curState)}
+
+addToParentsList childName parentName = do
+    parentsList <- getParentsList childName
+    curState <- get
+
+    put curState {classParentsList = Map.insert childName (parentName : parentsList) (classParentsList curState)}
+
+updateParentsList childName parentName = do
+    parentsList <- getParentsList parentName
+    curState <- get
+
+    put curState {classParentsList = Map.insert childName (parentName : parentsList) (classParentsList curState)}
+
+checkIfInParents className parentName = do
+    parentsList <- getParentsList className
+
+    return (parentName `elem` parentsList)
+
+checkParentalClasses vartype exprType posIn = do
+    if ((isClass vartype) && (isClassTypeSaved exprType)) then do
+        let child = getClassNameTyped exprType
+        let parent = getClassName vartype
+
+        relation <- checkIfInParents child parent
+
+        if relation then return True
+        else return False
+    else return False
+
+checkParentalClassesAssign vartype exprType posIn = do
+    if ((isClassTypeSaved vartype) && (isClassTypeSaved exprType)) then do
+        let child = getClassNameTyped exprType
+        let parent = getClassNameTyped vartype
+
+        relation <- checkIfInParents child parent
+
+        if relation then return True
+        else return False
+    else return False
+
+
 insertParent childClass parentClass = do
     curState <- get
 
@@ -179,7 +231,7 @@ executeProgram :: Either String Program -> IO ()
 executeProgram program = 
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False, classMerged = Map.empty, classParents = Map.empty})--, basalEnv = Map.empty}) 
+        Right p -> checkError $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False, classMerged = Map.empty, classParents = Map.empty, classParentsList = Map.empty})--, basalEnv = Map.empty}) 
 
 
 printSth mes = lift $ lift $ lift $ print mes
@@ -230,9 +282,10 @@ getFuncRetTypeWithoutJust (FnDecl rettype args _) = rettype
 
 checkArgsTypes aname pname cname posp [] [] = return ()
 checkArgsTypes aname pname cname posp [] args = throwError $ "Too little args in parent class method " ++ aname ++ " in class " ++ pname ++ " " ++ (writePos posp) ++ " in comparison to child " ++ cname
-checkArgsTypes aname pname cname posp [] args = throwError $ "Too little args in child class method " ++ aname ++ " in class " ++ cname ++ " " ++ (writePos posp) ++ " in comparison to parent " ++ pname
+checkArgsTypes aname pname cname posp args [] = throwError $ "Too little args in child class method " ++ aname ++ " in class " ++ cname ++ " " ++ (writePos posp) ++ " in comparison to parent " ++ pname
 checkArgsTypes aname pname cname posp (a1 : args1) (a2 : args2) =
-    if (getArgType a1) /= (getArgType a2) then
+    if (getArgType a1) /= (getArgType a2) then do
+        printMes $ (show a1) ++ " " ++ (show a2)
         throwError $ "Mismatch in arg types " ++ (writePos (getArgPos a1)) ++ " "  ++ (writePos (getArgPos a2))
     else
         checkArgsTypes aname pname cname posp args1 args2
@@ -261,7 +314,8 @@ checkAttrsParent parentDict parentName childName ((attrName, val) : rest) = do
 
                             checkAttrsParent parentDict parentName childName rest
                 otherType -> do
-                    if otherType /= val then
+                    if (otherType /= val) && (attrName /= selfClassEntity) then do
+                        printMes $ (show otherType) ++ " " ++ (show val)
                         throwError $ "Mismatch in attr types: " ++ attrName ++ " in " ++ parentName ++ " has different type in the subclass " ++ childName
                     else do
                         checkAttrsParent parentDict parentName childName rest
@@ -288,6 +342,8 @@ traverseUp className pos = do
 
         let mergedEnvs = Map.union childEnv parentEnv
         updateClassEnvInStore className mergedEnvs
+
+        updateParentsList className parentName
 
         markClassAssMergedTRUE className
 
@@ -340,6 +396,8 @@ findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) isExt = do --(CBloc
         Nothing -> do
 
             insertNewClass className
+
+            initEmptyParents className
 
             if isExt then
                 markClassAssUnmerged className
@@ -490,10 +548,15 @@ evalNestedClass (Class pos (Ident ident)) = do
                     else
                         return Success
 
+
+getClassNameTyped (ClassType name) = name
+getClassName (Class _ (Ident name)) = name
+
 isClass (Class _ _) = True
 isClass _ = False
 
-getClassName (Class _ (Ident name)) = name
+isClassTypeSaved (ClassType _) = True
+isClassTypeSaved _ = False
 
 isClassUnprocessed (ClassCode _) = True
 isClassUnprocessed (ClassType _) = False
@@ -653,6 +716,11 @@ checkFunction ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
             envWithParams <- checkArgs args
 
             local (const envWithParams) (checkBody stmts 0 0 0) >> checkFunction rest
+
+checkFunction ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) = do
+    let classDefStruct = getOrdinaryClassStruc pos cname cbody
+
+    checkFunction (classDefStruct : rest)
 
 checkFunction ((ClassDef pos (Ident className) (CBlock posBlock stmts)) : rest) = do --evalClassBody stmts className >> 
     -- classLoc <- asks (Map.lookup className)
@@ -1006,25 +1074,30 @@ checkDecl vartype ((Init posIn (Ident ident) expr) : rest) blockDepth = do
             else do
                 -- check if expression type is correct
                 exprType <- getExprType expr
+                classRel <- checkParentalClasses vartype (fromJust exprType) posIn
 
-                if (matchTypesOrigEval (wrapOrigTypeInJust vartype) exprType)
+
+                if ((matchTypesOrigEval (wrapOrigTypeInJust vartype) exprType) || classRel)
                 then do
                     decVarLoc <- alloc
                     insertToStore ((getTypeOriginal vartype), blockDepth) decVarLoc
 
                     local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
-                else
+                else do
+                    printMes $ (show vartype) ++ " " ++ (show exprType)
                     throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
         Nothing -> do
             decVarLoc <- alloc
             insertToStore ((getTypeOriginal vartype), blockDepth) decVarLoc
             -- check if expression type is correct
             exprType <- getExprType expr
+            classRel <- checkParentalClasses vartype (fromJust exprType) posIn
 
-            if (matchTypesOrigEval (wrapOrigTypeInJust vartype) exprType)
+            if ((matchTypesOrigEval (wrapOrigTypeInJust vartype) exprType) || classRel)
             then
                 local (Map.insert ident decVarLoc) (checkDecl vartype rest blockDepth)
-            else
+            else do
+                printMes $ (show vartype) ++ " " ++ (show exprType)
                 throwError $ "Type mismatch in declaration (row, col): " ++ show (getPos posIn)
 
 -- classes and structs
@@ -1172,11 +1245,12 @@ checkBody ((Ass pos (Ident ident) expr) : rest) depth ifdepth blockDepth = do
         Just loc -> do
             exprType <- getExprType expr
             varType <- gets (Map.lookup loc . store)
-            if not (matchTypesOrigEval (exprWithoutBDepth varType) exprType)
+            resClass <- checkParentalClassesAssign (fst (fromJust varType)) (fromJust exprType) pos
+            if ((matchTypesOrigEval (exprWithoutBDepth varType) exprType) || resClass)
             then
-                throwError $ "Incompatible types for assignment: " ++ (writePos pos)
-            else
                 checkBody rest depth ifdepth blockDepth
+            else
+                throwError $ "Incompatible types for assignment: " ++ (writePos pos)
 
 checkBody ((Incr pos (Ident ident)) : rest) depth ifdepth blockDepth = checkBodyIncDec pos ident rest "Incrementation" depth ifdepth blockDepth
 
