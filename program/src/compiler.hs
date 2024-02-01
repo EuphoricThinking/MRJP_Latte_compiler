@@ -771,6 +771,12 @@ printMesA mes = lift $ lift $ lift $ lift $ print mes
 
 getNumArgs (FuncData _ _ args _ _ _ _ _ _) = length args
 
+getRAXtypedToMovOrMovzx valType =
+    case valType of
+        BoolQ -> AEAX
+        IntQ -> AEAX
+        _ -> ARAX
+
 createEndRetLabel = do
     curFName <- gets curFuncNameAsm
     return ("." ++ curFName ++ endSuffix)
@@ -2841,3 +2847,39 @@ genStmtsAsm ((QCallMethod qvar@(QLoc resName methRetType) valClass methodName nu
     --     genStmtsAsm newCode
     -- else do
     --     genStmtsAsm newCode
+
+genStmtsAsm ((QClassAssAttr classVal@(LocQVal varName classType) attrName newVal) : rest) = do
+    classAddr <- findAddr classVal
+    let className = getClassNameFromType classType
+
+    tell $ [AMov (show AR11) (createAddrPtrRBP classAddr)] -- move obj to r11
+
+    (attrType, attrOffset) <- findClassOffsetMess attr className
+    let attrAddr = getAddrInRegTypedOffsetted AR11 attrType attrOffset
+
+    case newVal of
+        (IntQVal v) -> do
+            tell $ [AMov attrAddr (show v)]
+        (BoolQVal v) -> do
+            tell $ [AMov attrAddr (show v)]
+        (StringQVal s) -> do
+            fndLbl <- asks (Map.lookup s)
+                case fndLbl of
+                    Nothing -> throwError $ "No found label for " ++ s
+                    Just (_, lbl) ->
+                        tell $ [AMov addr (show lbl)]
+        (LocQVal ident valType) -> do
+            valStorage <- asks (Map.lookup ident)
+            case valStorage of
+                Nothing -> do -- maybe in class method
+                    (aval, aoff) <- findClassAttrDataMess ident " assarr"
+                    let offsetRight = OffsetClass aoff
+                    let addrRight = createMemAddr offsetRight aval -- r10
+
+                    let rax_typed = getRAXtypedToMovOrMovzx aval
+                    if isBoolQ aval then
+                        tell $ [AMovZX (show AEAX) addrRight]
+                    else if isIntQ aval then
+                        tell $ [AMov (show AEAX) addrRight]
+                    else
+                        tell $ [AMov (show )]
