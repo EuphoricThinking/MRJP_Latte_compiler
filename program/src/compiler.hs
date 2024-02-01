@@ -1686,6 +1686,7 @@ genFuncsAsm ((QFunc className finfo@(FuncData name retType args locNum body numI
     printMesA $ "NAME IN |" ++ name ++ "|"
     -- printMesA $ "boooodyyy"
     printMesA $ (show body)
+    printMesA $ "\n"
 
     -- get size of params, subtract from the stack (probably iterate once again)
     -- clear store before function leave
