@@ -1773,10 +1773,10 @@ attrAssHelper addrLeft addrRight valType = do
     let rax_typed = getRAXtypedToMovOrMovzx aval
     if isBoolQ aval then
         tell $ [AMovZX  (show AEAX) addrRight]
-        tell $ [AMov attrAddr (show AAL)]
+        tell $ [AMov addrLeft (show AAL)]
     else 
         tell $ [AMov (show rax_typed) addrRight]
-        tell $ [AMov attrAddr (show rax_typed)]
+        tell $ [AMov addrLeft (show rax_typed)]
 
 
 
@@ -2886,19 +2886,19 @@ genStmtsAsm ((QClassAssAttr classVal@(LocQVal varName classType) attrName newVal
                     let addrRight = createMemAddr offsetRight aval -- r10
 
                     -- move right val to rax
-                    let rax_typed = getRAXtypedToMovOrMovzx aval
-                    if isBoolQ aval then
-                        tell $ [AMovZX  (show AEAX) addrRight]
-                        tell $ [AMov attrAddr (show AAL)]
-                    else 
-                        tell $ [AMov (show rax_typed) addrRight]
-                        tell $ [AMov attrAddr (show rax_typed)]
+                    -- let rax_typed = getRAXtypedToMovOrMovzx aval
+                    -- if isBoolQ aval then
+                    --     tell $ [AMovZX  (show AEAX) addrRight]
+                    --     tell $ [AMov attrAddr (show AAL)]
+                    -- else 
+                    --     tell $ [AMov (show rax_typed) addrRight]
+                    --     tell $ [AMov attrAddr (show rax_typed)]
+                    attrAssHelper attrAddr addrRight aval
 
                 Just (varFound, offset) -> do
                     let varType = getQVarType varFound
                     let rightAddr = createMemAddr offset varType
 
-                    case varType of
-                        BoolQ -> do
-                            tell $ [AMovZX (show AEAX) rightAddr]
-                            tell $ [A]
+                    attrAssHelper attrAddr rightAddr varType
+
+    genStmtsAsm rest
