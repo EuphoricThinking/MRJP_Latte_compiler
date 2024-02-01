@@ -1850,7 +1850,7 @@ genStmtsAsm ((QAss var@(QLoc name declType) val) : rest) = do
                                         -- else do --if isString valType then
                                         --     tell $ [AMov addr (show storageR)]
 
-
+            genStmtsAsm rest
 
         Just (var, memStorageL) -> do
 
