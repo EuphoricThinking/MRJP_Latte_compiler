@@ -927,6 +927,7 @@ getValType val =
         (BoolQVal _) -> BoolQ
         (ClassQObj ident) -> ClassQ ident
         (Attr vtype) -> AttrQ vtype-- vtype
+        (QNull vtype) ->  vtype
 
 isArray (ArrayQ _) = True
 isArray _ = False
@@ -1623,7 +1624,7 @@ genQExpr (EMethod pos exprClass (Ident methodName) exprList) isParam = do
 
 genQExpr (ENull pos objType) _ =
     case objType of
-        (Class pos (Ident ident)) -> return ((ClassQObj ident), [], 1)
+        (Class pos (Ident ident)) -> return ((QNull (ClassQ ident)), [], 1)
 
 
     -- let methName = getLabelClassMethod className methodName

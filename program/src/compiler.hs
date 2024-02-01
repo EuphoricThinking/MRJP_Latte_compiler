@@ -1227,8 +1227,8 @@ findAddr v@(LocQVal ident _) = do
 
         Just (_, memStorage) -> return memStorage
 
-findAddr v = printMesQ ("findaddr" ++ (show v)) >> return (ProgLabel "haha")
-
+--findAddr v = printMesQ ("findaddr" ++ (show v)) >> return (ProgLabel "haha")
+findAddr (QNull _) = return (OffsetRBP 0)
 
 getAddrOrLiteral val =
     case val of
