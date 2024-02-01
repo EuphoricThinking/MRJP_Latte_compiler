@@ -472,7 +472,7 @@ main = do
             case parsed of
                 Left mes -> printError mes
                 Right p -> do
-                    resWrapped <- runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False, classMerged = Map.empty})
+                    resWrapped <- runExceptT $ evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False, classMerged = Map.empty, classParents = Map.empty})
                     case resWrapped of
                         Left msg -> printError msg >> exitFailure
                         Right _ -> do
@@ -525,7 +525,7 @@ typeCheckExecute :: Either String Program -> IO ()
 typeCheckExecute program =
     case program of
         Left mes -> printError mes >> exitFailure
-        Right p -> checkErrorOrExecute (evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False})) p 
+        Right p -> checkErrorOrExecute (evalStateT (runReaderT (executeRightProgram p) Map.empty) (Store {store = Map.empty, lastLoc = 0, curFunc = (CurFuncData "" False False (Void Nothing) Nothing), classStruct = Map.empty, classEnv = Map.empty, isInClass = False, classMerged = Map.empty, classParents = Map.empty})) p 
 
 -- genAssembly :: AStore -> QuadCode -> AsmMonad (Either String AsmCode, AsmCode)
 genAssembly quadstore quadcode = 

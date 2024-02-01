@@ -202,7 +202,7 @@ executeRightProgram (Prog pos topDefs) =
         -- class attributes and method names are stored,
         -- but not analyzed (whether delcared class exists or whether the given method is correct)
         local (const envWithFuncDecl) (saveClassInnerData topDefs)
-        local (const envWithFuncDecl) (mergeExtDict topdefs)
+        local (const envWithFuncDecl) (mergeExtDict topDefs)
     
         case Map.lookup "main" envWithFuncDecl of
             Nothing -> throwError $ "No main method defined"
@@ -235,14 +235,16 @@ checkArgsTypes aname pname cname posp (a1 : args1) (a2 : args2) =
     if (getArgType a1) /= (getArgType a2) then
         throwError $ "Mismatch in arg types " ++ (writePos (getArgPos a1)) ++ " "  ++ (writePos (getArgPos a2))
     else
-        checkArgsTypes aname pname cname posp posc args1 args2
+        checkArgsTypes aname pname cname posp args1 args2
 
+
+checkAttrsParent :: (Map.Map String Value) -> String -> String -> [(String, Value)] -> InterpreterMonad ()
 checkAttrsParent _ _ _ [] = return ()
 
 checkAttrsParent parentDict parentName childName ((attrName, val) : rest) = do
     let foundAttr = Map.lookup attrName parentDict
     case foundAttr of
-        Nothing -> checkAttrsParent parentDict rest -- a new attr
+        Nothing -> checkAttrsParent parentDict parentName childName rest -- a new attr
         Just attr -> do
             case attr of
                 (FnDecl rettype arg pos) -> do
@@ -260,7 +262,7 @@ checkAttrsParent parentDict parentName childName ((attrName, val) : rest) = do
                             checkAttrsParent parentDict parentName childName rest
                 otherType -> do
                     if otherType /= val then
-                        throwError $ "Mismatch in attr types: " ++ attrName ++ " in " ++ parentName ++ " declared at " ++ (writePos pos) ++ " has different type in the subclass " ++ childName
+                        throwError $ "Mismatch in attr types: " ++ attrName ++ " in " ++ parentName ++ " has different type in the subclass " ++ childName
                     else do
                         checkAttrsParent parentDict parentName childName rest
 
@@ -356,7 +358,7 @@ findFuncDecl ((ClassDef pos (Ident className) cbody) : rest) isExt = do --(CBloc
 findFuncDecl ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) boolval = do
     insertParent className extName
 
-    let classDefStruct = getOrdinaryClassStruc po cname cbody
+    let classDefStruct = getOrdinaryClassStruc pos cname cbody
     
     findFuncDecl (classDefStruct : rest) True
 
@@ -368,7 +370,7 @@ saveClassInnerData ((FnDef pos rettype (Ident ident) args stmts) : rest) = saveC
 
 saveClassInnerData ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) = 
     let
-        classDefStruct = getOrdinaryClassStruc po cname cbody
+        classDefStruct = getOrdinaryClassStruc pos cname cbody
     in
         saveClassInnerData (classDefStruct : rest)
 
@@ -599,7 +601,7 @@ isArrayType _ = False
 
 getPos (Just pos) = pos
 
-getTypeArg (Ar pos argType (Ident argName)) = getTypeOriginal argtype
+getTypeArg (Ar pos argType (Ident argName)) = getTypeOriginal argType
 
 getTypeOriginal :: Type -> Value
 getTypeOriginal (Int _)  = IntT
