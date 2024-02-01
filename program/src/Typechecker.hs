@@ -307,7 +307,8 @@ checkAttrsParent parentDict parentName childName ((attrName, val) : rest) = do
                         let retAttr = getFuncRetTypeWithoutJust val
                         let childArg = getFuncArgsWithoutJust val
 
-                        if retAttr /= rettype then
+                        if (getTypeOriginal retAttr) /= (getTypeOriginal rettype) then do
+                            printMes $ (show retAttr) ++ " " ++ (show rettype)
                             throwError $ "Return mismatch in parent and child methods " ++ parentName ++ " " ++ childName ++ " " ++ attrName ++ " " ++ (writePos pos)
                         else do
                             checkArgsTypes attrName parentName childName pos arg childArg

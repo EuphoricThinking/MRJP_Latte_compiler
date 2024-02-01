@@ -156,10 +156,10 @@ declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock posB stmts))
 
     declareEmptyFuncBodiesWithRets rest
 
-declareEmptyFuncBodiesWithRets ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) = do
-    let classDefStruct = getOrdinaryClassStruc pos cname cbody
+-- declareEmptyFuncBodiesWithRets ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) = do
+--     let classDefStruct = getOrdinaryClassStruc pos cname cbody
 
-    declareEmptyFuncBodiesWithRets (classDefStruct : rest)
+--     declareEmptyFuncBodiesWithRets (classDefStruct : rest)
 
 
 updCurClassName name = do
