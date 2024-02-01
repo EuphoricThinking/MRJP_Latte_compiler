@@ -392,22 +392,37 @@ initAttrVals reg className = do
 
     initAttrsList reg listAttrs
 
+moveVTableAddr className regWithStruct = do
+    cdata <- getClassInfo className
+    let vtableLabel = vtableAddr cdata
+    let vtableRawString = createAddrLabel vtableLabel
+
+    if vtableRawString /= "" then
+        tell $ [AMov ("qword " ++ (getValAtAddrInReg regWithStruct)) (rawLabelVTableForClass className)] -- at the address in AR11, store vtable
+    else
+        tell $ [AMov ("qword " ++ (getValAtAddrInReg regWithStruct)) (show 0)]
 
 rawLabelVTableForClass classname = vtablePrefix ++ classname
 
-createVTableLabel cdata =
-    let
-        className = extractClassName cdata
-    in
-        --vtablePrefix ++ className
-        rawLabelVTableForClass className
+createVTableLabel cdata methodInfo =
+    if Map.null methodInfo
+    then
+        ""
+    else
+        let
+            className = extractClassName cdata
+        in
+            --vtablePrefix ++ className
+            rawLabelVTableForClass className
+
+--getVTableName (ProgLabel l)
 
 processSingleCdata cdata =
     let
         methodInfo = extractMethods cdata -- mathname : (nameRet, offset)
         mapped = Map.map (\(val, offset) -> (val, offset*strPointerBytes)) methodInfo -- mathname : (nameRet, offset*8)
         (attrsOffsets, lastOffset) = createAttrsOffset (extractAttrList cdata) Map.empty strPointerBytes -- attrName : (attrtype, offset)
-        vtableLabel = createVTableLabel cdata -- vtableName
+        vtableLabel = createVTableLabel cdata methodInfo -- vtableName
     in
         ClassInfo {offsetMethod = mapped, offsetAttr = attrsOffsets, classSize = lastOffset, vtableAddr = (ProgLabel vtableLabel)}
 
@@ -1680,6 +1695,9 @@ boolOnlyMovAndOr showed1 showed2 mode = do
         QAND -> tell $ [AAnd (show AR11B) showed2]
         QOR -> tell $ [AOr (show AR11B) showed2]
 
+emitVTAbleName label [] = return ()
+
+emitVTAbleName label listMethods = tell $ [ALabel label]
 
 emitMethodLabels [] = tell $ [ASpace]
 
@@ -1691,7 +1709,8 @@ iterOverClassNameEmitVtableLabels [] = tell $ [ASpace]
 
 iterOverClassNameEmitVtableLabels ((className, methodLabels) : rest) = do
     let vtableLabel = rawLabelVTableForClass className
-    tell $ [ALabel vtableLabel]
+    -- tell $ [ALabel vtableLabel]
+    emitVTAbleName vtableLabel methodLabels
 
     emitMethodLabels methodLabels
 
@@ -2210,7 +2229,10 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             let addr = snd valStorage
             let className = getClassNameFromType varType
             tell $ [AMov (show AR11) (createAddrPtrRBP addr)] -- move struct addr to rdx
-            tell $ [AMov ("qword " ++ (getValAtAddrInReg AR11)) (rawLabelVTableForClass className)] -- at the address in AR11, store vtable
+
+            moveVTableAddr className AR11 -- at the address in AR11, store vtable GOOD
+
+            -- tell $ [AMov ("qword " ++ (getValAtAddrInReg AR11)) (rawLabelVTableForClass className)] -- at the address in AR11, store vtable GOOD
 
             --tell $ [AMov (createAddrPtrRBP addr) (rawLabelVTableForClass className)] -- save vtable address at the first slot
 
