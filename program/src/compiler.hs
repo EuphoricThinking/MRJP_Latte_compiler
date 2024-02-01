@@ -1907,6 +1907,8 @@ genStmtsAsm ((QRet res) : rest) = do
 
         (BoolQVal b) -> tell $ [AMov (show AEAX) (showBool b)]
 
+        (QNull _) -> tell $ [AMov (show ARAX) (show 0)]
+
     endLabel <- createEndRetLabel
     tell $ [AJmp endLabel]
     tell $ [ASpace]
@@ -2876,7 +2878,7 @@ genStmtsAsm ((QClassAssAttr classVal@(LocQVal varName classType) attrName newVal
 
     tell $ [AMov (show AR11) (createAddrPtrRBP classAddr)] -- move obj to r11
 
-    (attrType, attrOffset) <- findClassAttrDataMess attrName className
+    (attrType, attrOffset) <- getClassAttrsInf attrName className --findClassAttrDataMess attrName className
     let attrAddr = getAddrInRegTypedOffsetted AR11 attrType attrOffset
 
     case newVal of
