@@ -923,6 +923,23 @@ isCurClass cname ident valtype reg = (ident == selfClassPtr) && (cname /= "") &&
 --moveParamsToLocal fname fbody = do
     -- move over the lists, up to zero
 
+moveToR10ifSelf ident valType reg = do
+    cname <- gets curClassNameAsm
+    if isCurClass cname ident valType reg
+    then do
+        tell $ [AMov (show AR10) (show reg)]
+    else
+        return ()
+
+restoreSelfToR10 = do
+    isInClassRes <- isInClassAsm
+    if isInClassRes
+    then do
+        addrSelf <- findIdentAddr selfClassPtr
+        tell $ [AMov (show AR10) (createAddrPtrRBP addrSelf)]
+    else
+        return ()
+
 -- statt
 moveFromRegisters args [] [] [] = moveStackParams args paramsStartOff
 
@@ -933,37 +950,38 @@ moveFromRegisters [] _ _ _ = do
 moveFromRegisters ((ArgData ident valType) : args) (reg : regs) (ereg : eregs) (areg : aregs) = do
     let var = (QLoc ident valType)
 
-    cname <- gets curClassNameAsm
-    if isCurClass cname ident valType reg
-    then do
-        tell $ [AMov (show AR10) (show reg)]
+    moveToR10ifSelf ident valType reg
+    -- cname <- gets curClassNameAsm
+    -- if isCurClass cname ident valType reg
+    -- then do
+    --     tell $ [AMov (show AR10) (show reg)]
 
-        local (Map.insert ident (var, (Register AR10))) (moveFromRegisters args regs eregs aregs)
+    --     local (Map.insert ident (var, (Register AR10))) (moveFromRegisters args regs eregs aregs)
 
-    else do
-        case valType of
-            IntQ -> do
-                offsetRBP <- allocVar ereg intBytes -- allocInt ereg
+    -- else do
+    case valType of
+        IntQ -> do
+            offsetRBP <- allocVar ereg intBytes -- allocInt ereg
 
-                local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
-            StringQ -> do
-                offsetRBP <- allocVar reg strPointerBytes
+        StringQ -> do
+            offsetRBP <- allocVar reg strPointerBytes
 
-                local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
-            BoolQ -> do
-                offsetRBP <- getNewOffsetUpdRBP boolBytes
-                tell $ [AMov (createAddrBoolRBP offsetRBP) (show areg)]
-                -- tell $ [AMovZX (show AR11D) (show areg)]
+        BoolQ -> do
+            offsetRBP <- getNewOffsetUpdRBP boolBytes
+            tell $ [AMov (createAddrBoolRBP offsetRBP) (show areg)]
+            -- tell $ [AMovZX (show AR11D) (show areg)]
 
 
-                local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
-            _ -> do
-                offsetRBP <- allocVar reg strPointerBytes
+        _ -> do
+            offsetRBP <- allocVar reg strPointerBytes
 
-                local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
+            local (Map.insert ident (var, offsetRBP)) (moveFromRegisters args regs eregs aregs)
 
 --moveParamsToLocal 
 moveStackParams [] _ = do
@@ -1650,7 +1668,7 @@ pushR10ifInClass = do
     isInClassRes <- isInClassAsm
     if isInClassRes then do
         tell $ [APush (show AR10)]
-        updateRSP strPointerBytes
+        updateRSP strPointerBytes -- already taken into account as an arg
     else
         return ()
 
@@ -1999,7 +2017,7 @@ genStmtsAsm ((QDecl var@(QLoc name declType) val) : rest) = do
             -- qnull jako var
 
 
-genStmtsAsm params@((QParam val) : rest) = printMesA ("params qp " ++ (show params)) >> pushR10ifInClass >> genParams params parametersRegisterPoniters64 parametersRegistersInts32
+genStmtsAsm params@((QParam val) : rest) = printMesA ("params qp " ++ (show params)) >> genParams params parametersRegisterPoniters64 parametersRegistersInts32 -- >> pushR10ifInClass before that
 
 -- genStmtsAsm ((QCall qvar ident numArgs) : rest) = do
 
@@ -2026,7 +2044,7 @@ genStmtsAsm params@((QParam val) : rest) = printMesA ("params qp " ++ (show para
 
 genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
     -- after params generation
-    checkArgsCallPushR10 numArgs
+    -- checkArgsCallPushR10 numArgs
 
     valSubtracted <- alignStack
     printMesA $ "call " ++ ident ++ " " ++ (show rest)
@@ -2035,7 +2053,8 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
         "printInt" -> do
             tell $ [ACall "printInt"]
             dealloc valSubtracted
-            popR10ifInClass
+            --popR10ifInClass
+            restoreSelfToR10
 
             --printMesA $ "IN PRINT " ++ (show rest)
 
@@ -2044,7 +2063,8 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
         "readInt" -> do
             tell $ [ACall "readInt"]
             dealloc valSubtracted
-            popR10ifInClass
+            --popR10ifInClass
+            restoreSelfToR10
 
             -- let valStorage = assignResToRegister qvar
             valStorage <- assignResToRegister qvar
@@ -2054,14 +2074,16 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
         "printString" -> do
             tell $ [ACall "printString"]
             dealloc valSubtracted
-            popR10ifInClass
+            --popR10ifInClass
+            restoreSelfToR10
 
             genStmtsAsm rest
 
         "readString" -> do
             tell $ [ACall "readString"]
             dealloc valSubtracted
-            popR10ifInClass
+            --popR10ifInClass
+            restoreSelfToR10
 
             -- let valStorage = assignResToRegister qvar
             valStorage <- assignResToRegister qvar
@@ -2071,14 +2093,16 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
         "error" -> do
             tell $ [ACall "error"]
             dealloc valSubtracted
-            popR10ifInClass
+            -- popR10ifInClass
+            restoreSelfToR10
 
             genStmtsAsm rest
 
         "___allocStructClass" -> do
             tell $ [ACall ident]
             dealloc valSubtracted
-            popR10ifInClass
+            -- popR10ifInClass
+            restoreSelfToR10
 
             valStorage <- assignResToRegister qvar
             let addr = snd valStorage
@@ -2100,7 +2124,9 @@ genStmtsAsm ((QCall qvar@(QLoc varTmpId varType) ident numArgs) : rest) = do
             -- remove params from stack and alignment
             clearStackParamsAndAlignment numArgs valSubtracted
 
-            popR10ifInClass
+            -- The registers RAX, RCX, RDX, R8, R9, R10, R11 are considered volatile (caller-saved).[25]
+            --popR10ifInClass
+            restoreSelfToR10
 
             case varType of
                 VoidQ -> genStmtsAsm rest
