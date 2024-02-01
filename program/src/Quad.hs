@@ -108,6 +108,7 @@ data Quad = QLabel String --FuncData
     | QArrElem QVar Val Val -- array ident elemNum
     | QClass QVar
     | QCallMethod QVar Val String Int
+    | QClassAssAttr Val String Val -- classVar attrName exprToAssign
 
     deriving (Show)
 
@@ -1366,6 +1367,14 @@ genQStmt ((For pos varType varIdent arrExpr stmts) : rest) qcode = do
 
     -- local (const updEnv) (genQStmt insCode uCode) 
 
+-- classes
+genQStmt ((AssClass pos classExpr (Ident attrName) exprToAssign) : rest) qcode = do
+    (classVal, classCode, classDepth) <- genQExpr classExpr JustLocal
+    (val, code, depth) <- genQExpr exprToAssign JustLocal
+
+    let newCode = qcode ++ classCode ++ code ++ [QClassAssAttr classVal attrName val]
+
+    genQStmt rest newCode
 
 
 
