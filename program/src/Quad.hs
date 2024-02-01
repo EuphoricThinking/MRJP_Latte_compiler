@@ -45,7 +45,7 @@ data CondType = QEQU | QNE | QGTH | QLTH | QLE | QGE | QAND | QOR deriving (Show
 -- | QLTH QVar Val Val -- less than, a < b
 -- | QLE QVar Val Val -- less or equal, a <= b
 
-data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool | Attr ValType | ClassMeth LabelCustom RetType | ClassQObj String --[Arg]
+data Val = FnDecl Type [Arg] BNFC'Position | FunQ Val | SuccessQ | FunRetTypeQ | IntQVal Int | ParamQVal String ValType | LocQVal String ValType | VoidQVal | StrQVal String | BoolQVal Bool | Attr ValType | ClassMeth LabelCustom RetType | ClassQObj String | QNull ValType--[Arg]
              deriving (Eq, Show)
 
 type SizeLocals = Int
@@ -1617,7 +1617,7 @@ genQExpr (EMethod pos exprClass (Ident methodName) exprList) isParam = do
     updateLocalEAppRetType methRet
 
     let locVal = QLoc resTempName methRet
-    let newCode = codeClass ++ updCode ++ [QCallMethod locVal valClass methodName ((length exprList) + 1)]
+    let newCode = codeClass ++ [QParam valClass] ++ updCode ++ [QCallMethod locVal valClass methodName ((length exprList) + 1)]
 
     return ((LocQVal resTempName methRet), newCode, (max depth depthClass) + 1)
 

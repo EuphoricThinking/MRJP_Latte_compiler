@@ -1019,7 +1019,7 @@ pushParams ((QParam val) : rest) = do
 
 -- genStmt -> genParams
 genParams qcall@((QCall qvar ident numArgs) : rest) _ _ = genStmtsAsm qcall
-genParams qcall@((QCallMethod qvar ident numArgs) : rest) _ _ = genStmtsAsm qcall
+genParams qcall@((QCallMethod qvar val ident numArgs) : rest) _ _ = genStmtsAsm qcall
 genParams [] _ _ = genStmtsAsm []
 genParams qcode [] _ = do
     let qcallcode  = getQCallCode qcode
@@ -1040,8 +1040,19 @@ genParams (qp@(QParam val) : rest) (reg : regs) (ereg : eregs) = do
         (LocQVal ident valType) -> do
             varData <- asks (Map.lookup ident)
             case varData of
-                Nothing -> throwError $ "No env data for " ++ ident
-                Just vv@(var, offset) -> do
+                Nothing -> do
+                    cname <- gets curClassNameAsm
+                    case cname of
+                        "" -> throwError $ "No env data for " ++ ident
+                        curName -> do
+                            (attrtype, offset) <- getClassAttrsInf ident curName
+                            let addr = getAddrInRegTypedOffsetted AR10 attrtype offset
+                            case attrtype of
+                                IntQ -> tell $ [AMov (show ereg) addr]
+                                BoolQ -> tell $ [AMovZX (show ereg) addr]
+                                _ -> tell $ [AMov (show reg) addr]
+
+                Just vv@(var, offset) -> do 
                     printMesA $ "param loc " ++ (show vv)
                     case valType of
                         (IntQ) -> do
@@ -1215,6 +1226,8 @@ findAddr v@(LocQVal ident _) = do
             
 
         Just (_, memStorage) -> return memStorage
+
+findAddr v = printMesQ ("findaddr" ++ (show v)) >> return (ProgLabel "haha")
 
 
 getAddrOrLiteral val =
@@ -2626,7 +2639,7 @@ genStmtsAsm ((QCallMethod qvar@(QLoc resName methRetType) valClass methodName nu
     let className = extractLocQvarClassName valClass
 
     tell $ [AMov (show AR11) (createMemAddr classObjAddr classType)] -- get obj adds
-    tell $ [AMov (show ARDI) (show AR11)] -- pass object to rdi as self
+    -- tell $ [AMov (show ARDI) (show AR11)] -- pass object to rdi as self --CHANGED
     tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get vtable addr
     -- tell $ [AMov (show AR11) (getValAtAddrInReg AR11)] -- get vtable addr
 
