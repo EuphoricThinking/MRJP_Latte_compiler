@@ -133,7 +133,7 @@ selfClassPtr = "self"
 defaultPos = (Just (1,1))
 
 -- genQuadcode :: Program -> Quadcode
-genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty, defClass = Map.empty, curClassName = ""})
+genQuadcode program = runWriterT $ runExceptT $ evalStateT (runReaderT (runQuadGen program) Map.empty) (QStore {storeQ = Map.empty, lastLocQ = 0, curFuncName = "", specialFunc = [], defFunc = Map.empty, countLabels = Map.empty, defClass = Map.empty, curClassName = "", classProcessed = Map.empty, classParentInh = Map.empty, classBodies = Map.empty})
 
 -- let 
     -- p = runQuadGen program
@@ -147,7 +147,7 @@ declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stm
     let emptyBodyFunc = FuncData ident (getOrigQType rettype) [] 0 [] 0 [] 0 0
     insertToStoreNewFunc ident emptyBodyFunc
 
-    declareEmptyFuncBodiesWithRets rest False
+    declareEmptyFuncBodiesWithRets rest
 
 declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock posB stmts)) : rest) = do
     let emptyBodyClass = ClassData ident 0 [] 0 0 Map.empty Map.empty 0 0 [] []
@@ -165,11 +165,11 @@ declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock posB stmts))
 
 declareEmptyFuncBodiesWithRets ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody@(CBlock posB stmts)) : rest) = do
     markClassAsProcessedFALSE className
-    insertParentInh extName
+    insertParentInh className extName
     insertClassStmtsBody className stmts
 
-    let emptyBodyClass = ClassData ident 0 [] 0 0 Map.empty Map.empty 0 0 [] []
-    insertToStoreNewClass ident emptyBodyClass
+    let emptyBodyClass = ClassData className 0 [] 0 0 Map.empty Map.empty 0 0 [] []
+    insertToStoreNewClass className emptyBodyClass
 
     declareEmptyFuncBodiesWithRets rest
 
@@ -303,7 +303,7 @@ insertParentInh childClass parentClass = do
     put curState {classParentInh = Map.insert childClass parentClass (classParentInh curState)}
 
 getParentInh className = do
-    parentName <- gets (Map.lookup className . classParentsInh)
+    parentName <- gets (Map.lookup className . classParentInh)
     case parentName of
         Nothing -> throwError $ "Name of the parent not saved for " ++ className
         Just pname -> return pname
@@ -378,7 +378,7 @@ updClassNumInts (ClassData name numInts stringList numPtrs numBools attrs meths 
 
 updClassNumBools (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = (ClassData name numInts stringList numPtrs (numBools + 1) attrs meths offAttr offMeths attrList methList)
 
-updClassName (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) new_Name = (ClassData new_name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList)
+updClassName (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) new_Name = (ClassData new_Name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList)
 
 prepareCopyToPass (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) new_Name = (ClassData new_Name numInts stringList numPtrs numBools attrs meths 0 offMeths [] methList)
 
@@ -657,7 +657,7 @@ insOneByOne ((ClassDef pos (Ident ident) (CBlock posB stmts)) : rest) = processS
 
     -- insOneByOne rest
 
-insOneByOne ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody@(CBlock posB stmts)) : rest) = processSingleClass ident stmts rest
+insOneByOne ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody@(CBlock posB stmts)) : rest) = processSingleClass className stmts rest
 
 
 processSingleClass ident stmts rest = do
