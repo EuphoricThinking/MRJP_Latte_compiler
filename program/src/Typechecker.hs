@@ -330,7 +330,7 @@ traverseUp className pos = do
     else do
         parentName <- getParent className
         parentData <- getClassMethodsAttrs parentName pos
-        classDataFromParent <- traverseUp parentName pos
+        classDataFromParent <- traverseUp parentName pos  -- TODO maybe pass this
         let childKeys = Map.toList classData
 
         checkAttrsParent parentData parentName className childKeys

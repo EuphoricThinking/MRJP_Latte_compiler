@@ -31,7 +31,10 @@ data QStore = QStore {
     defFunc :: Map.Map String FuncData,
     countLabels :: Map.Map String Int,
     defClass :: Map.Map String ClassData,
-    curClassName :: String
+    curClassName :: String,
+    classProcessed :: Map.Map String Bool,
+    classParentInh :: Map.Map String String,
+    classBodies :: Map.Map String [ClassStmt]
     -- add label map?
 } deriving (Show)
 
@@ -61,11 +64,12 @@ type Args = [ArgData]
 data FuncData = FuncData String RetType Args SizeLocals Body NumIntTypes [String] NumStrVars NumBools deriving (Show)
 
 type OffsetClass = Int
+
 type Attributes = Map.Map String (ValType, OffsetClass)
-type Methods = Map.Map String (Val, OffsetClass) -- classdata
+type Methods = Map.Map String (Val, OffsetClass) -- classdata  -- used
 type OffsetAttr = Int
 type OffsetMeth = Int
-type AttrList = [(ValType, String)]
+type AttrList = [(ValType, String)]  -- used
 type MethList = [String]
 
 data ClassData = ClassData String NumIntTypes [String] NumStrVars NumBools Attributes Methods OffsetAttr OffsetMeth AttrList MethList deriving (Show)
@@ -143,7 +147,7 @@ declareEmptyFuncBodiesWithRets ((FnDef pos rettype (Ident ident) args (Blk _ stm
     let emptyBodyFunc = FuncData ident (getOrigQType rettype) [] 0 [] 0 [] 0 0
     insertToStoreNewFunc ident emptyBodyFunc
 
-    declareEmptyFuncBodiesWithRets rest
+    declareEmptyFuncBodiesWithRets rest False
 
 declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock posB stmts)) : rest) = do
     let emptyBodyClass = ClassData ident 0 [] 0 0 Map.empty Map.empty 0 0 [] []
@@ -154,13 +158,72 @@ declareEmptyFuncBodiesWithRets ((ClassDef pos (Ident ident) (CBlock posB stmts))
 
     reverseMethsAttrs ident
 
+    markClassAsProcessedTRUE ident
+    insertClassStmtsBody ident stmts
+
     declareEmptyFuncBodiesWithRets rest
 
--- declareEmptyFuncBodiesWithRets ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody) : rest) = do
---     let classDefStruct = getOrdinaryClassStruc pos cname cbody
+declareEmptyFuncBodiesWithRets ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody@(CBlock posB stmts)) : rest) = do
+    markClassAsProcessedFALSE className
+    insertParentInh extName
+    insertClassStmtsBody className stmts
 
---     declareEmptyFuncBodiesWithRets (classDefStruct : rest)
+    let emptyBodyClass = ClassData ident 0 [] 0 0 Map.empty Map.empty 0 0 [] []
+    insertToStoreNewClass ident emptyBodyClass
 
+    declareEmptyFuncBodiesWithRets rest
+
+
+processSubclasses :: [TopDef] -> QuadMonad ()
+processSubclasses [] = return ()
+processSubclasses ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = processSubclasses rest
+
+processSubclasses ((ClassDef pos (Ident ident) (CBlock posB stmts)) : rest) = processSubclasses rest
+
+processSubclasses ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody@(CBlock posB stmts)) : rest) = do
+    isProcessed <- isClassProcessed className
+    if isProcessed then
+        processSubclasses rest
+    else do
+        updatedData <- traverseParentsUP className stmts
+
+        processSubclasses rest
+
+
+traverseParentsUP className stmts = do
+    isProcessed <- isClassProcessed className
+    if isProcessed then do
+        cdata <- getClassData className
+        return cdata
+    else do
+        parentName <- getParentInh className
+        parentStmts <- getClassStmtsBody parentName
+        parentData <- traverseParentsUP parentName parentStmts
+
+        let originalAttrs = extractAttrList parentData
+        -- let originalOffset = extractOffsetAttrs parentData -- not used finally
+
+        let updNameEmptyAttr = prepareCopyToPass parentData className
+
+        insertToStoreNewClass className updNameEmptyAttr
+        updCurClassName className
+
+        saveClassAttrsMethods className stmts
+
+        reverseMethsAttrs className
+
+        updData <- getClassData className
+        let newAttrs = extractAttrList updData
+        let extendedAttrs = originalAttrs ++ newAttrs
+        let updatedAttrs = updClassDataAttrList updData extendedAttrs
+
+        updClassData className updatedAttrs -- add offset for safety
+
+        markClassAsProcessedTRUE className
+
+        return updatedAttrs
+
+getClassDefBody pos cname cbody = ClassDef pos cname cbody
 
 updCurClassName name = do
     curState <- get
@@ -224,6 +287,46 @@ extractNumIntsClass (ClassData _ numInts _ _ _ _ _ _ _ _ _) = numInts
 extractNumPtrsClass (ClassData _ _ _ numPtrs _ _ _ _ _ _ _) = numPtrs
 extractNumBools (ClassData _ _ _ _ numBools _ _ _ _ _ _) = numBools
 
+markClassAsProcessedFALSE className = do
+    curState <- get
+
+    put curState {classProcessed = Map.insert className False (classProcessed curState)}
+
+markClassAsProcessedTRUE className = do
+    curState <- get
+
+    put curState {classProcessed = Map.insert className True (classProcessed curState)}
+
+insertParentInh childClass parentClass = do
+    curState <- get
+
+    put curState {classParentInh = Map.insert childClass parentClass (classParentInh curState)}
+
+getParentInh className = do
+    parentName <- gets (Map.lookup className . classParentsInh)
+    case parentName of
+        Nothing -> throwError $ "Name of the parent not saved for " ++ className
+        Just pname -> return pname
+
+isClassProcessed className = do
+    mergeData <- gets (Map.lookup className . classProcessed)
+
+    case mergeData of
+        Nothing -> throwError $ "No saved class " ++ className ++ " for dict merging"
+        Just mergeVal -> return mergeVal
+
+insertClassStmtsBody className stmts = do
+    curState <- get
+
+    put curState {classBodies = Map.insert className stmts (classBodies curState)}
+
+getClassStmtsBody className = do
+    cbody <- gets (Map.lookup className . classBodies)
+    case cbody of
+        Nothing -> throwError $ "No class stmts for class " ++ className
+        Just cstmts -> return cstmts
+
+
 updNumClassPtrs :: String -> QuadMonad ()
 updNumClassPtrs className = do
     cdata <- getClassData className
@@ -274,6 +377,10 @@ updClassDataNumPtrs (ClassData name numInts stringList numPtrs numBools attrs me
 updClassNumInts (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = (ClassData name (numInts + 1) stringList numPtrs numBools attrs meths offAttr offMeths attrList methList)
 
 updClassNumBools (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) = (ClassData name numInts stringList numPtrs (numBools + 1) attrs meths offAttr offMeths attrList methList)
+
+updClassName (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) new_Name = (ClassData new_name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList)
+
+prepareCopyToPass (ClassData name numInts stringList numPtrs numBools attrs meths offAttr offMeths attrList methList) new_Name = (ClassData new_Name numInts stringList numPtrs numBools attrs meths 0 offMeths [] methList)
 
 getClassAttrs className = do
     cdata <- getClassData className
@@ -365,6 +472,8 @@ declClassAttrs attrType ((CItem pos (Ident ident)) : rest) = do
 runQuadGen :: Program -> QuadMonad (ValType, QStore)
 runQuadGen (Prog pos topDefs) = do
     declareEmptyFuncBodiesWithRets topDefs
+    processSubclasses topDefs
+
     cur_state <- insOneByOne topDefs --get
     -- cur_state <- get
     return (IntQ, cur_state)
