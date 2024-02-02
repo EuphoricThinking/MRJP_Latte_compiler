@@ -1586,6 +1586,8 @@ genQExpr (EAdd pos expr1 (Plus posP) expr2) isParam = do
     curFName <- gets curFuncName
     resTmpName <- createTempVarName curFName
 
+    printMesQ $ (show pos) ++ " " ++ (show val1) ++ " valtype: " ++ (show (getValType val1))
+
     case getValType val1 of
         IntQ -> do
             let locVar = QLoc resTmpName IntQ

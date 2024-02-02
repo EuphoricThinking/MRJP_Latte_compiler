@@ -333,7 +333,8 @@ traverseUp className pos = do
         classDataFromParent <- traverseUp parentName pos  -- TODO maybe pass this
         let childKeys = Map.toList classData
 
-        checkAttrsParent parentData parentName className childKeys
+        -- checkAttrsParent parentData parentName className childKeys
+        checkAttrsParent classDataFromParent parentName className childKeys
 
         let mergedParentsChildAttrMeths = Map.union parentData classData
         insertNewAttrMeth className mergedParentsChildAttrMeths
