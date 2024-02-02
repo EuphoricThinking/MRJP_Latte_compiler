@@ -646,7 +646,21 @@ insOneByOne ((FnDef pos rettype (Ident ident) args (Blk _ stmts)) : rest) = do
 
     insOneByOne rest
 
-insOneByOne ((ClassDef pos (Ident ident) (CBlock posB stmts)) : rest) = do
+insOneByOne ((ClassDef pos (Ident ident) (CBlock posB stmts)) : rest) = processSingleClass ident stmts rest--do
+    -- updCurClassName ident
+
+    -- curEnv <- ask --s
+    -- local (const curEnv) (genClassMethods stmts)
+    -- -- genClassMethods stmts
+
+    -- updCurClassName ""
+
+    -- insOneByOne rest
+
+insOneByOne ((ClassExt pos cname@(Ident className) ename@(Ident extName) cbody@(CBlock posB stmts)) : rest) = processSingleClass ident stmts rest
+
+
+processSingleClass ident stmts rest = do
     updCurClassName ident
 
     curEnv <- ask --s
